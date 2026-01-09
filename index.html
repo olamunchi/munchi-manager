@@ -435,15 +435,17 @@ const ComprasAnalysis = ({ despesas, faturas = [], ingredientes, fornecedores })
     
     // Adicionar items de faturas novas
     faturas.forEach(f => {
-      f.items.forEach(item => {
-        compras.push({
-          ingredienteId: item.ingredienteId,
-          quantidade: item.quantidade,
-          fornecedor: f.fornecedorNome,
-          precoUnitario: item.precoUnitario,
-          data: f.data
+      if (f.itens && Array.isArray(f.itens)) {
+        f.itens.forEach(item => {
+          compras.push({
+            ingredienteId: item.ingredienteId || item.ingrediente,
+            quantidade: item.quantidade,
+            fornecedor: f.fornecedor || f.fornecedorNome,
+            precoUnitario: item.precoUnitario,
+            data: f.data
+          });
         });
-      });
+      }
     });
     
     return compras;
@@ -535,11 +537,11 @@ const ComprasAnalysis = ({ despesas, faturas = [], ingredientes, fornecedores })
         </div>
         <div className="bg-green-50 rounded p-3 border border-green-200">
           <p className="text-xs text-green-700 mb-1">Nº Fornecedores</p>
-          <p className="text-xl font-bold text-green-900">{fornecedores.length}</p>
+          <p className="text-xl font-bold text-green-900">{(fornecedores || []).length}</p>
         </div>
         <div className="bg-purple-50 rounded p-3 border border-purple-200">
           <p className="text-xs text-purple-700 mb-1">Ingredientes</p>
-          <p className="text-xl font-bold text-purple-900">{ingredientes.length}</p>
+          <p className="text-xl font-bold text-purple-900">{(ingredientes || []).length}</p>
         </div>
       </div>
 
@@ -1360,7 +1362,7 @@ const RestauranteGestor = () => {
     numero: '',
     data: new Date().toISOString().split('T')[0],
     fornecedorId: '',
-    items: [],
+    itens: [],
     notas: ''
   });
   const [itemFatura, setItemFatura] = useState({
@@ -1423,7 +1425,17 @@ const RestauranteGestor = () => {
           if (dados.vendas) setVendas(dados.vendas);
           if (dados.despesas) setDespesas(dados.despesas);
           if (dados.fornecedores) setFornecedores(dados.fornecedores);
-          if (dados.dadosEmpresa) setDadosEmpresa(dados.dadosEmpresa);
+          if (dados.dadosEmpresa) setDadosEmpresa({
+            nif: '',
+            nome: '',
+            morada: '',
+            codigoPostal: '',
+            cidade: '',
+            cae: '',
+            email: '',
+            telefone: '',
+            ...dados.dadosEmpresa
+          });
           if (dados.faturas) setFaturas(dados.faturas);
           
           showNotification('Dados importados!', 'success');
@@ -1439,7 +1451,7 @@ const RestauranteGestor = () => {
   // ========== FUNÇÕES DE EXPORT CSV ==========
   
   const exportarVendasCSV = () => {
-    if (!vendas || vendas.length === 0) {
+    if (!vendas || (vendas || []).length === 0) {
       showNotification('Nenhuma venda para exportar!', 'error');
       return;
     }
@@ -1492,7 +1504,7 @@ const RestauranteGestor = () => {
   };
   
   const exportarDespesasCSV = () => {
-    if (!despesas || despesas.length === 0) {
+    if (!despesas || (despesas || []).length === 0) {
       showNotification('Nenhuma despesa para exportar!', 'error');
       return;
     }
@@ -1757,7 +1769,7 @@ const RestauranteGestor = () => {
     const iva = parseFloat(novoIngrediente.iva);
     const custoSemIva = custoComIva / (1 + iva / 100);
     
-    setIngredientes(ingredientes.map(i => 
+    setIngredientes((ingredientes || []).map(i => 
       i.id === ingredienteEditandoId ? {
         ...i,
         nome: novoIngrediente.nome,
@@ -1949,7 +1961,7 @@ const RestauranteGestor = () => {
     const { ingrediente, precoNovo, produtosAfetados, despesaData } = priceAlertData;
     
     // Update ingredient cost
-    const updatedIngredientes = ingredientes.map(i => 
+    const updatedIngredientes = (ingredientes || []).map(i => 
       i.id === ingrediente.id ? { ...i, custoUnitario: precoNovo } : i
     );
     setIngredientes(updatedIngredientes);
@@ -2009,7 +2021,7 @@ const RestauranteGestor = () => {
     // Se for edição de ingrediente, NÃO atualiza custo (já está sendo atualizado)
     if (priceAlertData.tipoFatura !== 'ingrediente') {
       // Atualizar custo do ingrediente (para faturas)
-      const updatedIngredientes = ingredientes.map(i => 
+      const updatedIngredientes = (ingredientes || []).map(i => 
         i.id == ingrediente.id ? { ...i, custoUnitario: precoNovo } : i
       );
       setIngredientes(updatedIngredientes);
@@ -2072,7 +2084,7 @@ const RestauranteGestor = () => {
     
     setNovaFatura({
       ...novaFatura,
-      items: [...novaFatura.items, novoItem]
+      items: [...novaFatura.itens, novoItem]
     });
     
     setItemFatura({
@@ -2088,19 +2100,19 @@ const RestauranteGestor = () => {
   const removerItemFatura = (itemId) => {
     setNovaFatura({
       ...novaFatura,
-      items: novaFatura.items.filter(item => item.id !== itemId)
+      items: novaFatura.itens.filter(item => item.id !== itemId)
     });
   };
   
   const salvarFatura = () => {
-    if (!novaFatura.numero || !novaFatura.fornecedorId || novaFatura.items.length === 0) {
+    if (!novaFatura.numero || !novaFatura.fornecedorId || (novaFatura.itens || []).length === 0) {
       showNotification('Preencha número, fornecedor e adicione pelo menos 1 item!', 'error');
       return;
     }
     
     // Verificar se algum item tem preço muito diferente
     let temAlertaPreco = false;
-    for (const item of novaFatura.items) {
+    for (const item of novaFatura.itens) {
       const ingrediente = ingredientes.find(i => i.id == item.ingredienteId);
       if (ingrediente) {
         const precoAtual = ingrediente.custoUnitario;
@@ -2167,11 +2179,11 @@ const RestauranteGestor = () => {
       fornecedorId: faturaParaGuardar.fornecedorId,
       fornecedorNome: fornecedorNome,
       fornecedorNif: fornecedorNif,
-      items: faturaParaGuardar.items,
+      itens: faturaParaGuardar.itens,
       notas: faturaParaGuardar.notas,
-      subtotal: faturaParaGuardar.items.reduce((sum, item) => sum + item.subtotal, 0),
-      totalIva: faturaParaGuardar.items.reduce((sum, item) => sum + (item.subtotal * item.iva / 100), 0),
-      total: faturaParaGuardar.items.reduce((sum, item) => sum + (item.subtotal * (1 + item.iva / 100)), 0),
+      subtotal: faturaParaGuardar.itens.reduce((sum, item) => sum + item.subtotal, 0),
+      totalIva: faturaParaGuardar.itens.reduce((sum, item) => sum + (item.subtotal * item.iva / 100), 0),
+      total: faturaParaGuardar.itens.reduce((sum, item) => sum + (item.subtotal * (1 + item.iva / 100)), 0),
       tipo: 'completa' // Marca que é fatura completa
     };
     
@@ -2262,7 +2274,7 @@ const RestauranteGestor = () => {
     // Gerar número automático para registo rápido
     const hoje = new Date();
     const ano = hoje.getFullYear();
-    const registosRapidosHoje = faturas.filter(f => 
+    const registosRapidosHoje = (faturas || []).filter(f => 
       f.tipo === 'rapido' && 
       f.data === novaFatura.data
     ).length;
@@ -2316,7 +2328,7 @@ const RestauranteGestor = () => {
   
   const apagarFatura = (faturaId) => {
     if (confirm('⚠️ Apagar esta compra?')) {
-      setFaturas(faturas.filter(f => f.id !== faturaId));
+      setFaturas((faturas || []).filter(f => f.id !== faturaId));
       showNotification('Compra apagada!', 'success');
     }
   };
@@ -2326,7 +2338,7 @@ const RestauranteGestor = () => {
       numero: fatura.numero,
       data: fatura.data,
       fornecedorId: fatura.fornecedorId,
-      items: fatura.items,
+      items: fatura.itens,
       notas: fatura.notas
     });
     setEditandoFatura(true);
@@ -2337,14 +2349,14 @@ const RestauranteGestor = () => {
   const atualizarFatura = () => {
     console.log('atualizarFatura chamada', { novaFatura, faturaEditando });
     
-    if (!novaFatura.numero || !novaFatura.fornecedorId || novaFatura.items.length === 0) {
+    if (!novaFatura.numero || !novaFatura.fornecedorId || (novaFatura.itens || []).length === 0) {
       showNotification('Preencha número, fornecedor e adicione pelo menos 1 item!', 'error');
       return;
     }
     
     // Verificar se algum item tem preço muito diferente
     let temAlertaPreco = false;
-    for (const item of novaFatura.items) {
+    for (const item of novaFatura.itens) {
       const ingrediente = ingredientes.find(i => i.id == item.ingredienteId);
       if (ingrediente) {
         const precoAtual = ingrediente.custoUnitario;
@@ -2413,11 +2425,11 @@ const RestauranteGestor = () => {
       fornecedorId: faturaParaAtualizar.fornecedorId,
       fornecedorNome: fornecedorNome,
       fornecedorNif: fornecedorNif,
-      items: faturaParaAtualizar.items,
+      itens: faturaParaAtualizar.itens,
       notas: faturaParaAtualizar.notas,
-      subtotal: faturaParaAtualizar.items.reduce((sum, item) => sum + item.subtotal, 0),
-      totalIva: faturaParaAtualizar.items.reduce((sum, item) => sum + (item.subtotal * item.iva / 100), 0),
-      total: faturaParaAtualizar.items.reduce((sum, item) => sum + (item.subtotal * (1 + item.iva / 100)), 0),
+      subtotal: faturaParaAtualizar.itens.reduce((sum, item) => sum + item.subtotal, 0),
+      totalIva: faturaParaAtualizar.itens.reduce((sum, item) => sum + (item.subtotal * item.iva / 100), 0),
+      total: faturaParaAtualizar.itens.reduce((sum, item) => sum + (item.subtotal * (1 + item.iva / 100)), 0),
       tipo: faturas.find(f => f.id === idParaAtualizar)?.tipo || 'completa' // Preservar tipo original
     };
     
@@ -2466,14 +2478,14 @@ const RestauranteGestor = () => {
   };
   
   const atualizarFornecedor = (fornecedorId, dadosAtualizados) => {
-    setFornecedores(fornecedores.map(f => 
+    setFornecedores((fornecedores || []).map(f => 
       f.id === fornecedorId ? { ...f, ...dadosAtualizados } : f
     ));
   };
   
   const apagarFornecedor = (fornecedorId) => {
     // Verificar se há faturas com este fornecedor
-    const faturasComFornecedor = faturas.filter(f => f.fornecedorId === fornecedorId);
+    const faturasComFornecedor = (faturas || []).filter(f => f.fornecedorId === fornecedorId);
     if (faturasComFornecedor.length > 0) {
       showNotification(`Não pode apagar! Existem ${faturasComFornecedor.length} faturas com este fornecedor.`, 'error');
       return;
@@ -4139,8 +4151,8 @@ const RestauranteGestor = () => {
                 {/* Filtrar produtos com embalagens */}
                 {(() => {
                   console.log('=== DEBUG DELIVERY ===');
-                  console.log('Produtos total:', produtos.length);
-                  console.log('Ingredientes total:', ingredientes.length);
+                  console.log('Produtos total:', (produtos || []).length);
+                  console.log('Ingredientes total:', (ingredientes || []).length);
                   
                   // Debug ingredientes embalagens
                   const embalagens = ingredientes.filter(i => i.categoria === 'embalagens');
@@ -4176,11 +4188,11 @@ const RestauranteGestor = () => {
                         </p>
                         <div className="text-xs text-left bg-white p-4 rounded mx-auto max-w-md mt-4">
                           <p className="font-bold mb-2">Debug Info:</p>
-                          <p>Total produtos: {produtos.length}</p>
-                          <p>Total ingredientes: {ingredientes.length}</p>
+                          <p>Total produtos: {(produtos || []).length}</p>
+                          <p>Total ingredientes: {(ingredientes || []).length}</p>
                           <p>Ingredientes "embalagens": {embalagens.length}</p>
                           <p className="mt-2 text-gray-600">Categorias encontradas:</p>
-                          <p className="text-xs">{[...new Set(ingredientes.map(i => i.categoria))].join(', ')}</p>
+                          <p className="text-xs">{[...new Set((ingredientes || []).map(i => i.categoria))].join(', ')}</p>
                         </div>
                       </div>
                     );
@@ -4411,7 +4423,7 @@ const RestauranteGestor = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {ingredientes.map((ing, idx) => (
+                      {(ingredientes || []).map((ing, idx) => (
                         <tr key={ing.id} className={`border-t ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
                           <td className="px-2 py-2 font-medium">{ing.nome}</td>
                           <td className="px-2 py-2">
@@ -4453,7 +4465,7 @@ const RestauranteGestor = () => {
                     </tbody>
                   </table>
                 </div>
-                {!ingredientes.length && <p className="text-center text-gray-400 py-6 text-xs">Nenhum ingrediente</p>}
+                {!(ingredientes || []).length && <p className="text-center text-gray-400 py-6 text-xs">Nenhum ingrediente</p>}
               </div>
             )}
 
@@ -4481,7 +4493,7 @@ const RestauranteGestor = () => {
                       </select>
                     </div>
                     
-                    {ingredientes.length > 0 && (
+                    {(ingredientes || []).length > 0 && (
                       <div className="border rounded p-2 bg-white">
                         <p className="font-medium mb-2 text-xs flex items-center gap-1">
                           <FileText size={14} />Receita (Ingredientes):
@@ -4811,7 +4823,7 @@ const RestauranteGestor = () => {
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
                           >
                             <option value="">Selecionar fornecedor...</option>
-                            {fornecedores.map(f => (
+                            {(fornecedores || []).map(f => (
                               <option key={f.id || f} value={f.id || f}>
                                 {f.nome || f} {f.nif ? `(NIF: ${f.nif})` : ''}
                               </option>
@@ -4847,7 +4859,7 @@ const RestauranteGestor = () => {
                             className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500"
                           >
                             <option value="">🔍 Selecionar ingrediente...</option>
-                            {ingredientes.map(ing => (
+                            {(ingredientes || []).map(ing => (
                               <option key={ing.id} value={ing.id}>
                                 {ing.nome} - €{ing.custoUnitario.toFixed(2)}/{ing.unidade}
                               </option>
@@ -4910,9 +4922,9 @@ const RestauranteGestor = () => {
                     </div>
                     
                     {/* Lista de Items */}
-                    {novaFatura.items.length > 0 ? (
+                    {(novaFatura.itens || []).length > 0 ? (
                       <div className="space-y-2">
-                        {novaFatura.items.map(item => (
+                        {novaFatura.itens.map(item => (
                           <div key={item.id} className="bg-gray-50 rounded-lg p-3 flex items-center justify-between border border-gray-200">
                             <div className="flex-1">
                               <div className="flex items-center gap-2">
@@ -4937,15 +4949,15 @@ const RestauranteGestor = () => {
                         <div className="bg-blue-50 rounded-lg p-3 border border-blue-200 mt-3">
                           <div className="flex justify-between text-sm mb-1">
                             <span>Subtotal:</span>
-                            <span className="font-semibold">€{novaFatura.items.reduce((s, i) => s + i.subtotal, 0).toFixed(2)}</span>
+                            <span className="font-semibold">€{novaFatura.itens.reduce((s, i) => s + i.subtotal, 0).toFixed(2)}</span>
                           </div>
                           <div className="flex justify-between text-sm mb-1">
                             <span>IVA Total:</span>
-                            <span className="font-semibold">€{novaFatura.items.reduce((s, i) => s + (i.subtotal * i.iva / 100), 0).toFixed(2)}</span>
+                            <span className="font-semibold">€{novaFatura.itens.reduce((s, i) => s + (i.subtotal * i.iva / 100), 0).toFixed(2)}</span>
                           </div>
                           <div className="flex justify-between text-base font-bold border-t border-blue-300 pt-2 mt-1">
                             <span>Total c/ IVA:</span>
-                            <span className="text-blue-700">€{novaFatura.items.reduce((s, i) => s + (i.subtotal * (1 + i.iva / 100)), 0).toFixed(2)}</span>
+                            <span className="text-blue-700">€{novaFatura.itens.reduce((s, i) => s + (i.subtotal * (1 + i.iva / 100)), 0).toFixed(2)}</span>
                           </div>
                         </div>
                       </div>
@@ -5030,7 +5042,7 @@ const RestauranteGestor = () => {
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500"
                         >
                           <option value="">Selecionar fornecedor...</option>
-                          {fornecedores.map(f => (
+                          {(fornecedores || []).map(f => (
                             <option key={f.id || f} value={f.id || f}>
                               {f.nome || f} {f.nif ? `(NIF: ${f.nif})` : ''}
                             </option>
@@ -5060,7 +5072,7 @@ const RestauranteGestor = () => {
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500"
                         >
                           <option value="">🔍 Selecionar ingrediente...</option>
-                          {ingredientes.map(ing => (
+                          {(ingredientes || []).map(ing => (
                             <option key={ing.id} value={ing.id}>
                               {ing.nome} - €{ing.custoUnitario.toFixed(2)}/{ing.unidade}
                             </option>
@@ -5153,16 +5165,16 @@ const RestauranteGestor = () => {
                 {/* Lista de Faturas */}
                 <div>
                   <h3 className="font-semibold text-sm mb-3 flex items-center justify-between">
-                    <span>🛒 Compras Registadas ({faturas.length})</span>
+                    <span>🛒 Compras Registadas ({(faturas || []).length})</span>
                   </h3>
                   
-                  {faturas.length === 0 ? (
+                  {(faturas || []).length === 0 ? (
                     <div className="text-center text-gray-500 text-sm py-8 bg-gray-50 rounded-lg border border-dashed border-gray-300">
                       Nenhuma fatura registada. Crie a primeira fatura acima!
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      {faturas.sort((a, b) => new Date(b.data) - new Date(a.data)).map(fatura => (
+                      {(faturas || []).sort((a, b) => new Date(b.data) - new Date(a.data)).map(fatura => (
                         <div key={fatura.id} className="border rounded-lg overflow-hidden hover:shadow-md transition">
                           {/* Cabeçalho da Fatura (sempre visível) */}
                           <div 
@@ -5189,7 +5201,7 @@ const RestauranteGestor = () => {
                                   <span className="text-xs text-gray-500">{new Date(fatura.data).toLocaleDateString('pt-PT')}</span>
                                 </div>
                                 <div className="flex items-center gap-4 text-sm">
-                                  <span className="text-gray-600">{fatura.items.length} {fatura.items.length === 1 ? 'item' : 'items'}</span>
+                                  <span className="text-gray-600">{(fatura.itens || []).length} {(fatura.itens || []).length === 1 ? 'item' : 'items'}</span>
                                   <span className="font-bold text-blue-700">Total: €{fatura.total.toFixed(2)}</span>
                                 </div>
                               </div>
@@ -5233,7 +5245,7 @@ const RestauranteGestor = () => {
                               <div className="mb-3">
                                 <h4 className="font-semibold text-sm mb-2 text-gray-700">Items:</h4>
                                 <div className="space-y-2">
-                                  {fatura.items.map(item => (
+                                  {fatura.itens.map(item => (
                                     <div key={item.id} className="bg-gray-50 rounded p-3 text-sm">
                                       <div className="flex justify-between items-start mb-1">
                                         <span className="font-medium">{item.ingredienteNome}</span>
@@ -5340,13 +5352,13 @@ const RestauranteGestor = () => {
                   </table>
                 </div>
                 
-                {vendas.length > 100 && (
+                {(vendas || []).length > 100 && (
                   <p className="text-center text-xs text-gray-500 mt-2">
-                    A mostrar as 100 vendas mais recentes de {vendas.length} totais
+                    A mostrar as 100 vendas mais recentes de {(vendas || []).length} totais
                   </p>
                 )}
                 
-                {!vendas.length && (
+                {!(vendas || []).length && (
                   <div className="text-center py-12">
                     <Upload size={48} className="mx-auto text-gray-300 mb-3" />
                     <p className="text-gray-400 text-sm">Nenhuma venda importada</p>
@@ -5394,8 +5406,8 @@ const RestauranteGestor = () => {
                       </label>
                       <input
                         type="text"
-                        value={dadosEmpresa.nif}
-                        onChange={(e) => setDadosEmpresa({...dadosEmpresa, nif: e.target.value})}
+                        value={(dadosEmpresa || {}).nif}
+                        onChange={(e) => setDadosEmpresa({...(dadosEmpresa || {}), nif: e.target.value})}
                         placeholder="123456789"
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       />
@@ -5407,8 +5419,8 @@ const RestauranteGestor = () => {
                       </label>
                       <input
                         type="text"
-                        value={dadosEmpresa.nome}
-                        onChange={(e) => setDadosEmpresa({...dadosEmpresa, nome: e.target.value})}
+                        value={(dadosEmpresa || {}).nome}
+                        onChange={(e) => setDadosEmpresa({...(dadosEmpresa || {}), nome: e.target.value})}
                         placeholder="Munchi Restaurant, Lda"
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       />
@@ -5420,8 +5432,8 @@ const RestauranteGestor = () => {
                       </label>
                       <input
                         type="text"
-                        value={dadosEmpresa.morada}
-                        onChange={(e) => setDadosEmpresa({...dadosEmpresa, morada: e.target.value})}
+                        value={(dadosEmpresa || {}).morada}
+                        onChange={(e) => setDadosEmpresa({...(dadosEmpresa || {}), morada: e.target.value})}
                         placeholder="Rua Example, 123"
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       />
@@ -5433,8 +5445,8 @@ const RestauranteGestor = () => {
                       </label>
                       <input
                         type="text"
-                        value={dadosEmpresa.codigoPostal}
-                        onChange={(e) => setDadosEmpresa({...dadosEmpresa, codigoPostal: e.target.value})}
+                        value={(dadosEmpresa || {}).codigoPostal}
+                        onChange={(e) => setDadosEmpresa({...(dadosEmpresa || {}), codigoPostal: e.target.value})}
                         placeholder="1000-001"
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       />
@@ -5446,8 +5458,8 @@ const RestauranteGestor = () => {
                       </label>
                       <input
                         type="text"
-                        value={dadosEmpresa.cidade}
-                        onChange={(e) => setDadosEmpresa({...dadosEmpresa, cidade: e.target.value})}
+                        value={(dadosEmpresa || {}).cidade}
+                        onChange={(e) => setDadosEmpresa({...(dadosEmpresa || {}), cidade: e.target.value})}
                         placeholder="Lisboa"
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       />
@@ -5459,8 +5471,8 @@ const RestauranteGestor = () => {
                       </label>
                       <input
                         type="text"
-                        value={dadosEmpresa.cae}
-                        onChange={(e) => setDadosEmpresa({...dadosEmpresa, cae: e.target.value})}
+                        value={(dadosEmpresa || {}).cae}
+                        onChange={(e) => setDadosEmpresa({...(dadosEmpresa || {}), cae: e.target.value})}
                         placeholder="56101"
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       />
@@ -5472,8 +5484,8 @@ const RestauranteGestor = () => {
                       </label>
                       <input
                         type="email"
-                        value={dadosEmpresa.email}
-                        onChange={(e) => setDadosEmpresa({...dadosEmpresa, email: e.target.value})}
+                        value={(dadosEmpresa || {}).email}
+                        onChange={(e) => setDadosEmpresa({...(dadosEmpresa || {}), email: e.target.value})}
                         placeholder="geral@munchi.pt"
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       />
@@ -5485,8 +5497,8 @@ const RestauranteGestor = () => {
                       </label>
                       <input
                         type="tel"
-                        value={dadosEmpresa.telefone}
-                        onChange={(e) => setDadosEmpresa({...dadosEmpresa, telefone: e.target.value})}
+                        value={(dadosEmpresa || {}).telefone}
+                        onChange={(e) => setDadosEmpresa({...(dadosEmpresa || {}), telefone: e.target.value})}
                         placeholder="+351 21 123 4567"
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       />
@@ -5629,16 +5641,16 @@ const RestauranteGestor = () => {
                       {/* Lista de Fornecedores */}
                       <div>
                         <h4 className="font-semibold text-sm mb-3">
-                          📋 Fornecedores Registados ({fornecedores.length})
+                          📋 Fornecedores Registados ({(fornecedores || []).length})
                         </h4>
                         
-                        {fornecedores.length === 0 ? (
+                        {(fornecedores || []).length === 0 ? (
                           <div className="text-center text-gray-500 text-sm py-6 bg-gray-50 rounded-lg border border-dashed border-gray-300">
                             Nenhum fornecedor registado.
                           </div>
                         ) : (
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            {fornecedores.map(fornecedor => {
+                            {(fornecedores || []).map(fornecedor => {
                               const isOldFormat = typeof fornecedor === 'string';
                               const id = isOldFormat ? fornecedor : fornecedor.id;
                               const nome = isOldFormat ? fornecedor : fornecedor.nome;
@@ -5674,10 +5686,10 @@ const RestauranteGestor = () => {
                                   
                                   <div className="mt-2 pt-2 border-t border-purple-200 flex items-center justify-between text-xs">
                                     <span className="text-gray-600">
-                                      Compras: <strong>{faturas.filter(f => f.fornecedorId === id).length}</strong>
+                                      Compras: <strong>{(faturas || []).filter(f => f.fornecedorId === id).length}</strong>
                                     </span>
                                     <span className="text-gray-600">
-                                      Total: <strong>€{faturas.filter(f => f.fornecedorId === id).reduce((sum, f) => sum + f.total, 0).toFixed(2)}</strong>
+                                      Total: <strong>€{(faturas || []).filter(f => f.fornecedorId === id).reduce((sum, f) => sum + f.total, 0).toFixed(2)}</strong>
                                     </span>
                                   </div>
                                 </div>
