@@ -1375,10 +1375,14 @@ const RestauranteGestor = () => {
     data: new Date().toISOString().split('T')[0],
     fornecedorId: '',
     itens: [],
-    notas: ''
+    notas: '',
+    categoria: 'compras', // Nova: compras, renda, eletricidade, agua, gas, internet, salarios, marketing, consumiveis, manutencao, outros
+    recorrente: false, // Nova: se repete mensalmente
+    diaRecorrencia: 1 // Nova: dia do mês para repetir (1-31)
   });
   const [itemFatura, setItemFatura] = useState({
     ingredienteId: '',
+    descricao: '', // Para despesas não-compras
     quantidade: '',
     unidade: '',
     precoTotal: '',
@@ -2161,19 +2165,21 @@ const RestauranteGestor = () => {
   };
   
   const adicionarItemFatura = () => {
-    console.log('adicionarItemFatura chamada', { itemFatura });
+    console.log('adicionarItemFatura chamada', { itemFatura, categoria: novaFatura.categoria });
     
-    if (!itemFatura.ingredienteId || !itemFatura.quantidade || !itemFatura.precoTotal || !itemFatura.unidade) {
-      console.log('Validação falhou:', itemFatura);
-      showNotification('Preencha todos os campos do item!', 'error');
-      return;
-    }
-    
-    const ingrediente = ingredientes.find(i => i.id == itemFatura.ingredienteId);
-    console.log('Ingrediente encontrado:', ingrediente);
-    
-    if (!ingrediente) {
-      showNotification('Ingrediente não encontrado!', 'error');
+    // MODO COMPRAS - Validação para ingredientes
+    if (novaFatura.categoria === 'compras') {
+      if (!itemFatura.ingredienteId || !itemFatura.quantidade || !itemFatura.precoTotal || !itemFatura.unidade) {
+        console.log('Validação falhou (compras):', itemFatura);
+        showNotification('Preencha todos os campos do item!', 'error');
+        return;
+      }
+      
+      const ingrediente = ingredientes.find(i => i.id == itemFatura.ingredienteId);
+      console.log('Ingrediente encontrado:', ingrediente);
+      
+      if (!ingrediente) {
+        showNotification('Ingrediente não encontrado!', 'error');
       return;
     }
     
@@ -2322,6 +2328,7 @@ const RestauranteGestor = () => {
     
     setItemFatura({
       ingredienteId: '',
+      descricao: '',
       quantidade: '',
       unidade: '',
       precoTotal: '',
@@ -2329,6 +2336,47 @@ const RestauranteGestor = () => {
     });
     
     showNotification(`Item adicionado! Preço atualizado: €${precoPorUnidadeBase.toFixed(2)}/${unidadeBase}`, 'success');
+    return; // Fim do modo compras
+    } // Fim do if categoria === 'compras'
+    
+    // MODO OUTRAS DESPESAS (não-compras)
+    if (!itemFatura.descricao || !itemFatura.precoTotal) {
+      console.log('Validação falhou (outras despesas):', itemFatura);
+      showNotification('Preencha descrição e valor!', 'error');
+      return;
+    }
+    
+    const precoTotal = parseFloat(itemFatura.precoTotal);
+    const iva = parseFloat(itemFatura.iva || '23');
+    const subtotalSemIva = precoTotal / (1 + iva / 100);
+    
+    const novoItem = {
+      id: Date.now(),
+      descricao: itemFatura.descricao,
+      quantidade: 1, // Fixo para despesas
+      unidade: 'serviço', // Fixo para despesas
+      precoUnitario: precoTotal, // Valor total = valor unitário
+      iva,
+      subtotal: subtotalSemIva
+    };
+    
+    console.log('Novo item criado (despesa):', novoItem);
+    
+    setNovaFatura({
+      ...novaFatura,
+      itens: [...novaFatura.itens, novoItem]
+    });
+    
+    setItemFatura({
+      ingredienteId: '',
+      descricao: '',
+      quantidade: '',
+      unidade: '',
+      precoTotal: '',
+      iva: '13'
+    });
+    
+    showNotification('Item adicionado!', 'success');
   };
   
   const removerItemFatura = (itemId) => {
@@ -2415,6 +2463,9 @@ const RestauranteGestor = () => {
       fornecedorNif: fornecedorNif,
       itens: faturaParaGuardar.itens,
       notas: faturaParaGuardar.notas,
+      categoria: faturaParaGuardar.categoria || 'compras', // Nova
+      recorrente: faturaParaGuardar.recorrente || false, // Nova
+      diaRecorrencia: faturaParaGuardar.diaRecorrencia || 1, // Nova
       subtotal: faturaParaGuardar.itens.reduce((sum, item) => sum + item.subtotal, 0),
       totalIva: faturaParaGuardar.itens.reduce((sum, item) => sum + (item.subtotal * item.iva / 100), 0),
       total: faturaParaGuardar.itens.reduce((sum, item) => sum + (item.subtotal * (1 + item.iva / 100)), 0),
@@ -2429,7 +2480,10 @@ const RestauranteGestor = () => {
       data: new Date().toISOString().split('T')[0],
       fornecedorId: '',
       itens: [],
-      notas: ''
+      notas: '',
+      categoria: 'compras',
+      recorrente: false,
+      diaRecorrencia: 1
     });
     
     setEditandoFatura(false);
@@ -2437,11 +2491,31 @@ const RestauranteGestor = () => {
   };
   
   const salvarFaturaRapida = () => {
-    if (!itemFatura.ingredienteId || !itemFatura.quantidade || !itemFatura.precoTotal || !itemFatura.unidade || !novaFatura.fornecedorId) {
-      showNotification('Preencha todos os campos obrigatórios!', 'error');
+    // Validação condicional
+    if (!novaFatura.fornecedorId) {
+      showNotification('Selecione um fornecedor!', 'error');
       return;
     }
     
+    if (novaFatura.categoria === 'compras') {
+      // Validação para compras (ingredientes)
+      if (!itemFatura.ingredienteId || !itemFatura.quantidade || !itemFatura.precoTotal || !itemFatura.unidade) {
+        showNotification('Preencha todos os campos obrigatórios!', 'error');
+        return;
+      }
+    } else {
+      // Validação para outras despesas
+      if (!itemFatura.descricao || !itemFatura.precoTotal) {
+        showNotification('Preencha descrição e valor!', 'error');
+        return;
+      }
+      
+      // Processar despesa não-compras
+      salvarFaturaRapidaDespesa();
+      return;
+    }
+    
+    // Continua com processamento de compras (ingredientes)
     const ingrediente = ingredientes.find(i => i.id == itemFatura.ingredienteId);
     const quantidade = parseFloat(itemFatura.quantidade);
     const precoTotal = parseFloat(itemFatura.precoTotal);
@@ -2582,6 +2656,9 @@ const RestauranteGestor = () => {
       fornecedorNif: fornecedorNif,
       itens: [item],
       notas: novaFatura.notas || 'Registo rápido',
+      categoria: novaFatura.categoria || 'compras', // Nova
+      recorrente: novaFatura.recorrente || false, // Nova
+      diaRecorrencia: novaFatura.diaRecorrencia || 1, // Nova
       subtotal: subtotalSemIva,
       totalIva,
       total,
@@ -2596,7 +2673,10 @@ const RestauranteGestor = () => {
       data: new Date().toISOString().split('T')[0],
       fornecedorId: '',
       itens: [],
-      notas: ''
+      notas: '',
+      categoria: 'compras',
+      recorrente: false,
+      diaRecorrencia: 1
     });
     setItemFatura({
       ingredienteId: '',
@@ -2607,6 +2687,79 @@ const RestauranteGestor = () => {
     });
     
     showNotification(`Compra registada! Preço atualizado: €${precoPorUnidadeBase.toFixed(2)}/${unidadeBase}`, 'success');
+  };
+  
+  const salvarFaturaRapidaDespesa = () => {
+    // Função para salvar fatura rápida de despesas não-compras (renda, utilities, etc)
+    const fornecedor = fornecedores.find(f => (f.id || f) === novaFatura.fornecedorId);
+    const fornecedorNome = typeof fornecedor === 'string' ? fornecedor : (fornecedor?.nome || '');
+    const fornecedorNif = typeof fornecedor === 'string' ? '' : (fornecedor?.nif || '');
+    
+    const precoTotal = parseFloat(itemFatura.precoTotal);
+    const iva = parseFloat(itemFatura.iva);
+    const subtotalSemIva = precoTotal / (1 + iva / 100);
+    const totalIva = precoTotal - subtotalSemIva;
+    
+    // Gerar número automático
+    const hoje = new Date();
+    const ano = hoje.getFullYear();
+    const registosRapidosHoje = (faturas || []).filter(f => 
+      f.tipo === 'rapido' && 
+      f.data === novaFatura.data
+    ).length;
+    const numeroAuto = `RR/${ano}/${String(registosRapidosHoje + 1).padStart(3, '0')}`;
+    
+    const item = {
+      id: Date.now(),
+      descricao: itemFatura.descricao,
+      quantidade: 1,
+      unidade: 'serviço',
+      precoUnitario: precoTotal,
+      iva,
+      subtotal: subtotalSemIva
+    };
+    
+    const faturaRapida = {
+      id: Date.now(),
+      numero: numeroAuto,
+      data: novaFatura.data,
+      fornecedorId: novaFatura.fornecedorId,
+      fornecedorNome: fornecedorNome,
+      fornecedorNif: fornecedorNif,
+      itens: [item],
+      notas: novaFatura.notas || 'Registo rápido',
+      categoria: novaFatura.categoria,
+      recorrente: novaFatura.recorrente || false,
+      diaRecorrencia: novaFatura.diaRecorrencia || 1,
+      subtotal: subtotalSemIva,
+      totalIva,
+      total: precoTotal,
+      tipo: 'rapido'
+    };
+    
+    setFaturas([...faturas, faturaRapida]);
+    
+    // Resetar formulário
+    setNovaFatura({
+      numero: '',
+      data: new Date().toISOString().split('T')[0],
+      fornecedorId: '',
+      itens: [],
+      notas: '',
+      categoria: 'compras',
+      recorrente: false,
+      diaRecorrencia: 1
+    });
+    setItemFatura({
+      ingredienteId: '',
+      descricao: '',
+      quantidade: '',
+      unidade: '',
+      precoTotal: '',
+      iva: '13'
+    });
+    
+    showNotification('Despesa registada!', 'success');
   };
   
   const apagarFatura = (faturaId) => {
@@ -2889,6 +3042,66 @@ const RestauranteGestor = () => {
     r.readAsText(f);
   };
 
+  // Função para gerar faturas recorrentes automaticamente
+  const gerarFaturasRecorrentes = React.useCallback(() => {
+    const hoje = new Date();
+    const diaHoje = hoje.getDate();
+    const mesHoje = hoje.getMonth();
+    const anoHoje = hoje.getFullYear();
+    
+    // Pegar faturas recorrentes
+    const faturasRecorrentes = (faturas || []).filter(f => f.recorrente === true);
+    
+    if (faturasRecorrentes.length === 0) return;
+    
+    const novasFaturas = [];
+    
+    faturasRecorrentes.forEach(faturaOriginal => {
+      const diaRecorrencia = faturaOriginal.diaRecorrencia || 1;
+      
+      // Verificar se hoje é o dia de recorrência
+      if (diaHoje !== diaRecorrencia) return;
+      
+      // Verificar se já existe fatura gerada este mês
+      const dataHoje = `${anoHoje}-${String(mesHoje + 1).padStart(2, '0')}-${String(diaHoje).padStart(2, '0')}`;
+      
+      const jaExiste = (faturas || []).some(f => 
+        f.data === dataHoje && 
+        f.numero.startsWith(faturaOriginal.numero) &&
+        f.categoria === faturaOriginal.categoria
+      );
+      
+      if (jaExiste) return; // Já foi gerada este mês
+      
+      // Gerar nova fatura
+      const novaFatura = {
+        ...faturaOriginal,
+        id: Date.now() + Math.random(), // ID único
+        numero: `${faturaOriginal.numero.split('/')[0]}/AUTO-${anoHoje}${String(mesHoje + 1).padStart(2, '0')}`,
+        data: dataHoje,
+        notas: `${faturaOriginal.notas || ''} (Gerada automaticamente)`.trim()
+      };
+      
+      novasFaturas.push(novaFatura);
+    });
+    
+    if (novasFaturas.length > 0) {
+      setFaturas([...faturas, ...novasFaturas]);
+      showNotification(`✨ ${novasFaturas.length} fatura(s) recorrente(s) gerada(s) automaticamente!`, 'success');
+    }
+  }, [faturas, setFaturas, showNotification]);
+  
+  // Verificar faturas recorrentes diariamente
+  React.useEffect(() => {
+    // Executar ao carregar
+    gerarFaturasRecorrentes();
+    
+    // Executar a cada 24 horas
+    const intervalo = setInterval(gerarFaturasRecorrentes, 24 * 60 * 60 * 1000);
+    
+    return () => clearInterval(intervalo);
+  }, [gerarFaturasRecorrentes]);
+
 
   const syncToGitHub = React.useCallback(async () => {
     if (!GitHubSync.isConfigured() || isSyncing) return;
@@ -3112,7 +3325,7 @@ const RestauranteGestor = () => {
   const medFat = dias > 0 ? totV / dias : 0;
   const medLuc = dias > 0 ? lucroReal / dias : 0;
 
-  const dFixas = despesas.filter(d => ['renda', 'utilities', 'salarios'].includes(d.categoria)).reduce((s, d) => s + d.valor, 0);
+  const dFixas = despesas.filter(d => ['renda', 'eletricidade', 'agua', 'gas', 'internet', 'salarios'].includes(d.categoria)).reduce((s, d) => s + d.valor, 0);
   const dFixDia = dFixas / 30;
   
   // Calculate total salaries considering payment frequency (normalize to monthly)
@@ -3130,7 +3343,7 @@ const RestauranteGestor = () => {
   const primeCostTotal = totalFoodCost + totalSalarios;
   
   // Break-even calculation: Fixed costs / (1 - (Variable costs / Revenue))
-  const fixedCosts = filteredDespesas.filter(d => ['renda', 'utilities', 'salarios'].includes(d.categoria)).reduce((s, d) => s + d.valor, 0);
+  const fixedCosts = filteredDespesas.filter(d => ['renda', 'eletricidade', 'agua', 'gas', 'internet', 'salarios'].includes(d.categoria)).reduce((s, d) => s + d.valor, 0);
   const variableCosts = filteredDespesas.filter(d => ['compras', 'consumiveis'].includes(d.categoria)).reduce((s, d) => s + d.valor, 0);
   const contributionMarginRatio = totV > 0 ? (totV - variableCosts) / totV : 0;
   const breakEvenPoint = contributionMarginRatio > 0 ? fixedCosts / contributionMarginRatio : 0;
@@ -5303,115 +5516,236 @@ const RestauranteGestor = () => {
                         </div>
                       </div>
                       
+                      {/* Linha 2: Categoria e Recorrência */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">
+                            Categoria *
+                          </label>
+                          <select
+                            value={novaFatura.categoria}
+                            onChange={(e) => setNovaFatura({...novaFatura, categoria: e.target.value})}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                          >
+                            <option value="compras">🛒 Compras (Ingredientes)</option>
+                            <option value="renda">🏠 Renda</option>
+                            <option value="eletricidade">💡 Eletricidade</option>
+                            <option value="agua">💧 Água</option>
+                            <option value="gas">🔥 Gás</option>
+                            <option value="internet">🌐 Internet/Telefone</option>
+                            <option value="salarios">👥 Salários</option>
+                            <option value="marketing">📢 Marketing</option>
+                            <option value="consumiveis">🧻 Consumíveis</option>
+                            <option value="manutencao">🔧 Manutenção</option>
+                            <option value="outros">📦 Outros</option>
+                          </select>
+                        </div>
+                        
+                        <div className="md:col-span-2">
+                          <label className="block text-xs font-medium text-gray-700 mb-1">
+                            Despesa Recorrente
+                          </label>
+                          <div className="flex items-center gap-3">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={novaFatura.recorrente}
+                                onChange={(e) => setNovaFatura({...novaFatura, recorrente: e.target.checked})}
+                                className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                              />
+                              <span className="text-sm text-gray-700">Repetir mensalmente</span>
+                            </label>
+                            
+                            {novaFatura.recorrente && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-gray-600">no dia</span>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  max="31"
+                                  value={novaFatura.diaRecorrencia}
+                                  onChange={(e) => setNovaFatura({...novaFatura, diaRecorrencia: parseInt(e.target.value)})}
+                                  className="w-16 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500"
+                                />
+                                <span className="text-xs text-gray-600">de cada mês</span>
+                              </div>
+                            )}
+                          </div>
+                          {novaFatura.recorrente && (
+                            <p className="text-xs text-gray-500 mt-1">
+                              ✨ Sistema vai criar automaticamente esta despesa todo mês no dia {novaFatura.diaRecorrencia}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      
                       {/* Items da Fatura */}
                       <div className="border-t border-gray-200 pt-3 mb-3">
                         <h4 className="font-semibold text-sm mb-2">Items da Fatura:</h4>
                         
                         {/* Adicionar Item */}
                         <div className="bg-white rounded-lg border border-gray-300 p-3 mb-3">
-                          <div className="grid grid-cols-1 md:grid-cols-6 gap-2">
-                            <div className="md:col-span-2">
-                          <label className="block text-xs font-medium text-gray-700 mb-1">
-                            Ingrediente *
-                          </label>
-                          <select
-                            value={itemFatura.ingredienteId}
-                            onChange={(e) => {
-                              const ingredienteId = e.target.value;
-                              const ing = ingredientes.find(i => i.id == ingredienteId);
-                              console.log('Ingrediente selecionado:', ing);
-                              setItemFatura({
-                                ...itemFatura,
-                                ingredienteId: ingredienteId,
-                                unidade: ing ? ing.unidade : '',
-                                precoTotal: ing ? ing.custoUnitario.toString() : '',
-                                iva: ing ? ing.iva.toString() : '13'
-                              });
-                            }}
-                            className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500"
-                          >
-                            <option value="">🔍 Selecionar ingrediente...</option>
-                            {(ingredientes || []).map(ing => (
-                              <option key={ing.id} value={ing.id}>
-                                {ing.nome} - €{ing.custoUnitario.toFixed(2)}/{ing.unidade}
-                              </option>
-                            ))}
-                          </select>
+                          {/* MODO COMPRAS - Com ingrediente */}
+                          {novaFatura.categoria === 'compras' && (
+                            <div className="grid grid-cols-1 md:grid-cols-6 gap-2">
+                              <div className="md:col-span-2">
+                                <label className="block text-xs font-medium text-gray-700 mb-1">
+                                  Ingrediente *
+                                </label>
+                                <select
+                                  value={itemFatura.ingredienteId}
+                                  onChange={(e) => {
+                                    const ingredienteId = e.target.value;
+                                    const ing = ingredientes.find(i => i.id == ingredienteId);
+                                    setItemFatura({
+                                      ...itemFatura,
+                                      ingredienteId: ingredienteId,
+                                      unidade: ing ? ing.unidade : '',
+                                      precoTotal: ing ? ing.custoUnitario.toString() : '',
+                                      iva: ing ? ing.iva.toString() : '13'
+                                    });
+                                  }}
+                                  className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500"
+                                >
+                                  <option value="">🔍 Selecionar ingrediente...</option>
+                                  {(ingredientes || []).map(ing => (
+                                    <option key={ing.id} value={ing.id}>
+                                      {ing.nome} - €{ing.custoUnitario.toFixed(2)}/{ing.unidade}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                              
+                              <div>
+                                <label className="block text-xs font-medium text-gray-700 mb-1">
+                                  Quantidade *
+                                </label>
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  value={itemFatura.quantidade}
+                                  onChange={(e) => setItemFatura({...itemFatura, quantidade: e.target.value})}
+                                  placeholder="300"
+                                  className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500"
+                                />
+                              </div>
+                              
+                              <div>
+                                <label className="block text-xs font-medium text-gray-700 mb-1">
+                                  Unidade *
+                                </label>
+                                <select
+                                  value={itemFatura.unidade}
+                                  onChange={(e) => setItemFatura({...itemFatura, unidade: e.target.value})}
+                                  className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500"
+                                >
+                                  <option value="">Selecione</option>
+                                  <option value="kg">kg</option>
+                                  <option value="g">g</option>
+                                  <option value="L">L</option>
+                                  <option value="ml">ml</option>
+                                  <option value="unidade">unidade</option>
+                                </select>
+                                <p className="text-xs text-gray-500 mt-0.5">Unidade comprada</p>
+                              </div>
+                              
+                              <div>
+                                <label className="block text-xs font-medium text-gray-700 mb-1">
+                                  Preço Total (€) *
+                                </label>
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  value={itemFatura.precoTotal}
+                                  onChange={(e) => setItemFatura({...itemFatura, precoTotal: e.target.value})}
+                                  placeholder="0.24"
+                                  className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500"
+                                />
+                                <p className="text-xs text-gray-500 mt-0.5">Total pago</p>
+                              </div>
+                              
+                              <div>
+                                <label className="block text-xs font-medium text-gray-700 mb-1">
+                                  IVA
+                                </label>
+                                <select
+                                  value={itemFatura.iva}
+                                  onChange={(e) => setItemFatura({...itemFatura, iva: e.target.value})}
+                                  className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500"
+                                >
+                                  <option value="6">6%</option>
+                                  <option value="13">13%</option>
+                                  <option value="23">23%</option>
+                                </select>
+                              </div>
+                              
+                              <div className="flex items-end">
+                                <button
+                                  onClick={adicionarItemFatura}
+                                  className="w-full bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded text-sm font-semibold transition flex items-center justify-center gap-1"
+                                >
+                                  <Plus size={14} /> Adicionar
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                          
+                          {/* MODO OUTRAS DESPESAS - Com descrição */}
+                          {novaFatura.categoria !== 'compras' && (
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                              <div className="md:col-span-2">
+                                <label className="block text-xs font-medium text-gray-700 mb-1">
+                                  Descrição *
+                                </label>
+                                <input
+                                  type="text"
+                                  value={itemFatura.descricao}
+                                  onChange={(e) => setItemFatura({...itemFatura, descricao: e.target.value})}
+                                  placeholder="Ex: Renda Janeiro, Conta Luz Dezembro..."
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                                />
+                              </div>
+                              
+                              <div>
+                                <label className="block text-xs font-medium text-gray-700 mb-1">
+                                  Valor Total (€) *
+                                </label>
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  value={itemFatura.precoTotal}
+                                  onChange={(e) => setItemFatura({...itemFatura, precoTotal: e.target.value})}
+                                  placeholder="650.00"
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                                />
+                              </div>
+                              
+                              <div>
+                                <label className="block text-xs font-medium text-gray-700 mb-1">
+                                  IVA
+                                </label>
+                                <select
+                                  value={itemFatura.iva}
+                                  onChange={(e) => setItemFatura({...itemFatura, iva: e.target.value})}
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                                >
+                                  <option value="6">6%</option>
+                                  <option value="13">13%</option>
+                                  <option value="23">23%</option>
+                                </select>
+                              </div>
+                              
+                              <div className="flex items-end md:col-span-4">
+                                <button
+                                  onClick={adicionarItemFatura}
+                                  className="w-full md:w-auto bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg text-sm font-semibold transition flex items-center justify-center gap-2"
+                                >
+                                  <Plus size={16} /> Adicionar Item
+                                </button>
+                              </div>
+                            </div>
+                          )}
                         </div>
-                        
-                        <div>
-                          <label className="block text-xs font-medium text-gray-700 mb-1">
-                            Quantidade *
-                          </label>
-                          <input
-                            type="number"
-                            step="0.01"
-                            value={itemFatura.quantidade}
-                            onChange={(e) => setItemFatura({...itemFatura, quantidade: e.target.value})}
-                            placeholder="300"
-                            className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500"
-                          />
-                        </div>
-                        
-                        <div>
-                          <label className="block text-xs font-medium text-gray-700 mb-1">
-                            Unidade *
-                          </label>
-                          <select
-                            value={itemFatura.unidade}
-                            onChange={(e) => setItemFatura({...itemFatura, unidade: e.target.value})}
-                            className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500"
-                          >
-                            <option value="">Selecione</option>
-                            <option value="kg">kg</option>
-                            <option value="g">g</option>
-                            <option value="L">L</option>
-                            <option value="ml">ml</option>
-                            <option value="unidade">unidade</option>
-                          </select>
-                          <p className="text-xs text-gray-500 mt-0.5">Unidade comprada</p>
-                        </div>
-                        
-                        <div>
-                          <label className="block text-xs font-medium text-gray-700 mb-1">
-                            Preço Total (€) *
-                          </label>
-                          <input
-                            type="number"
-                            step="0.01"
-                            value={itemFatura.precoTotal}
-                            onChange={(e) => setItemFatura({...itemFatura, precoTotal: e.target.value})}
-                            placeholder="0.24"
-                            className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500"
-                          />
-                          <p className="text-xs text-gray-500 mt-0.5">Total pago</p>
-                        </div>
-                        
-                        <div>
-                          <label className="block text-xs font-medium text-gray-700 mb-1">
-                            IVA
-                          </label>
-                          <select
-                            value={itemFatura.iva}
-                            onChange={(e) => setItemFatura({...itemFatura, iva: e.target.value})}
-                            className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500"
-                          >
-                            <option value="6">6%</option>
-                            <option value="13">13%</option>
-                            <option value="23">23%</option>
-                          </select>
-                        </div>
-                        
-                        <div className="flex items-end">
-                          <button
-                            onClick={adicionarItemFatura}
-                            className="w-full bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded text-sm font-semibold transition flex items-center justify-center gap-1"
-                          >
-                            <Plus size={14} /> Adicionar
-                          </button>
-                        </div>
-                      </div>
-                    </div>
                     
                     {/* Lista de Items */}
                     {(novaFatura.itens || []).length > 0 ? (
@@ -5543,82 +5877,172 @@ const RestauranteGestor = () => {
                       </div>
                     </div>
                     
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-3">
-                      <div className="md:col-span-2">
+                    {/* Categoria e Recorrência */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                      <div>
                         <label className="block text-xs font-medium text-gray-700 mb-1">
-                          Ingrediente/Produto *
+                          Categoria *
                         </label>
                         <select
-                          value={itemFatura.ingredienteId}
-                          onChange={(e) => {
-                            const ingredienteId = e.target.value;
-                            const ing = ingredientes.find(i => i.id == ingredienteId);
-                            console.log('Ingrediente selecionado (rápido):', ing);
-                            setItemFatura({
-                              ...itemFatura,
-                              ingredienteId: ingredienteId,
-                              unidade: ing ? ing.unidade : '',
-                              precoTotal: ing ? ing.custoUnitario.toString() : '',
-                              iva: ing ? ing.iva.toString() : '13'
-                            });
-                          }}
+                          value={novaFatura.categoria}
+                          onChange={(e) => setNovaFatura({...novaFatura, categoria: e.target.value})}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500"
                         >
-                          <option value="">🔍 Selecionar ingrediente...</option>
-                          {(ingredientes || []).map(ing => (
-                            <option key={ing.id} value={ing.id}>
-                              {ing.nome} - €{ing.custoUnitario.toFixed(2)}/{ing.unidade}
-                            </option>
-                          ))}
+                          <option value="compras">🛒 Compras</option>
+                          <option value="renda">🏠 Renda</option>
+                          <option value="eletricidade">💡 Eletricidade</option>
+                          <option value="agua">💧 Água</option>
+                          <option value="gas">🔥 Gás</option>
+                          <option value="internet">🌐 Internet/Telefone</option>
+                          <option value="salarios">👥 Salários</option>
+                          <option value="marketing">📢 Marketing</option>
+                          <option value="consumiveis">🧻 Consumíveis</option>
+                          <option value="manutencao">🔧 Manutenção</option>
+                          <option value="outros">📦 Outros</option>
                         </select>
                       </div>
                       
                       <div>
                         <label className="block text-xs font-medium text-gray-700 mb-1">
-                          Quantidade *
+                          Recorrente
                         </label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={itemFatura.quantidade}
-                          onChange={(e) => setItemFatura({...itemFatura, quantidade: e.target.value})}
-                          placeholder="300"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500"
-                        />
-                      </div>
-                      
-                      <div>
-                        <label className="block text-xs font-medium text-gray-700 mb-1">
-                          Unidade *
-                        </label>
-                        <select
-                          value={itemFatura.unidade}
-                          onChange={(e) => setItemFatura({...itemFatura, unidade: e.target.value})}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500"
-                        >
-                          <option value="">Selecione</option>
-                          <option value="kg">kg</option>
-                          <option value="g">g</option>
-                          <option value="L">L</option>
-                          <option value="ml">ml</option>
-                          <option value="unidade">unidade</option>
-                        </select>
-                      </div>
-                      
-                      <div>
-                        <label className="block text-xs font-medium text-gray-700 mb-1">
-                          Preço Total (€) *
-                        </label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={itemFatura.precoTotal}
-                          onChange={(e) => setItemFatura({...itemFatura, precoTotal: e.target.value})}
-                          placeholder="0.24"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500"
-                        />
+                        <div className="flex items-center gap-3">
+                          <label className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={novaFatura.recorrente}
+                              onChange={(e) => setNovaFatura({...novaFatura, recorrente: e.target.checked})}
+                              className="w-4 h-4 text-green-600 rounded"
+                            />
+                            <span className="text-sm">Mensal</span>
+                          </label>
+                          {novaFatura.recorrente && (
+                            <>
+                              <span className="text-xs text-gray-600">dia</span>
+                              <input
+                                type="number"
+                                min="1"
+                                max="31"
+                                value={novaFatura.diaRecorrencia}
+                                onChange={(e) => setNovaFatura({...novaFatura, diaRecorrencia: parseInt(e.target.value)})}
+                                className="w-16 px-2 py-1 border border-gray-300 rounded text-sm"
+                              />
+                            </>
+                          )}
+                        </div>
                       </div>
                     </div>
+                    
+                    {/* MODO COMPRAS - Com ingrediente */}
+                    {novaFatura.categoria === 'compras' && (
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-3">
+                        <div className="md:col-span-2">
+                          <label className="block text-xs font-medium text-gray-700 mb-1">
+                            Ingrediente/Produto *
+                          </label>
+                          <select
+                            value={itemFatura.ingredienteId}
+                            onChange={(e) => {
+                              const ingredienteId = e.target.value;
+                              const ing = ingredientes.find(i => i.id == ingredienteId);
+                              setItemFatura({
+                                ...itemFatura,
+                                ingredienteId: ingredienteId,
+                                unidade: ing ? ing.unidade : '',
+                                precoTotal: ing ? ing.custoUnitario.toString() : '',
+                                iva: ing ? ing.iva.toString() : '13'
+                              });
+                            }}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500"
+                          >
+                            <option value="">🔍 Selecionar ingrediente...</option>
+                            {(ingredientes || []).map(ing => (
+                              <option key={ing.id} value={ing.id}>
+                                {ing.nome} - €{ing.custoUnitario.toFixed(2)}/{ing.unidade}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">
+                            Quantidade *
+                          </label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={itemFatura.quantidade}
+                            onChange={(e) => setItemFatura({...itemFatura, quantidade: e.target.value})}
+                            placeholder="300"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500"
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">
+                            Unidade *
+                          </label>
+                          <select
+                            value={itemFatura.unidade}
+                            onChange={(e) => setItemFatura({...itemFatura, unidade: e.target.value})}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500"
+                          >
+                            <option value="">Selecione</option>
+                            <option value="kg">kg</option>
+                            <option value="g">g</option>
+                            <option value="L">L</option>
+                            <option value="ml">ml</option>
+                            <option value="unidade">unidade</option>
+                          </select>
+                        </div>
+                        
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">
+                            Preço Total (€) *
+                          </label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={itemFatura.precoTotal}
+                            onChange={(e) => setItemFatura({...itemFatura, precoTotal: e.target.value})}
+                            placeholder="0.24"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500"
+                          />
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* MODO OUTRAS DESPESAS - Com descrição */}
+                    {novaFatura.categoria !== 'compras' && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">
+                            Descrição *
+                          </label>
+                          <input
+                            type="text"
+                            value={itemFatura.descricao}
+                            onChange={(e) => setItemFatura({...itemFatura, descricao: e.target.value})}
+                            placeholder="Ex: Renda Janeiro 2026"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500"
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">
+                            Valor Total (€) *
+                          </label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={itemFatura.precoTotal}
+                            onChange={(e) => setItemFatura({...itemFatura, precoTotal: e.target.value})}
+                            placeholder="650.00"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500"
+                          />
+                        </div>
+                      </div>
+                    )}
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
                       <div>
