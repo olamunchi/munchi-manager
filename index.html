@@ -9,6 +9,15 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <!-- OCR Libraries -->
+  <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@4.0.189/build/pdf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.0.4/dist/tesseract.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/fuzzball@2.1.2/dist/fuzzball.umd.min.js"></script>
+  <script>
+    if (typeof pdfjsLib !== 'undefined') {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.0.189/build/pdf.worker.min.js';
+    }
+  </script>
 </head>
 <body>
     <div id="root"></div>
@@ -1347,6 +1356,219 @@ const Tooltip = ({ children, text, position = 'top' }) => {
   );
 };
 
+// ===== MODAL CONFIRMAÇÃO OCR =====
+const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCancelar }) => {
+  const [linhasEditadas, setLinhasEditadas] = useState(linhas);
+  const [stats, setStats] = useState(null);
+
+  useEffect(() => {
+    const calculateStats = (linhas) => {
+      const total = linhas.length;
+      const comSugestao = linhas.filter(l => l.ingredienteSugerido).length;
+      const altaConfianca = linhas.filter(l => l.ingredienteSugerido?.confianca >= 80).length;
+      const mediaConfianca = linhas.filter(l => l.ingredienteSugerido?.confianca >= 60 && l.ingredienteSugerido?.confianca < 80).length;
+      return {
+        total, comSugestao, altaConfianca, mediaConfianca,
+        semSugestao: total - comSugestao,
+        percentagemAuto: total > 0 ? Math.round((altaConfianca / total) * 100) : 0
+      };
+    };
+    setStats(calculateStats(linhasEditadas));
+  }, [linhasEditadas]);
+
+  const handleIngredienteChange = (index, ingredienteId) => {
+    const novas = [...linhasEditadas];
+    novas[index].ingredienteConfirmado = ingredienteId;
+    setLinhasEditadas(novas);
+  };
+
+  const handleQuantidadeChange = (index, quantidade) => {
+    const novas = [...linhasEditadas];
+    novas[index].quantidade = parseFloat(quantidade) || null;
+    setLinhasEditadas(novas);
+  };
+
+  const handleUnidadeChange = (index, unidade) => {
+    const novas = [...linhasEditadas];
+    novas[index].unidade = unidade;
+    setLinhasEditadas(novas);
+  };
+
+  const handlePrecoChange = (index, preco) => {
+    const novas = [...linhasEditadas];
+    novas[index].preco = parseFloat(preco) || null;
+    setLinhasEditadas(novas);
+  };
+
+  const handleRemoverLinha = (index) => {
+    setLinhasEditadas(linhasEditadas.filter((_, i) => i !== index));
+  };
+
+  const handleConfirmar = () => {
+    const linhasSemIngrediente = linhasEditadas.filter(
+      l => !l.ingredienteConfirmado && !l.ingredienteSugerido
+    );
+    if (linhasSemIngrediente.length > 0) {
+      if (!confirm(`${linhasSemIngrediente.length} linha(s) sem ingrediente. Continuar?`)) return;
+    }
+    const linhasFinais = linhasEditadas.map(linha => ({
+      ...linha,
+      ingredienteConfirmado: linha.ingredienteConfirmado || linha.ingredienteSugerido?.id
+    }));
+    onConfirmar(linhasFinais, metadata);
+  };
+
+  const getConfidenceClass = (confianca) => {
+    if (confianca >= 80) return 'text-green-600 bg-green-50';
+    if (confianca >= 60) return 'text-yellow-600 bg-yellow-50';
+    return 'text-red-600 bg-red-50';
+  };
+
+  const getConfidenceIcon = (confianca) => {
+    if (confianca >= 80) return '✓';
+    if (confianca >= 60) return '⚠';
+    return '✗';
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] flex flex-col">
+        <div className="p-6 border-b">
+          <h2 className="text-2xl font-bold mb-2">📄 Confirmar Produtos Extraídos</h2>
+          <p className="text-sm text-gray-600">
+            Valide os produtos. Verde = alta confiança, Amarelo = verificar, Vermelho = escolher manualmente.
+          </p>
+          {stats && (
+            <div className="mt-3 flex gap-4 text-sm">
+              <div className="bg-blue-50 px-3 py-1 rounded"><strong>{stats.total}</strong> produtos</div>
+              <div className="bg-green-50 px-3 py-1 rounded"><strong>{stats.altaConfianca}</strong> alta</div>
+              <div className="bg-yellow-50 px-3 py-1 rounded"><strong>{stats.mediaConfianca}</strong> verificar</div>
+              <div className="bg-red-50 px-3 py-1 rounded"><strong>{stats.semSugestao}</strong> manual</div>
+              <div className="bg-purple-50 px-3 py-1 rounded"><strong>{stats.percentagemAuto}%</strong> auto</div>
+            </div>
+          )}
+        </div>
+        <div className="flex-1 overflow-auto p-6">
+          <table className="w-full border-collapse">
+            <thead className="sticky top-0 bg-gray-100">
+              <tr>
+                <th className="border p-2 text-left text-sm font-semibold">Texto PDF</th>
+                <th className="border p-2 text-left text-sm font-semibold">Ingrediente</th>
+                <th className="border p-2 text-center text-sm font-semibold w-20">Conf.</th>
+                <th className="border p-2 text-center text-sm font-semibold w-24">Qtd</th>
+                <th className="border p-2 text-center text-sm font-semibold w-20">Un</th>
+                <th className="border p-2 text-center text-sm font-semibold w-24">Preço</th>
+                <th className="border p-2 text-center text-sm font-semibold w-16">Ação</th>
+              </tr>
+            </thead>
+            <tbody>
+              {linhasEditadas.map((linha, index) => {
+                const sugestao = linha.ingredienteSugerido;
+                const confianca = sugestao?.confianca || 0;
+                return (
+                  <tr key={index} className="hover:bg-gray-50">
+                    <td className="border p-2 text-sm">
+                      <div className="font-mono text-xs text-gray-600 mb-1">{linha.textoOriginal}</div>
+                      <div className="text-sm font-semibold">{linha.nomeProduto}</div>
+                    </td>
+                    <td className="border p-2">
+                      <select
+                        value={linha.ingredienteConfirmado || sugestao?.id || ''}
+                        onChange={(e) => handleIngredienteChange(index, e.target.value)}
+                        className={`w-full px-2 py-1 text-sm border rounded ${getConfidenceClass(confianca)}`}
+                      >
+                        <option value="">-- Selecionar --</option>
+                        {ingredientes.map(ing => (
+                          <option key={ing.id} value={ing.id}>{ing.nome}</option>
+                        ))}
+                      </select>
+                      {sugestao && (
+                        <div className="text-xs text-gray-500 mt-1">Sugestão: {sugestao.nome}</div>
+                      )}
+                    </td>
+                    <td className={`border p-2 text-center ${getConfidenceClass(confianca)}`}>
+                      <div className="text-sm font-bold">{sugestao ? `${confianca}%` : '--'}</div>
+                      <div className="text-xs">{getConfidenceIcon(confianca)}</div>
+                    </td>
+                    <td className="border p-2">
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={linha.quantidade || ''}
+                        onChange={(e) => handleQuantidadeChange(index, e.target.value)}
+                        className="w-full px-2 py-1 text-sm border rounded text-center"
+                        placeholder="--"
+                      />
+                    </td>
+                    <td className="border p-2">
+                      <select
+                        value={linha.unidade || ''}
+                        onChange={(e) => handleUnidadeChange(index, e.target.value)}
+                        className="w-full px-2 py-1 text-sm border rounded"
+                      >
+                        <option value="">--</option>
+                        <option value="kg">kg</option>
+                        <option value="g">g</option>
+                        <option value="l">l</option>
+                        <option value="ml">ml</option>
+                        <option value="un">un</option>
+                        <option value="cx">cx</option>
+                        <option value="dz">dz</option>
+                      </select>
+                    </td>
+                    <td className="border p-2">
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={linha.preco || ''}
+                        onChange={(e) => handlePrecoChange(index, e.target.value)}
+                        className="w-full px-2 py-1 text-sm border rounded text-right"
+                        placeholder="--"
+                      />
+                    </td>
+                    <td className="border p-2 text-center">
+                      <button
+                        onClick={() => handleRemoverLinha(index)}
+                        className="text-red-600 hover:text-red-800 text-sm"
+                        title="Remover"
+                      >
+                        🗑️
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          {linhasEditadas.length === 0 && (
+            <div className="text-center py-8 text-gray-500">Nenhum produto</div>
+          )}
+        </div>
+        <div className="p-6 border-t bg-gray-50 flex justify-between items-center">
+          <div className="text-sm text-gray-600">
+            💡 Produtos com confiança ≥80% (verde) geralmente estão corretos
+          </div>
+          <div className="flex gap-3">
+            <button
+              onClick={onCancelar}
+              className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-100 font-semibold"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={handleConfirmar}
+              disabled={linhasEditadas.length === 0}
+              className="px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg font-semibold"
+            >
+              Confirmar {linhasEditadas.length > 0 && `(${linhasEditadas.length})`}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const RestauranteGestor = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
 
@@ -1516,6 +1738,39 @@ const RestauranteGestor = () => {
   const [modoFormulario, setModoFormulario] = useState('completo'); // 'completo' ou 'rapido'
   const [dadosEmpresaExpanded, setDadosEmpresaExpanded] = useState(false);
   const [backupExpanded, setBackupExpanded] = useState(false);
+  
+  // Estados OCR
+  const [mostrarModalOCR, setMostrarModalOCR] = useState(false);
+  const [linhasOCR, setLinhasOCR] = useState([]);
+  const [metadataOCR, setMetadataOCR] = useState(null);
+  const [processandoOCR, setProcessandoOCR] = useState(false);
+  const [progressoOCR, setProgressoOCR] = useState('');
+  
+  // Verificar carregamento das bibliotecas OCR
+  useEffect(() => {
+    const checkLibraries = () => {
+      if (typeof pdfjsLib !== 'undefined' && typeof Tesseract !== 'undefined' && typeof window.fuzzball !== 'undefined') {
+        console.log('✅ Bibliotecas OCR carregadas com sucesso!');
+        return true;
+      }
+      return false;
+    };
+    
+    // Verificar imediatamente
+    if (!checkLibraries()) {
+      console.log('⏳ Aguardando bibliotecas OCR...');
+      // Verificar novamente após 2 segundos
+      const timer = setTimeout(() => {
+        if (checkLibraries()) {
+          showNotification('✅ Sistema OCR pronto!', 'success');
+        } else {
+          console.warn('⚠️ Algumas bibliotecas OCR não carregaram. Recarregue a página.');
+        }
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, []);
+  
   const [fornecedoresExpanded, setFornecedoresExpanded] = useState(false);
   const [deliveryAppsExpanded, setDeliveryAppsExpanded] = useState(false);
   const [editandoFornecedor, setEditandoFornecedor] = useState(false);
@@ -4771,6 +5026,417 @@ const RestauranteGestor = () => {
   const mesesOrdenados = Object.keys(dadosPorMes).sort();
   const ultimos6Meses = mesesOrdenados.slice(-6);
 
+  // ===== FUNÇÕES OCR =====
+  const fuzz = window.fuzzball || window.fuzz;
+  
+  // Normalização
+  const normalizeForMatching = (text) => {
+    return text
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^\w\s]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  };
+  
+  // Extração nativa
+  const extractNativeText = async (pdfBuffer) => {
+    try {
+      const pdf = await pdfjsLib.getDocument({ data: pdfBuffer }).promise;
+      let fullText = '';
+      for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+        const page = await pdf.getPage(pageNum);
+        const textContent = await page.getTextContent();
+        const pageText = textContent.items.map(item => item.str).join(' ');
+        fullText += pageText + '\n';
+      }
+      return fullText.trim();
+    } catch (error) {
+      console.warn('PDF.js falhou:', error.message);
+      return '';
+    }
+  };
+  
+  // PDF para imagens
+  const pdfToImages = async (pdfBuffer) => {
+    const pdf = await pdfjsLib.getDocument({ data: pdfBuffer }).promise;
+    const images = [];
+    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+      const page = await pdf.getPage(pageNum);
+      const viewport = page.getViewport({ scale: 2.0 });
+      const canvas = document.createElement('canvas');
+      const context = canvas.getContext('2d');
+      canvas.height = viewport.height;
+      canvas.width = viewport.width;
+      await page.render({ canvasContext: context, viewport: viewport }).promise;
+      images.push(canvas.toDataURL('image/png'));
+    }
+    return images;
+  };
+  
+  // OCR
+  const extractWithOCR = async (pdfBuffer) => {
+    try {
+      const images = await pdfToImages(pdfBuffer);
+      console.log(`🖼️ ${images.length} página(s)`);
+      let fullText = '';
+      for (let i = 0; i < images.length; i++) {
+        setProgressoOCR(`OCR página ${i + 1}/${images.length}...`);
+        const result = await Tesseract.recognize(images[i], 'por', {
+          logger: m => {
+            if (m.status === 'recognizing text') {
+              setProgressoOCR(`OCR ${Math.round(m.progress * 100)}%`);
+            }
+          }
+        });
+        fullText += result.data.text + '\n';
+      }
+      return fullText.trim();
+    } catch (error) {
+      throw new Error('OCR falhou: ' + error.message);
+    }
+  };
+  
+  // Extração principal
+  const extractTextFromPdf = async (pdfBuffer) => {
+    console.log('📄 Extraindo texto...');
+    setProgressoOCR('Extraindo texto...');
+    try {
+      const nativeText = await extractNativeText(pdfBuffer);
+      if (nativeText && nativeText.length > 100) {
+        console.log('✅ Texto nativo:', nativeText.length, 'caracteres');
+        return { text: nativeText, method: 'native' };
+      }
+      console.log('⚠️ Usando OCR...');
+      setProgressoOCR('Aplicando OCR...');
+      const ocrText = await extractWithOCR(pdfBuffer);
+      return { text: ocrText, method: 'ocr' };
+    } catch (error) {
+      throw new Error('Falha: ' + error.message);
+    }
+  };
+  
+  // Ignorar linhas
+  const shouldIgnoreLine = (linha) => {
+    const lower = linha.toLowerCase();
+    const patterns = [
+      /^(fatura|factura|invoice|nif|nipc|vat|data|date)/i,
+      /^(fornecedor|supplier|cliente|client|morada)/i,
+      /^(total|subtotal|iva|vat|tax|desconto)/i,
+      /^(método|metodo|pagamento|payment)/i,
+      /^\d{9}$/, /^\d+\/\d+\/\d+$/
+    ];
+    return patterns.some(p => p.test(lower)) || linha.length < 3;
+  };
+  
+  // Extrair qtd/unidade
+  const extractQuantidadeUnidade = (texto) => {
+    const match = texto.match(/(\d+[.,]?\d*)\s*(kg|g|l|ml|un|unid|cx|emb|dz)/gi);
+    if (match) {
+      const full = match[0];
+      const qtd = parseFloat(full.replace(/[^\d.,]/g, '').replace(',', '.'));
+      let unidade = full.replace(/[\d.,\s]/g, '').toLowerCase();
+      const map = { 'unid': 'un', 'emb': 'cx' };
+      unidade = map[unidade] || unidade;
+      return { quantidade: qtd, unidade, match: full };
+    }
+    return { quantidade: null, unidade: null, match: '' };
+  };
+  
+  // Extrair preço
+  const extractPreco = (texto) => {
+    const match = texto.match(/€?\s*(\d+[.,]\d{2})\s*€?/g);
+    if (match) {
+      const last = match[match.length - 1];
+      const valor = parseFloat(last.replace(/[^\d.,]/g, '').replace(',', '.'));
+      return { valor, match: last };
+    }
+    return { valor: null, match: '' };
+  };
+  
+  // Parse linha
+  const parseLinha = (linha) => {
+    const qtdUnidade = extractQuantidadeUnidade(linha);
+    const preco = extractPreco(linha);
+    let nomeProduto = linha;
+    if (qtdUnidade.match) nomeProduto = nomeProduto.replace(qtdUnidade.match, '');
+    if (preco.match) nomeProduto = nomeProduto.replace(preco.match, '');
+    nomeProduto = nomeProduto.replace(/\s+/g, ' ').trim();
+    if (!nomeProduto) nomeProduto = linha;
+    return {
+      textoOriginal: linha,
+      nomeProduto,
+      quantidade: qtdUnidade.quantidade,
+      unidade: qtdUnidade.unidade,
+      preco: preco.valor,
+      ingredienteSugerido: null,
+      ingredienteConfirmado: null
+    };
+  };
+  
+  // Parse produtos
+  const parseLinhasProdutos = (texto) => {
+    console.log('🔍 Parsing...');
+    setProgressoOCR('Identificando produtos...');
+    const linhas = texto.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    const linhasProdutos = [];
+    for (const linha of linhas) {
+      if (shouldIgnoreLine(linha)) continue;
+      const parsed = parseLinha(linha);
+      if (parsed && parsed.nomeProduto) linhasProdutos.push(parsed);
+    }
+    console.log(`✅ ${linhasProdutos.length} produtos`);
+    return linhasProdutos;
+  };
+  
+  // Metadata
+  const extractFaturaMetadata = (texto) => {
+    const linhas = texto.split('\n');
+    const metadata = { numeroFatura: null, data: null, nif: null, total: null };
+    for (const linha of linhas) {
+      if (!metadata.numeroFatura) {
+        const num = linha.match(/(?:fatura|factura)[\s:]*(\d+\/\d+)/i);
+        if (num) metadata.numeroFatura = num[1];
+      }
+      if (!metadata.data) {
+        const data = linha.match(/(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/);
+        if (data) metadata.data = data[1];
+      }
+      if (!metadata.nif) {
+        const nif = linha.match(/(?:nif|nipc)[\s:]*(\d{9})/i);
+        if (nif) metadata.nif = nif[1];
+      }
+      if (!metadata.total) {
+        const total = linha.match(/total[\s:]*€?\s*(\d+[.,]\d{2})/i);
+        if (total) metadata.total = parseFloat(total[1].replace(',', '.'));
+      }
+    }
+    return metadata;
+  };
+  
+  // Matching
+  const findBestMatch = (nomeProduto, ingredientes) => {
+    const produtoNorm = normalizeForMatching(nomeProduto);
+    let bestMatch = null;
+    let bestScore = 0;
+    for (const ing of ingredientes) {
+      const ingNorm = normalizeForMatching(ing.nome);
+      let score = fuzz.ratio(produtoNorm, ingNorm);
+      if (produtoNorm.includes(ingNorm) || ingNorm.includes(produtoNorm)) {
+        score = Math.min(100, score + 10);
+      }
+      if (score > bestScore) {
+        bestScore = score;
+        bestMatch = { id: ing.id, nome: ing.nome, confianca: Math.round(score) };
+      }
+    }
+    return bestScore >= 60 ? bestMatch : null;
+  };
+  
+  const matchIngredientes = (linhas, ingredientes) => {
+    console.log('🎯 Matching...');
+    setProgressoOCR('Relacionando...');
+    return linhas.map(linha => ({
+      ...linha,
+      ingredienteSugerido: findBestMatch(linha.nomeProduto, ingredientes)
+    }));
+  };
+  
+  const calculateMatchingStats = (linhas) => {
+    const total = linhas.length;
+    const comSugestao = linhas.filter(l => l.ingredienteSugerido).length;
+    const altaConfianca = linhas.filter(l => l.ingredienteSugerido?.confianca >= 80).length;
+    const mediaConfianca = linhas.filter(l => l.ingredienteSugerido?.confianca >= 60 && l.ingredienteSugerido?.confianca < 80).length;
+    return {
+      total, comSugestao, altaConfianca, mediaConfianca,
+      semSugestao: total - comSugestao,
+      percentagemAuto: total > 0 ? Math.round((altaConfianca / total) * 100) : 0
+    };
+  };
+  
+  const getConfidenceLevel = (score) => {
+    if (score >= 80) return { nivel: 'alta', cor: 'green', icone: '✓' };
+    if (score >= 60) return { nivel: 'media', cor: 'yellow', icone: '⚠' };
+    return { nivel: 'baixa', cor: 'red', icone: '✗' };
+  };
+  
+  // Handler principal
+  const handleLerPDFAutomatico = async (event) => {
+    const file = event.target.files[0];
+    if (!file || file.type !== 'application/pdf') {
+      showNotification('⚠️ Selecione um PDF', 'error');
+      return;
+    }
+    
+    // Verificar se bibliotecas estão carregadas
+    if (typeof pdfjsLib === 'undefined') {
+      showNotification('⚠️ Bibliotecas OCR ainda não carregaram. Aguarde e tente novamente.', 'error');
+      return;
+    }
+    
+    if (typeof Tesseract === 'undefined') {
+      showNotification('⚠️ Biblioteca Tesseract ainda não carregou. Aguarde e tente novamente.', 'error');
+      return;
+    }
+    
+    if (typeof fuzz === 'undefined' && typeof window.fuzzball === 'undefined') {
+      showNotification('⚠️ Biblioteca de matching ainda não carregou. Aguarde e tente novamente.', 'error');
+      return;
+    }
+    
+    let base64 = null;
+    
+    try {
+      setProcessandoOCR(true);
+      setProgressoOCR('Carregando...');
+      
+      // Ler ficheiro e converter para base64 PRIMEIRO
+      const arrayBuffer = await file.arrayBuffer();
+      base64 = btoa(
+        new Uint8Array(arrayBuffer)
+          .reduce((data, byte) => data + String.fromCharCode(byte), '')
+      );
+      
+      // Extrair texto
+      const { text, method } = await extractTextFromPdf(arrayBuffer);
+      console.log(`Método: ${method}`);
+      
+      // Parse produtos
+      const linhas = parseLinhasProdutos(text);
+      
+      // Extrair metadata (sempre, mesmo sem produtos)
+      const metadata = extractFaturaMetadata(text);
+      
+      // SEMPRE guardar PDF (independente de ter produtos ou não)
+      metadata.pdfBase64 = base64;
+      metadata.pdfNome = file.name;
+      
+      // Se não encontrou produtos, guarda PDF mas não abre modal
+      if (linhas.length === 0) {
+        // Guardar PDF diretamente na fatura
+        setNovaFatura({
+          ...novaFatura,
+          documentoPDF: base64,
+          nomeDocumento: file.name,
+          numero: metadata.numeroFatura || novaFatura.numero,
+          data: metadata.data ? convertDataToISO(metadata.data) : novaFatura.data
+        });
+        
+        showNotification('⚠️ Nenhum produto identificado, mas PDF foi guardado! Adicione produtos manualmente.', 'warning');
+        setProcessandoOCR(false);
+        return;
+      }
+      
+      // Se encontrou produtos, continua com matching e modal
+      const linhasComMatch = matchIngredientes(linhas, ingredientes);
+      
+      setLinhasOCR(linhasComMatch);
+      setMetadataOCR(metadata);
+      setMostrarModalOCR(true);
+      
+      showNotification(`✅ ${linhas.length} produtos identificados!`, 'success');
+    } catch (error) {
+      console.error('Erro:', error);
+      
+      // MESMO com erro, tenta guardar o PDF se conseguiu converter
+      if (base64) {
+        setNovaFatura({
+          ...novaFatura,
+          documentoPDF: base64,
+          nomeDocumento: file.name
+        });
+        showNotification('❌ Erro no OCR, mas PDF foi guardado! Adicione dados manualmente.', 'warning');
+      } else {
+        showNotification('❌ Erro ao processar: ' + error.message, 'error');
+      }
+    } finally {
+      setProcessandoOCR(false);
+      setProgressoOCR('');
+    }
+  };
+  
+  // Confirmar
+  const handleConfirmarOCR = (linhasValidadas, metadata) => {
+    console.log('📝 Auto-preenchendo fatura...');
+    
+    // Criar itens da fatura
+    const novosItens = linhasValidadas
+      .filter(l => l.ingredienteConfirmado)
+      .map(l => {
+        const ingrediente = ingredientes.find(i => i.id === l.ingredienteConfirmado);
+        const quantidade = l.quantidade || 1;
+        const precoUnitario = l.preco ? (l.preco / quantidade) : 0;
+        
+        return {
+          ingredienteId: l.ingredienteConfirmado,
+          descricao: ingrediente?.nome || l.nomeProduto,
+          quantidade: quantidade,
+          unidade: l.unidade || ingrediente?.unidade || 'un',
+          precoTotal: l.preco || 0,
+          iva: '13',
+          num_funcionarios: 1
+        };
+      });
+    
+    // Preencher dados da fatura
+    setNovaFatura({
+      ...novaFatura,
+      numero: metadata.numeroFatura || novaFatura.numero,
+      data: metadata.data ? convertDataToISO(metadata.data) : novaFatura.data,
+      itens: novosItens,
+      documentoPDF: metadata.pdfBase64 || null,
+      nomeDocumento: metadata.pdfNome || '',
+      categoria: 'compras'
+    });
+    
+    // Tentar identificar fornecedor pelo NIF (se existir)
+    if (metadata.nif) {
+      const fornecedor = fornecedores.find(f => f.nif === metadata.nif);
+      if (fornecedor) {
+        setNovaFatura(prev => ({ ...prev, fornecedorId: fornecedor.id }));
+        console.log('✅ Fornecedor identificado:', fornecedor.nome);
+      }
+    }
+    
+    setMostrarModalOCR(false);
+    showNotification(`✅ Fatura preenchida com ${novosItens.length} produtos!`, 'success');
+  };
+  
+  // Converter data DD/MM/YYYY para YYYY-MM-DD
+  const convertDataToISO = (dataStr) => {
+    try {
+      // Tentar formatos: DD/MM/YYYY, DD-MM-YYYY, DD/MM/YY
+      const patterns = [
+        /(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/, // DD/MM/YYYY
+        /(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2})/   // DD/MM/YY
+      ];
+      
+      for (const pattern of patterns) {
+        const match = dataStr.match(pattern);
+        if (match) {
+          let [_, dia, mes, ano] = match;
+          
+          // Converter ano de 2 dígitos
+          if (ano.length === 2) {
+            ano = parseInt(ano) > 50 ? `19${ano}` : `20${ano}`;
+          }
+          
+          // Adicionar zero à esquerda se necessário
+          dia = dia.padStart(2, '0');
+          mes = mes.padStart(2, '0');
+          
+          return `${ano}-${mes}-${dia}`;
+        }
+      }
+      
+      // Se falhar, retornar data atual
+      return new Date().toISOString().split('T')[0];
+    } catch {
+      return new Date().toISOString().split('T')[0];
+    }
+  };
+
   const tabs = [
     { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
     { id: 'gestao', label: 'Gestão', icon: FileText },
@@ -7228,6 +7894,44 @@ const RestauranteGestor = () => {
                     </h3>
                   </div>
                   
+                  {/* Botão Ler PDF Automaticamente */}
+                  <div className="mb-4 p-3 bg-purple-50 border border-purple-200 rounded-lg">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      📄 Ler e Preencher Fatura Automaticamente
+                    </label>
+                    <input
+                      type="file"
+                      accept=".pdf"
+                      onChange={handleLerPDFAutomatico}
+                      className="hidden"
+                      id="pdf-ocr-input"
+                      disabled={processandoOCR}
+                    />
+                    <label
+                      htmlFor="pdf-ocr-input"
+                      className={`block ${
+                        processandoOCR 
+                          ? 'bg-gray-400 cursor-not-allowed' 
+                          : 'bg-purple-600 hover:bg-purple-700 cursor-pointer'
+                      } text-white px-4 py-3 rounded-lg font-semibold text-center transition`}
+                    >
+                      {processandoOCR ? (
+                        <span className="flex items-center justify-center gap-2">
+                          <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                          </svg>
+                          {progressoOCR || 'Processando...'}
+                        </span>
+                      ) : (
+                        '📄 Ler PDF e Auto-Preencher'
+                      )}
+                    </label>
+                    <p className="text-xs text-gray-500 mt-2 text-center">
+                      ✨ Extrai produtos, preços, data, fornecedor E guarda o PDF original
+                    </p>
+                  </div>
+                  
                   {/* Formulário Fatura */}
                   <>
                       {/* Linha 1: Número, Data, Fornecedor */}
@@ -7787,80 +8491,6 @@ const RestauranteGestor = () => {
                       rows={2}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
                     />
-                  </div>
-                  
-                  {/* ===== UPLOAD DE PDF DA FATURA ===== */}
-                  <div className="mb-4 bg-blue-50 border-2 border-blue-300 rounded-lg p-4">
-                    <label className="block text-sm font-bold text-blue-900 mb-2 flex items-center gap-2">
-                      <Paperclip size={18} />
-                      📄 PDF da Fatura (Obrigatório para dedução de IVA)
-                    </label>
-                    
-                    {/* Input file oculto */}
-                    <input
-                      type="file"
-                      id="pdfUploadFatura"
-                      accept="application/pdf"
-                      onChange={handlePDFUpload}
-                      className="hidden"
-                    />
-                    
-                    {/* Botão de upload ou visualização do PDF */}
-                    {!novaFatura.documentoPDF ? (
-                      <button
-                        type="button"
-                        onClick={() => document.getElementById('pdfUploadFatura').click()}
-                        className="w-full bg-purple-600 hover:bg-purple-700 text-white rounded-lg px-4 py-3 font-semibold flex items-center justify-center gap-2 transition"
-                      >
-                        <Upload size={20} />
-                        Carregar PDF da Fatura
-                      </button>
-                    ) : (
-                      <div className="bg-white rounded p-2 border border-green-400">
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-2 text-green-700 min-w-0">
-                            <FilePdf size={16} className="flex-shrink-0" />
-                            <div className="min-w-0">
-                              <p className="font-semibold text-xs truncate">{novaFatura.nomeDocumento}</p>
-                              <p className="text-xs text-gray-600">
-                                {novaFatura.documentoPDF ? `${(novaFatura.documentoPDF.length / 1024).toFixed(0)} KB` : ''}
-                              </p>
-                            </div>
-                          </div>
-                          <div className="flex gap-1 flex-shrink-0">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const w = window.open('');
-                                w.document.write(
-                                  `<iframe width='100%' height='100%' src='${novaFatura.documentoPDF}'></iframe>`
-                                );
-                              }}
-                              className="p-1.5 bg-blue-100 hover:bg-blue-200 rounded text-blue-700 transition"
-                              title="Visualizar PDF"
-                            >
-                              <Eye size={14} />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setNovaFatura({...novaFatura, documentoPDF: null, nomeDocumento: ''});
-                                showNotification('📄 PDF removido', 'info');
-                              }}
-                              className="p-1.5 bg-red-100 hover:bg-red-200 rounded text-red-700 transition"
-                              title="Remover PDF"
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                    
-                    <p className="text-xs text-gray-700 mt-2 flex items-center gap-1.5">
-                      <AlertCircle className="w-3 h-3 flex-shrink-0" />
-                      <span>⚠️ Sem PDF original, a Autoridade Tributária pode rejeitar a dedução de IVA!</span>
-                    </p>
                   </div>
                   
                   {/* Botões */}
@@ -9236,6 +9866,17 @@ const RestauranteGestor = () => {
           </div>
         )}
       </div>
+      
+      {/* Modal OCR */}
+      {mostrarModalOCR && (
+        <ModalConfirmacaoOCR 
+          linhas={linhasOCR}
+          ingredientes={ingredientes}
+          metadata={metadataOCR}
+          onConfirmar={handleConfirmarOCR}
+          onCancelar={() => setMostrarModalOCR(false)}
+        />
+      )}
     </div>
   );
 };
