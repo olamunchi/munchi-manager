@@ -8894,210 +8894,209 @@ const RestauranteGestor = () => {
                   )}
                 </div>
                 
-                {/* Backup e Dados */}
-                <div className="border rounded-lg p-4 bg-gradient-to-r from-green-50 to-blue-50">
-                  <h3 className="font-bold text-lg mb-3 flex items-center gap-2">
-                    💾 Backup e Dados
+                {/* Backup e Sincronização */}
+                <div className="border rounded-lg p-4 bg-gradient-to-r from-gray-50 to-blue-50">
+                  <h3 className="font-bold text-lg mb-2 flex items-center gap-2">
+                    💾 Backup e Sincronização
                   </h3>
                   <p className="text-sm text-gray-600 mb-4">
-                    Exporte os seus dados para criar uma cópia de segurança ou importe dados de um ficheiro anterior.
+                    Sincronize automaticamente com a cloud ou faça backup/restauro manual.
                   </p>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    {/* Exportar */}
-                    <div className="bg-white rounded-lg p-4 border-2 border-green-200">
-                      <h4 className="font-semibold text-green-800 mb-2 flex items-center gap-2">
-                        <Download size={16} />
-                        Exportar Dados
-                      </h4>
-                      <p className="text-xs text-gray-600 mb-3">
-                        Guarde todos os dados num ficheiro JSON.
-                      </p>
-                      <button 
-                        onClick={exportarDados}
-                        className="w-full bg-green-600 hover:bg-green-700 text-white rounded-lg px-4 py-2.5 text-sm font-semibold flex items-center justify-center gap-2 transition"
-                      >
-                        <Download size={14} />
-                        Exportar
-                      </button>
-                    </div>
+                  {/* Grid: Export/Import + GitHub + Google Drive */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
                     
-                    {/* Importar */}
-                    <div className="bg-white rounded-lg p-4 border-2 border-blue-200">
-                      <h4 className="font-semibold text-blue-800 mb-2 flex items-center gap-2">
-                        <Upload size={16} />
-                        Importar Dados
-                      </h4>
-                      <p className="text-xs text-gray-600 mb-3">
-                        Restaure dados de backup. ⚠️ Substitui tudo.
-                      </p>
-                      <label className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2.5 text-sm font-semibold flex items-center justify-center gap-2 transition cursor-pointer">
-                        <Upload size={14} />
-                        Importar
-                        <input type="file" accept=".json" onChange={importarDados} className="hidden" />
-                      </label>
+                    {/* Coluna Esquerda: Export/Import + GitHub */}
+                    <div className="space-y-3">
+                      {/* Exportar/Importar Local */}
+                      <div className="grid grid-cols-2 gap-3">
+                        {/* Exportar */}
+                        <div className="bg-white rounded-lg p-3 border-2 border-green-200">
+                          <h4 className="font-semibold text-green-800 text-sm mb-2 flex items-center gap-1">
+                            <Download size={14} />
+                            Exportar
+                          </h4>
+                          <p className="text-xs text-gray-600 mb-2">
+                            Backup local (JSON)
+                          </p>
+                          <button 
+                            onClick={exportarDados}
+                            className="w-full bg-green-600 hover:bg-green-700 text-white rounded px-3 py-2 text-xs font-semibold flex items-center justify-center gap-1 transition"
+                          >
+                            <Download size={12} />
+                            Exportar
+                          </button>
+                        </div>
+                        
+                        {/* Importar */}
+                        <div className="bg-white rounded-lg p-3 border-2 border-blue-200">
+                          <h4 className="font-semibold text-blue-800 text-sm mb-2 flex items-center gap-1">
+                            <Upload size={14} />
+                            Importar
+                          </h4>
+                          <p className="text-xs text-gray-600 mb-2">
+                            Restaurar backup
+                          </p>
+                          <label className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded px-3 py-2 text-xs font-semibold flex items-center justify-center gap-1 transition cursor-pointer">
+                            <Upload size={12} />
+                            Importar
+                            <input type="file" accept=".json" onChange={importarDados} className="hidden" />
+                          </label>
+                        </div>
+                      </div>
+                      
+                      {/* GitHub Backup */}
+                      <GitHubBackupPanel 
+                        onSync={async () => {
+                          const token = GitHubSync.getToken();
+                          if (!token) {
+                            showNotification('Configure o GitHub primeiro!', 'error');
+                            return;
+                          }
+                          
+                          const allData = {
+                            produtos,
+                            ingredientes,
+                            vendas,
+                            despesas,
+                            faturas,
+                            fornecedores,
+                            deliveryApps,
+                            embalagens,
+                            dadosEmpresa,
+                            version: '2.0'
+                          };
+                          
+                          const result = await GitHubSync.saveToGist(allData, token);
+                          if (result.success) {
+                            showNotification('✅ Backup sincronizado com GitHub!', 'success');
+                          } else {
+                            showNotification(`❌ Erro: ${result.error}`, 'error');
+                          }
+                        }}
+                      />
                     </div>
-                    
-                    {/* GitHub Backup Cloud */}
-    <GitHubBackupPanel 
-      onSync={async () => {
-        const token = GitHubSync.getToken();
-        if (!token) {
-          showNotification('Configure o GitHub primeiro!', 'error');
-          return;
-        }
-        
-        const allData = {
-          produtos,
-          ingredientes,
-          vendas,
-          despesas,
-          faturas,
-          fornecedores,
-          deliveryApps,
-          embalagens,
-          dadosEmpresa,
-          version: '2.0'
-        };
-        
-        const result = await GitHubSync.saveToGist(allData, token);
-        if (result.success) {
-          showNotification('✅ Backup sincronizado com GitHub!', 'success');
-        } else {
-          showNotification(`❌ Erro: ${result.error}`, 'error');
-        }
-      }}
-    />
-  </div>
+
+                    {/* Coluna Direita: Google Drive */}
+                    <div>
+                      {!driveAccessToken ? (
+                        <div className="bg-blue-50 border-2 border-blue-300 rounded-lg p-4 h-full">
+                          <div className="flex items-start gap-3 mb-3">
+                            <div className="bg-blue-600 rounded-lg p-2 flex-shrink-0">
+                              <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12.945 1.379l-.652.763c-.026-.008-.052-.014-.078-.023L6.364 7.97l3.352 5.796 2.32-4.01a1.158 1.158 0 011.099-.706c.326.006.611.177.78.435l.033.053 8.684 15.07h-6.666L13.185 18h-2.37l-.003.001L6.277 7.965 6.209 8h-.012L1.363 16l3.314 5.735 8.716.002c.276 0 .509-.137.709-.356l9.677-16.91-.002-.002c-.01-.017-.022-.032-.033-.049-.288-.52-.754-.882-1.308-.988L12.945 1.379z"/>
+                              </svg>
+                            </div>
+                            <div className="flex-1">
+                              <h4 className="font-bold text-blue-900 mb-1 text-sm">
+                                ☁️ Google Drive
+                              </h4>
+                              <p className="text-xs text-gray-700 mb-2">
+                                Sincronização automática entre dispositivos.
+                              </p>
+                              <ul className="text-xs text-gray-600 space-y-0.5 mb-3">
+                                <li>✅ Multi-dispositivo</li>
+                                <li>✅ Backup automático</li>
+                                <li>✅ 15GB grátis</li>
+                              </ul>
+                            </div>
+                          </div>
+                          
+                          <button
+                            onClick={loginGoogleDrive}
+                            className="w-full bg-white border-2 border-gray-300 hover:border-blue-500 hover:shadow-lg rounded-lg px-3 py-2.5 text-sm font-semibold flex items-center justify-center gap-2 transition"
+                          >
+                            <svg className="w-4 h-4" viewBox="0 0 24 24">
+                              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                            </svg>
+                            Conectar
+                          </button>
+                          
+                          <p className="text-xs text-gray-500 mt-2 text-center">
+                            🔒 Acesso só aos ficheiros do Munchi
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="bg-green-50 border-2 border-green-300 rounded-lg p-4 h-full">
+                          <div className="flex items-center gap-2 mb-3">
+                            {driveUser?.image && (
+                              <img 
+                                src={driveUser.image} 
+                                alt={driveUser.name}
+                                className="w-10 h-10 rounded-full border-2 border-green-400"
+                              />
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <p className="font-bold text-green-900 text-sm truncate">{driveUser?.name || 'Utilizador'}</p>
+                              <p className="text-xs text-green-700 truncate">{driveUser?.email || ''}</p>
+                              <p className="text-xs text-gray-600 mt-0.5">
+                                {driveSyncing ? (
+                                  <span className="flex items-center gap-1">
+                                    <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24">
+                                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
+                                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                                    </svg>
+                                    A sincronizar...
+                                  </span>
+                                ) : driveLastSync ? (
+                                  `✅ Sync há ${Math.round((new Date() - driveLastSync) / 60000)} min`
+                                ) : (
+                                  '⏳ Aguardando sync'
+                                )}
+                              </p>
+                            </div>
+                            <button
+                              onClick={logoutGoogleDrive}
+                              className="text-xs text-red-600 hover:text-red-800 px-2 py-1 border border-red-300 rounded hover:bg-red-50 transition flex-shrink-0"
+                            >
+                              Sair
+                            </button>
+                          </div>
+                          
+                          {driveError && (
+                            <div className="bg-red-100 border border-red-300 rounded p-2 mb-2">
+                              <p className="text-xs text-red-800">⚠️ {driveError}</p>
+                            </div>
+                          )}
+                          
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              onClick={saveToDrive}
+                              disabled={driveSyncing}
+                              className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-3 py-2 rounded text-xs font-semibold flex items-center justify-center gap-1 transition"
+                            >
+                              <Upload size={12} />
+                              Sync
+                            </button>
+                            
+                            <button
+                              onClick={() => loadFromDrive()}
+                              disabled={driveSyncing}
+                              className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white px-3 py-2 rounded text-xs font-semibold flex items-center justify-center gap-1 transition"
+                            >
+                              <Download size={12} />
+                              Carregar
+                            </button>
+                          </div>
+                          
+                          {driveFileId && (
+                            <p className="text-xs text-gray-500 mt-2 text-center">
+                              📁 {GOOGLE_DRIVE_CONFIG.FILE_NAME}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
                   
-                  <div className="mt-4 bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-2">
                     <p className="text-xs text-yellow-800">
-                      <strong>💡 GitHub:</strong> Backup automático e seguro na cloud. Configure o token nas definições acima.
+                      <strong>💡 Dica:</strong> Use GitHub ou Google Drive para backup automático. Export/Import para backup manual.
                     </p>
                   </div>
-                {/* ===== GOOGLE DRIVE SYNC ===== */}
-                <div className="border-b pb-4">
-                  <h3 className="font-semibold mb-3 flex items-center gap-2">
-                    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M12.945 1.379l-.652.763c-.026-.008-.052-.014-.078-.023L6.364 7.97l3.352 5.796 2.32-4.01a1.158 1.158 0 011.099-.706c.326.006.611.177.78.435l.033.053 8.684 15.07h-6.666L13.185 18h-2.37l-.003.001L6.277 7.965 6.209 8h-.012L1.363 16l3.314 5.735 8.716.002c.276 0 .509-.137.709-.356l9.677-16.91-.002-.002c-.01-.017-.022-.032-.033-.049-.288-.52-.754-.882-1.308-.988L12.945 1.379z"/>
-                    </svg>
-                    ☁️ Sincronização Google Drive
-                  </h3>
-
-                  {!driveAccessToken ? (
-                    <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4">
-                      <div className="flex items-start gap-3 mb-3">
-                        <div className="bg-blue-600 rounded-lg p-2">
-                          <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M12.945 1.379l-.652.763c-.026-.008-.052-.014-.078-.023L6.364 7.97l3.352 5.796 2.32-4.01a1.158 1.158 0 011.099-.706c.326.006.611.177.78.435l.033.053 8.684 15.07h-6.666L13.185 18h-2.37l-.003.001L6.277 7.965 6.209 8h-.012L1.363 16l3.314 5.735 8.716.002c.276 0 .509-.137.709-.356l9.677-16.91-.002-.002c-.01-.017-.022-.032-.033-.049-.288-.52-.754-.882-1.308-.988L12.945 1.379z"/>
-                          </svg>
-                        </div>
-                        <div className="flex-1">
-                          <h4 className="font-bold text-blue-900 mb-2">
-                            Conectar ao Google Drive
-                          </h4>
-                          <p className="text-sm text-gray-700 mb-3">
-                            Sincronize automaticamente os seus dados entre todos os dispositivos. 
-                            Os dados ficam guardados no seu Google Drive pessoal (100% grátis).
-                          </p>
-                          <ul className="text-xs text-gray-600 space-y-1 mb-3">
-                            <li>✅ Acesso em qualquer dispositivo (telemóvel, PC, tablet)</li>
-                            <li>✅ Backup automático na cloud</li>
-                            <li>✅ Sincronização em tempo real</li>
-                            <li>✅ 15GB grátis no Google Drive</li>
-                          </ul>
-                        </div>
-                      </div>
-                      
-                      <button
-                        onClick={loginGoogleDrive}
-                        className="w-full bg-white border-2 border-gray-300 hover:border-blue-500 hover:shadow-lg rounded-lg px-4 py-3 font-semibold flex items-center justify-center gap-3 transition"
-                      >
-                        <svg className="w-5 h-5" viewBox="0 0 24 24">
-                          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                          <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-                        </svg>
-                        Conectar com Google
-                      </button>
-                      
-                      <p className="text-xs text-gray-500 mt-2 text-center">
-                        🔒 Seguro: Só acede ao ficheiro criado pelo Munchi Manager
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="bg-green-50 border-2 border-green-300 rounded-lg p-4">
-                      <div className="flex items-center gap-3 mb-3">
-                        {driveUser?.image && (
-                          <img 
-                            src={driveUser.image} 
-                            alt={driveUser.name}
-                            className="w-12 h-12 rounded-full border-2 border-green-400"
-                          />
-                        )}
-                        <div className="flex-1">
-                          <p className="font-bold text-green-900">{driveUser?.name || 'Utilizador'}</p>
-                          <p className="text-sm text-green-700">{driveUser?.email || ''}</p>
-                          <p className="text-xs text-gray-600 mt-1">
-                            {driveSyncing ? (
-                              <span className="flex items-center gap-1">
-                                <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24">
-                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
-                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
-                                </svg>
-                                A sincronizar...
-                              </span>
-                            ) : driveLastSync ? (
-                              `✅ Sincronizado há ${Math.round((new Date() - driveLastSync) / 60000)} min`
-                            ) : (
-                              '⏳ Aguardando primeira sincronização'
-                            )}
-                          </p>
-                        </div>
-                        <button
-                          onClick={logoutGoogleDrive}
-                          className="text-sm text-red-600 hover:text-red-800 px-3 py-1 border border-red-300 rounded hover:bg-red-50 transition"
-                        >
-                          Desconectar
-                        </button>
-                      </div>
-                      
-                      {driveError && (
-                        <div className="bg-red-100 border border-red-300 rounded p-2 mb-3">
-                          <p className="text-xs text-red-800">⚠️ {driveError}</p>
-                        </div>
-                      )}
-                      
-                      <div className="grid grid-cols-2 gap-2">
-                        <button
-                          onClick={saveToDrive}
-                          disabled={driveSyncing}
-                          className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-4 py-2 rounded font-semibold flex items-center justify-center gap-2 transition"
-                        >
-                          <Upload size={16} />
-                          Sincronizar Agora
-                        </button>
-                        
-                        <button
-                          onClick={() => loadFromDrive()}
-                          disabled={driveSyncing}
-                          className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white px-4 py-2 rounded font-semibold flex items-center justify-center gap-2 transition"
-                        >
-                          <Download size={16} />
-                          Carregar do Drive
-                        </button>
-                      </div>
-                      
-                      {driveFileId && (
-                        <p className="text-xs text-gray-500 mt-2 text-center">
-                          📁 Ficheiro: {GOOGLE_DRIVE_CONFIG.FILE_NAME} no seu Drive
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </div>
-                
                 </div>
                 
                 {/* Exportar para Excel/CSV */}
