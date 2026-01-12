@@ -9,7 +9,6 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <script src="https://apis.google.com/js/api.js"></script>
 </head>
 <body>
     <div id="root"></div>
@@ -1356,14 +1355,13 @@ const RestauranteGestor = () => {
   const [syncError, setSyncError] = React.useState(null);
   const [autoSyncEnabled, setAutoSyncEnabled] = React.useState(true);
   
-  // ===== GOOGLE DRIVE SYNC STATES =====
-  const [driveReady, setDriveReady] = useState(false);
-  const [driveAuthenticated, setDriveAuthenticated] = useState(false);
+  // Google Drive states
+  const [driveAccessToken, setDriveAccessToken] = useState(null);
   const [driveUser, setDriveUser] = useState(null);
   const [driveSyncing, setDriveSyncing] = useState(false);
+  const [driveFileId, setDriveFileId] = useState(localStorage.getItem('munchi_drive_file_id'));
   const [driveLastSync, setDriveLastSync] = useState(null);
   const [driveError, setDriveError] = useState(null);
-  const [driveFileId, setDriveFileId] = useState(null);
   
 
   const [dashboardSubTab, setDashboardSubTab] = useState('resumo');
@@ -2497,181 +2495,127 @@ const RestauranteGestor = () => {
     return csvSimples;
   };
 
-  // ===== GOOGLE DRIVE INTEGRATION =====
-  
-  const GOOGLE_CONFIG = {
+  // === GOOGLE IDENTITY SERVICES ===
+  const GOOGLE_DRIVE_CONFIG = {
     CLIENT_ID: '344967437318-oe9hr1t5m9bcs7qvdm0t5dr9f0delaom.apps.googleusercontent.com',
-    API_KEY: '', // Não precisamos de API Key para este caso
     SCOPES: 'https://www.googleapis.com/auth/drive.file',
-    DISCOVERY_DOCS: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'],
-    FILE_NAME: 'munchi-data.json',
-    FOLDER_NAME: 'Munchi Manager'
+    FILE_NAME: 'munchi-data.json'
   };
 
-  // Inicializar Google API
-  const initGoogleDrive = () => {
-    return new Promise((resolve, reject) => {
-      gapi.load('client:auth2', async () => {
-        try {
-          await gapi.client.init({
-            clientId: GOOGLE_CONFIG.CLIENT_ID,
-            scope: GOOGLE_CONFIG.SCOPES,
-            discoveryDocs: GOOGLE_CONFIG.DISCOVERY_DOCS
-          });
-          
-          // Google API pronta!
-          setDriveReady(true);
-          
-          // Verificar se já está autenticado
-          const authInstance = gapi.auth2.getAuthInstance();
-          if (authInstance.isSignedIn.get()) {
-            const user = authInstance.currentUser.get();
-            setDriveAuthenticated(true);
-            setDriveUser({
-              name: user.getBasicProfile().getName(),
-              email: user.getBasicProfile().getEmail(),
-              image: user.getBasicProfile().getImageUrl()
-            });
-            
-            // Carregar dados do Drive
-            await loadFromDrive();
-          }
-          
-          resolve();
-        } catch (error) {
-          console.error('Erro ao inicializar Google Drive:', error);
-          setDriveReady(false);
-          reject(error);
-        }
-      });
-    });
-  };
-
-  // Login com Google
-  const loginGoogleDrive = async () => {
+  const loadUserInfo = async (token) => {
     try {
-      setDriveError(null);
-      const authInstance = gapi.auth2.getAuthInstance();
-      await authInstance.signIn();
-      
-      const user = authInstance.currentUser.get();
-      setDriveAuthenticated(true);
-      setDriveUser({
-        name: user.getBasicProfile().getName(),
-        email: user.getBasicProfile().getEmail(),
-        image: user.getBasicProfile().getImageUrl()
+      const response = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+        headers: { 'Authorization': `Bearer ${token}` }
       });
-      
-      showNotification('✅ Conectado ao Google Drive!', 'success');
-      
-      // Carregar dados do Drive
-      await loadFromDrive();
-    } catch (error) {
-      console.error('Erro no login:', error);
-      setDriveError('Erro ao fazer login');
-      showNotification('❌ Erro ao conectar Google Drive', 'error');
-    }
-  };
-
-  // Logout
-  const logoutGoogleDrive = async () => {
-    try {
-      const authInstance = gapi.auth2.getAuthInstance();
-      await authInstance.signOut();
-      
-      setDriveAuthenticated(false);
-      setDriveUser(null);
-      setDriveFileId(null);
-      
-      showNotification('Desconectado do Google Drive', 'info');
-    } catch (error) {
-      console.error('Erro no logout:', error);
-    }
-  };
-
-  // Procurar ficheiro no Drive
-  const findDriveFile = async () => {
-    try {
-      const response = await gapi.client.drive.files.list({
-        q: `name='${GOOGLE_CONFIG.FILE_NAME}' and mimeType='application/json' and trashed=false`,
-        spaces: 'drive',
-        fields: 'files(id, name, modifiedTime)'
-      });
-      
-      if (response.result.files && response.result.files.length > 0) {
-        return response.result.files[0];
+      if (response.ok) {
+        const userInfo = await response.json();
+        setDriveUser({
+          name: userInfo.name,
+          email: userInfo.email,
+          image: userInfo.picture
+        });
       }
-      
-      return null;
     } catch (error) {
-      console.error('Erro ao procurar ficheiro:', error);
-      return null;
+      console.error('Erro ao carregar info do utilizador:', error);
     }
   };
 
-  // Criar ficheiro no Drive
-  const createDriveFile = async (data) => {
-    try {
-      const fileContent = JSON.stringify(data, null, 2);
-      const file = new Blob([fileContent], { type: 'application/json' });
-      const metadata = {
-        name: GOOGLE_CONFIG.FILE_NAME,
-        mimeType: 'application/json'
-      };
-
-      const form = new FormData();
-      form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
-      form.append('file', file);
-
-      const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
-        method: 'POST',
-        headers: new Headers({ 'Authorization': 'Bearer ' + gapi.auth.getToken().access_token }),
-        body: form
-      });
-
-      const result = await response.json();
-      setDriveFileId(result.id);
-      return result.id;
-    } catch (error) {
-      console.error('Erro ao criar ficheiro:', error);
-      throw error;
-    }
-  };
-
-  // Atualizar ficheiro no Drive
-  const updateDriveFile = async (fileId, data) => {
-    try {
-      const fileContent = JSON.stringify(data, null, 2);
-      const file = new Blob([fileContent], { type: 'application/json' });
-
-      const response = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, {
-        method: 'PATCH',
-        headers: new Headers({ 
-          'Authorization': 'Bearer ' + gapi.auth.getToken().access_token,
-          'Content-Type': 'application/json'
-        }),
-        body: fileContent
-      });
-
-      return await response.json();
-    } catch (error) {
-      console.error('Erro ao atualizar ficheiro:', error);
-      throw error;
-    }
-  };
-
-  // Salvar para Drive
-  const saveToDrive = async () => {
-    if (!driveAuthenticated) {
-      showNotification('⚠️ Não conectado ao Google Drive', 'error');
+  const loginGoogleDrive = () => {
+    if (!window.google) {
+      showNotification('⚠️ Google Identity Services ainda não carregou', 'error');
       return;
     }
+    const client = window.google.accounts.oauth2.initTokenClient({
+      client_id: GOOGLE_DRIVE_CONFIG.CLIENT_ID,
+      scope: GOOGLE_DRIVE_CONFIG.SCOPES,
+      callback: (response) => {
+        if (response.access_token) {
+          const tokenData = {
+            access_token: response.access_token,
+            expires_at: Date.now() + (response.expires_in * 1000)
+          };
+          localStorage.setItem('munchi_drive_token', JSON.stringify(tokenData));
+          setDriveAccessToken(response.access_token);
+          setDriveError(null);
+          loadUserInfo(response.access_token);
+          loadFromDrive(response.access_token);
+          showNotification('✅ Conectado ao Google Drive!', 'success');
+        } else {
+          setDriveError('Erro ao obter token');
+          showNotification('❌ Erro ao conectar', 'error');
+        }
+      }
+    });
+    client.requestAccessToken();
+  };
 
+  const logoutGoogleDrive = () => {
+    if (driveAccessToken && window.google) {
+      window.google.accounts.oauth2.revoke(driveAccessToken);
+    }
+    localStorage.removeItem('munchi_drive_token');
+    localStorage.removeItem('munchi_drive_file_id');
+    setDriveAccessToken(null);
+    setDriveUser(null);
+    setDriveFileId(null);
+    showNotification('Desconectado do Google Drive', 'info');
+  };
+
+  const findDriveFile = async (token) => {
+    try {
+      const response = await fetch(
+        `https://www.googleapis.com/drive/v3/files?q=name='${GOOGLE_DRIVE_CONFIG.FILE_NAME}' and mimeType='application/json' and trashed=false&fields=files(id,name,modifiedTime)`,
+        { headers: { 'Authorization': `Bearer ${token}` } }
+      );
+      if (response.ok) {
+        const data = await response.json();
+        return data.files && data.files.length > 0 ? data.files[0] : null;
+      }
+    } catch (error) {
+      console.error('Erro ao procurar ficheiro:', error);
+    }
+    return null;
+  };
+
+  const createDriveFile = async (token, data) => {
+    const metadata = { name: GOOGLE_DRIVE_CONFIG.FILE_NAME, mimeType: 'application/json' };
+    const form = new FormData();
+    form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+    form.append('file', new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
+    const response = await fetch(
+      'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',
+      { method: 'POST', headers: { 'Authorization': `Bearer ${token}` }, body: form }
+    );
+    if (response.ok) {
+      const result = await response.json();
+      setDriveFileId(result.id);
+      localStorage.setItem('munchi_drive_file_id', result.id);
+      return result.id;
+    }
+    throw new Error('Erro ao criar ficheiro');
+  };
+
+  const updateDriveFile = async (token, fileId, data) => {
+    const response = await fetch(
+      `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`,
+      {
+        method: 'PATCH',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(data, null, 2)
+      }
+    );
+    if (!response.ok) throw new Error('Erro ao atualizar');
+    return true;
+  };
+
+  const saveToDrive = async () => {
+    if (!driveAccessToken) {
+      showNotification('⚠️ Não conectado', 'error');
+      return;
+    }
     try {
       setDriveSyncing(true);
       setDriveError(null);
-
-      // Preparar dados
       const data = {
         produtos: produtos || [],
         ingredientes: ingredientes || [],
@@ -2683,98 +2627,67 @@ const RestauranteGestor = () => {
         funcionarios: funcionarios || [],
         lastUpdate: new Date().toISOString()
       };
-
-      // Procurar ficheiro existente
       let fileId = driveFileId;
       if (!fileId) {
-        const existingFile = await findDriveFile();
+        const existingFile = await findDriveFile(driveAccessToken);
         if (existingFile) {
           fileId = existingFile.id;
           setDriveFileId(fileId);
+          localStorage.setItem('munchi_drive_file_id', fileId);
         }
       }
-
-      // Criar ou atualizar
       if (fileId) {
-        await updateDriveFile(fileId, data);
+        await updateDriveFile(driveAccessToken, fileId, data);
       } else {
-        fileId = await createDriveFile(data);
+        await createDriveFile(driveAccessToken, data);
       }
-
       setDriveLastSync(new Date());
-      showNotification('✅ Dados sincronizados com Drive!', 'success');
+      showNotification('✅ Sincronizado!', 'success');
     } catch (error) {
-      console.error('Erro ao salvar no Drive:', error);
+      console.error('Erro:', error);
       setDriveError('Erro ao sincronizar');
-      showNotification('❌ Erro ao sincronizar com Drive', 'error');
+      showNotification('❌ Erro ao sincronizar', 'error');
     } finally {
       setDriveSyncing(false);
     }
   };
 
-  // Carregar do Drive
-  const loadFromDrive = async () => {
-    if (!driveAuthenticated) {
-      return;
-    }
-
+  const loadFromDrive = async (token = driveAccessToken) => {
+    if (!token) return;
     try {
       setDriveSyncing(true);
-      setDriveError(null);
-
-      // Procurar ficheiro
-      const file = await findDriveFile();
+      const file = await findDriveFile(token);
       if (!file) {
-        console.log('Nenhum ficheiro encontrado no Drive');
         setDriveSyncing(false);
         return;
       }
-
       setDriveFileId(file.id);
-
-      // Carregar conteúdo
-      const response = await gapi.client.drive.files.get({
-        fileId: file.id,
-        alt: 'media'
-      });
-
-      const data = response.result;
-
-      // Restaurar dados
-      if (data.produtos) setProdutos(data.produtos);
-      if (data.ingredientes) setIngredientes(data.ingredientes);
-      if (data.vendas) setVendas(data.vendas);
-      if (data.faturas) setFaturas(data.faturas);
-      if (data.fornecedores) setFornecedores(data.fornecedores);
-      if (data.dadosEmpresa) setDadosEmpresa(data.dadosEmpresa);
-      if (data.deliveryApps) setDeliveryApps(data.deliveryApps);
-      if (data.funcionarios) setFuncionarios(data.funcionarios);
-
-      setDriveLastSync(new Date(file.modifiedTime));
-      showNotification('✅ Dados carregados do Drive!', 'success');
+      localStorage.setItem('munchi_drive_file_id', file.id);
+      const response = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`,
+        { headers: { 'Authorization': `Bearer ${token}` } }
+      );
+      if (response.ok) {
+        const data = await response.json();
+        if (data.produtos) setProdutos(data.produtos);
+        if (data.ingredientes) setIngredientes(data.ingredientes);
+        if (data.vendas) setVendas(data.vendas);
+        if (data.faturas) setFaturas(data.faturas);
+        if (data.fornecedores) setFornecedores(data.fornecedores);
+        if (data.dadosEmpresa) setDadosEmpresa(data.dadosEmpresa);
+        if (data.deliveryApps) setDeliveryApps(data.deliveryApps);
+        if (data.funcionarios) setFuncionarios(data.funcionarios);
+        setDriveLastSync(new Date(file.modifiedTime));
+        showNotification('✅ Dados carregados!', 'success');
+      }
     } catch (error) {
-      console.error('Erro ao carregar do Drive:', error);
-      setDriveError('Erro ao carregar dados');
+      console.error('Erro:', error);
+      setDriveError('Erro ao carregar');
     } finally {
       setDriveSyncing(false);
     }
   };
 
-  // Sincronização automática ao mudar dados
-  useEffect(() => {
-    if (driveAuthenticated && autoSyncEnabled) {
-      const timeout = setTimeout(() => {
-        saveToDrive();
-      }, 3000); // Espera 3 segundos após última alteração
-
-      return () => clearTimeout(timeout);
-    }
-  }, [produtos, ingredientes, vendas, faturas, fornecedores, driveAuthenticated]);
-
-  // Inicializar ao montar componente
-  useEffect(() => {
-    initGoogleDrive().catch(console.error);
-  }, []);
   useEffect(() => {
     const carregar = async () => {
       try {
@@ -4506,6 +4419,39 @@ const RestauranteGestor = () => {
       setIsSyncing(false);
     }
   }, [produtos, ingredientes, vendas, despesas, fornecedores, dadosEmpresa, faturas, isSyncing]);
+
+  // Google Drive: Sincronização automática
+  useEffect(() => {
+    if (driveAccessToken) {
+      const timeout = setTimeout(() => saveToDrive(), 3000);
+      return () => clearTimeout(timeout);
+    }
+  }, [produtos, ingredientes, vendas, faturas, fornecedores, driveAccessToken]);
+
+  // Google Drive: Inicializar Google Identity Services
+  useEffect(() => {
+    const script = document.createElement('script');
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.async = true;
+    script.onload = () => {
+      const savedToken = localStorage.getItem('munchi_drive_token');
+      if (savedToken) {
+        try {
+          const tokenData = JSON.parse(savedToken);
+          if (tokenData.expires_at && Date.now() < tokenData.expires_at) {
+            setDriveAccessToken(tokenData.access_token);
+            loadUserInfo(tokenData.access_token);
+            loadFromDrive(tokenData.access_token);
+          } else {
+            localStorage.removeItem('munchi_drive_token');
+          }
+        } catch (e) {
+          localStorage.removeItem('munchi_drive_token');
+        }
+      }
+    };
+    document.head.appendChild(script);
+  }, []);
 
   const calcCusto = (p) => {
     if (!p.receita || !p.receita.length) return 0;
@@ -9042,8 +8988,7 @@ const RestauranteGestor = () => {
                     ☁️ Sincronização Google Drive
                   </h3>
 
-                  {!driveAuthenticated ? (
-                    /* Não conectado */
+                  {!driveAccessToken ? (
                     <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4">
                       <div className="flex items-start gap-3 mb-3">
                         <div className="bg-blue-600 rounded-lg p-2">
@@ -9056,22 +9001,21 @@ const RestauranteGestor = () => {
                             Conectar ao Google Drive
                           </h4>
                           <p className="text-sm text-gray-700 mb-3">
-                            Sincronize automaticamente os seus dados entre dispositivos. 
+                            Sincronize automaticamente os seus dados entre todos os dispositivos. 
                             Os dados ficam guardados no seu Google Drive pessoal (100% grátis).
                           </p>
                           <ul className="text-xs text-gray-600 space-y-1 mb-3">
-                            <li>✅ Acesso em qualquer dispositivo</li>
+                            <li>✅ Acesso em qualquer dispositivo (telemóvel, PC, tablet)</li>
                             <li>✅ Backup automático na cloud</li>
                             <li>✅ Sincronização em tempo real</li>
-                            <li>✅ 15GB grátis (ficheiro usa ~2MB)</li>
+                            <li>✅ 15GB grátis no Google Drive</li>
                           </ul>
                         </div>
                       </div>
                       
                       <button
                         onClick={loginGoogleDrive}
-                        disabled={!driveReady}
-                        className="w-full bg-white border-2 border-gray-300 hover:border-blue-500 rounded-lg px-4 py-3 font-semibold flex items-center justify-center gap-3 transition disabled:opacity-50"
+                        className="w-full bg-white border-2 border-gray-300 hover:border-blue-500 hover:shadow-lg rounded-lg px-4 py-3 font-semibold flex items-center justify-center gap-3 transition"
                       >
                         <svg className="w-5 h-5" viewBox="0 0 24 24">
                           <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -9079,27 +9023,26 @@ const RestauranteGestor = () => {
                           <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
                           <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
                         </svg>
-                        {driveReady ? 'Conectar com Google' : 'A carregar...'}
+                        Conectar com Google
                       </button>
                       
                       <p className="text-xs text-gray-500 mt-2 text-center">
-                        🔒 Seguro: Só acede aos ficheiros criados pelo Munchi Manager
+                        🔒 Seguro: Só acede ao ficheiro criado pelo Munchi Manager
                       </p>
                     </div>
                   ) : (
-                    /* Conectado */
                     <div className="bg-green-50 border-2 border-green-300 rounded-lg p-4">
                       <div className="flex items-center gap-3 mb-3">
                         {driveUser?.image && (
                           <img 
                             src={driveUser.image} 
                             alt={driveUser.name}
-                            className="w-12 h-12 rounded-full"
+                            className="w-12 h-12 rounded-full border-2 border-green-400"
                           />
                         )}
                         <div className="flex-1">
-                          <p className="font-bold text-green-900">{driveUser?.name}</p>
-                          <p className="text-sm text-green-700">{driveUser?.email}</p>
+                          <p className="font-bold text-green-900">{driveUser?.name || 'Utilizador'}</p>
+                          <p className="text-sm text-green-700">{driveUser?.email || ''}</p>
                           <p className="text-xs text-gray-600 mt-1">
                             {driveSyncing ? (
                               <span className="flex items-center gap-1">
@@ -9124,6 +9067,12 @@ const RestauranteGestor = () => {
                         </button>
                       </div>
                       
+                      {driveError && (
+                        <div className="bg-red-100 border border-red-300 rounded p-2 mb-3">
+                          <p className="text-xs text-red-800">⚠️ {driveError}</p>
+                        </div>
+                      )}
+                      
                       <div className="grid grid-cols-2 gap-2">
                         <button
                           onClick={saveToDrive}
@@ -9135,7 +9084,7 @@ const RestauranteGestor = () => {
                         </button>
                         
                         <button
-                          onClick={loadFromDrive}
+                          onClick={() => loadFromDrive()}
                           disabled={driveSyncing}
                           className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white px-4 py-2 rounded font-semibold flex items-center justify-center gap-2 transition"
                         >
@@ -9146,12 +9095,13 @@ const RestauranteGestor = () => {
                       
                       {driveFileId && (
                         <p className="text-xs text-gray-500 mt-2 text-center">
-                          📁 Ficheiro: munchi-data.json no seu Drive
+                          📁 Ficheiro: {GOOGLE_DRIVE_CONFIG.FILE_NAME} no seu Drive
                         </p>
                       )}
                     </div>
                   )}
                 </div>
+                
                 {/* Exportar para Excel/CSV */}
                 <div className="border rounded-lg p-4 bg-gradient-to-r from-blue-50 to-green-50">
                   <h3 className="font-bold text-lg mb-3 flex items-center gap-2">
