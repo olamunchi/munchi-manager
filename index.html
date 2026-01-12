@@ -9,15 +9,39 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-  <!-- OCR Simplificado - Apenas Tesseract (funciona!) -->
+  <!-- OCR Libraries - PDF.js Legacy + Tesseract -->
+  <!-- Versão 3.11 é mais estável que 4.x -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.0.4/dist/tesseract.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/fuzzball@2.1.2/dist/fuzzball.umd.min.js"></script>
   
   <script>
-    // PDF.js não está a funcionar nos CDNs, então vamos usar apenas Tesseract
-    // Tesseract funciona direto com imagens do PDF
-    console.log('📄 Sistema OCR simplificado: Tesseract + Fuzzball');
-    console.log('ℹ️ PDF.js desativado - usando apenas OCR de imagem');
+    // Configurar PDF.js worker
+    console.log('📄 Carregando PDF.js v3.11 (legacy estável)...');
+    
+    const configurePDFJS = () => {
+      if (typeof pdfjsLib !== 'undefined') {
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        console.log('✅ PDF.js v3.11 configurado!');
+        return true;
+      }
+      return false;
+    };
+    
+    // Tentar configurar imediatamente
+    if (!configurePDFJS()) {
+      // Retry após 500ms
+      setTimeout(() => {
+        if (!configurePDFJS()) {
+          // Retry final após 1.5s
+          setTimeout(() => {
+            if (!configurePDFJS()) {
+              console.error('❌ PDF.js não carregou após 2 segundos');
+            }
+          }, 1000);
+        }
+      }, 500);
+    }
   </script>
 </head>
 <body>
@@ -1361,13 +1385,14 @@ const Tooltip = ({ children, text, position = 'top' }) => {
 const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCancelar }) => {
   const [linhasEditadas, setLinhasEditadas] = useState(linhas);
   const [stats, setStats] = useState(null);
+  const [ingredientesLocais, setIngredientesLocais] = useState(ingredientes); // Lista local que pode crescer
 
   useEffect(() => {
     const calculateStats = (linhas) => {
       const total = linhas.length;
       const comSugestao = linhas.filter(l => l.ingredienteSugerido).length;
-      const altaConfianca = linhas.filter(l => l.ingredienteSugerido?.confianca >= 80).length;
-      const mediaConfianca = linhas.filter(l => l.ingredienteSugerido?.confianca >= 60 && l.ingredienteSugerido?.confianca < 80).length;
+      const altaConfianca = linhas.filter(l => l.confiancaSugestao >= 80).length;
+      const mediaConfianca = linhas.filter(l => l.confiancaSugestao >= 60 && l.confiancaSugestao < 80).length;
       return {
         total, comSugestao, altaConfianca, mediaConfianca,
         semSugestao: total - comSugestao,
@@ -1416,7 +1441,18 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
       ...linha,
       ingredienteConfirmado: linha.ingredienteConfirmado || linha.ingredienteSugerido?.id
     }));
-    onConfirmar(linhasFinais, metadata);
+    
+    // Passar novos ingredientes criados no modal
+    const novosIngs = window._novosIngredientes || [];
+    const metadataComNovosIngs = { 
+      ...metadata, 
+      novosIngredientes: novosIngs 
+    };
+    
+    // Limpar cache de novos ingredientes
+    window._novosIngredientes = [];
+    
+    onConfirmar(linhasFinais, metadataComNovosIngs);
   };
 
   const getConfidenceClass = (confianca) => {
@@ -1464,8 +1500,11 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
             </thead>
             <tbody>
               {linhasEditadas.map((linha, index) => {
-                const sugestao = linha.ingredienteSugerido;
-                const confianca = sugestao?.confianca || 0;
+                const ingredienteSugerido = linha.ingredienteSugerido ? 
+                  ingredientesLocais.find(i => i.id === linha.ingredienteConfirmado) : null;
+                const confianca = linha.confiancaSugestao || 0;
+                const historico = linha.historicoSugestao;
+                
                 return (
                   <tr key={index} className="hover:bg-gray-50">
                     <td className="border p-2 text-sm">
@@ -1473,22 +1512,72 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
                       <div className="text-sm font-semibold">{linha.nomeProduto}</div>
                     </td>
                     <td className="border p-2">
-                      <select
-                        value={linha.ingredienteConfirmado || sugestao?.id || ''}
-                        onChange={(e) => handleIngredienteChange(index, e.target.value)}
-                        className={`w-full px-2 py-1 text-sm border rounded ${getConfidenceClass(confianca)}`}
-                      >
-                        <option value="">-- Selecionar --</option>
-                        {ingredientes.map(ing => (
-                          <option key={ing.id} value={ing.id}>{ing.nome}</option>
-                        ))}
-                      </select>
-                      {sugestao && (
-                        <div className="text-xs text-gray-500 mt-1">Sugestão: {sugestao.nome}</div>
+                      <div className="flex gap-1">
+                        <select
+                          value={linha.ingredienteConfirmado || ''}
+                          onChange={(e) => handleIngredienteChange(index, e.target.value)}
+                          className={`flex-1 px-2 py-1 text-sm border rounded ${getConfidenceClass(confianca)}`}
+                        >
+                          <option value="">-- Selecionar --</option>
+                          {ingredientesLocais.map(ing => (
+                            <option key={ing.id} value={ing.id}>{ing.nome}</option>
+                          ))}
+                        </select>
+                        <button
+                          onClick={() => {
+                            const nome = prompt(`Criar ingrediente para "${linha.nomeProduto}"?\n\nNome do ingrediente:`);
+                            if (!nome) return;
+                            
+                            const unidade = prompt('Unidade (kg, l, un, etc):', 'kg');
+                            if (!unidade) return;
+                            
+                            const custo = prompt('Custo unitário (€):', '0');
+                            if (!custo) return;
+                            
+                            const iva = prompt('IVA (%):', '13');
+                            if (!iva) return;
+                            
+                            // Criar novo ingrediente
+                            const novoIng = {
+                              id: `ing_${Date.now()}`,
+                              nome: nome,
+                              unidade: unidade,
+                              custoUnitario: parseFloat(custo),
+                              precoUnitario: parseFloat(custo),
+                              iva: parseFloat(iva),
+                              categoria: 'outros'
+                            };
+                            
+                            // Adicionar à lista local do modal
+                            setIngredientesLocais([...ingredientesLocais, novoIng]);
+                            
+                            // Guardar para adicionar aos ingredientes globais depois
+                            if (!window._novosIngredientes) window._novosIngredientes = [];
+                            window._novosIngredientes.push(novoIng);
+                            
+                            // Selecionar automaticamente
+                            handleIngredienteChange(index, novoIng.id);
+                            
+                            alert(`✅ Ingrediente "${nome}" criado e selecionado!`);
+                          }}
+                          className="px-2 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-xs font-bold"
+                          title="Criar novo ingrediente"
+                        >
+                          +
+                        </button>
+                      </div>
+                      {linha.ingredienteSugerido && ingredienteSugerido && (
+                        <div className="text-xs mt-1 flex items-center gap-1">
+                          <span className="text-blue-600">🔵</span>
+                          <span className="text-gray-600">
+                            Sugestão: <strong>{ingredienteSugerido.nome}</strong>
+                            {historico && ` (${historico.confirmacoes} confirmações)`}
+                          </span>
+                        </div>
                       )}
                     </td>
                     <td className={`border p-2 text-center ${getConfidenceClass(confianca)}`}>
-                      <div className="text-sm font-bold">{sugestao ? `${confianca}%` : '--'}</div>
+                      <div className="text-sm font-bold">{linha.ingredienteSugerido ? `${confianca}%` : '--'}</div>
                       <div className="text-xs">{getConfidenceIcon(confianca)}</div>
                     </td>
                     <td className="border p-2">
@@ -1545,11 +1634,24 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
             <div className="text-center py-8 text-gray-500">Nenhum produto</div>
           )}
         </div>
-        <div className="p-6 border-t bg-gray-50 flex justify-between items-center">
-          <div className="text-sm text-gray-600">
-            💡 Produtos com confiança ≥80% (verde) geralmente estão corretos
+        <div className="p-6 border-t bg-gray-50">
+          <div className="flex justify-between items-center mb-3">
+            <div className="text-sm text-gray-600">
+              {stats && stats.comSugestao > 0 ? (
+                <span>
+                  🧠 <strong>{stats.comSugestao}/{stats.total}</strong> reconhecidos automaticamente
+                  {stats.altaConfianca > 0 && ` (${stats.altaConfianca} com alta confiança)`}
+                </span>
+              ) : (
+                <span>📚 Primeira vez com este fornecedor - sistema vai aprender!</span>
+              )}
+            </div>
           </div>
-          <div className="flex gap-3">
+          <div className="flex justify-between items-center">
+            <div className="text-xs text-gray-500">
+              💡 Verde (≥80%) = alta confiança | Amarelo (60-79%) = verificar | Cinza = escolher manualmente
+            </div>
+            <div className="flex gap-3">
             <button
               onClick={onCancelar}
               className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-100 font-semibold"
@@ -1563,6 +1665,7 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
             >
               Confirmar {linhasEditadas.length > 0 && `(${linhasEditadas.length})`}
             </button>
+          </div>
           </div>
         </div>
       </div>
@@ -1597,6 +1700,7 @@ const RestauranteGestor = () => {
   const [vendas, setVendas] = useState([]);
   const [despesas, setDespesas] = useState([]);
   const [fornecedores, setFornecedores] = useState([]);
+  const [vocabularioFornecedor, setVocabularioFornecedor] = useState([]); // 🧠 Sistema de aprendizagem
   const [novoProduto, setNovoProduto] = useState({ nome: '', precoVenda: '', iva: '6', categoria: 'cafes', receita: [], embalagens: [], porcoes: 1 });
   const [editandoProduto, setEditandoProduto] = useState(false);
   const [produtoEditandoId, setProdutoEditandoId] = useState(null);
@@ -1753,16 +1857,17 @@ const RestauranteGestor = () => {
     const maxAttempts = 5;
     
     const checkLibraries = () => {
+      const pdfjs = typeof pdfjsLib !== 'undefined';
       const tesseract = typeof Tesseract !== 'undefined';
       const fuzzball = typeof window.fuzzball !== 'undefined';
       
-      if (tesseract && fuzzball) {
-        console.log('✅ Bibliotecas OCR carregadas: Tesseract + Fuzzball');
-        showNotification('✅ Sistema OCR pronto! (Tesseract)', 'success');
+      if (pdfjs && tesseract && fuzzball) {
+        console.log('✅ Todas bibliotecas OCR carregadas: PDF.js + Tesseract + Fuzzball');
+        showNotification('✅ Sistema OCR completo pronto!', 'success');
         return true;
       }
       
-      console.log(`⏳ Tentativa ${attempts + 1}/${maxAttempts}:`, { tesseract, fuzzball });
+      console.log(`⏳ Tentativa ${attempts + 1}/${maxAttempts}:`, { pdfjs, tesseract, fuzzball });
       return false;
     };
     
@@ -1805,6 +1910,145 @@ const RestauranteGestor = () => {
   };
 
 
+  // ==================== 🧠 SISTEMA DE APRENDIZAGEM - FASE 1 ====================
+  
+  /**
+   * Normaliza texto OCR para comparação
+   * Remove acentos, pontuação, unidades, números
+   */
+  const normalizarTexto = (texto) => {
+    if (!texto) return '';
+    
+    return texto
+      .toUpperCase()
+      // Remover acentos
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      // Remover unidades comuns
+      .replace(/\b(KG|GR|G|LT|L|ML|CX|UN|UND|UNID|PCT|PC|EMB)\b/gi, '')
+      // Remover números isolados
+      .replace(/\b\d+\b/g, '')
+      // Remover pontuação e caracteres especiais
+      .replace(/[^\w\s]/g, ' ')
+      // Remover espaços múltiplos
+      .replace(/\s+/g, ' ')
+      .trim();
+  };
+
+  /**
+   * Calcula similaridade entre dois textos normalizados (0-100)
+   * Usa algoritmo de Levenshtein via fuzzball
+   */
+  const calcularSimilaridade = (texto1, texto2) => {
+    if (!texto1 || !texto2) return 0;
+    if (typeof window.fuzzball === 'undefined') return 0;
+    
+    const norm1 = normalizarTexto(texto1);
+    const norm2 = normalizarTexto(texto2);
+    
+    if (norm1 === norm2) return 100;
+    
+    try {
+      return window.fuzzball.ratio(norm1, norm2);
+    } catch (e) {
+      console.warn('Erro ao calcular similaridade:', e);
+      return 0;
+    }
+  };
+
+  /**
+   * Busca ingrediente no vocabulário do fornecedor
+   * Retorna: { ingredienteId, confianca, historico } ou null
+   */
+  const buscarNoVocabulario = (textoOCR, nifFornecedor) => {
+    if (!textoOCR || !nifFornecedor) return null;
+    
+    const textoNorm = normalizarTexto(textoOCR);
+    
+    // Filtrar vocabulário deste fornecedor
+    const vocabFornecedor = vocabularioFornecedor.filter(
+      v => v.fornecedorNIF === nifFornecedor
+    );
+    
+    if (vocabFornecedor.length === 0) return null;
+    
+    // Procurar melhor match
+    let melhorMatch = null;
+    let melhorSimilaridade = 0;
+    
+    vocabFornecedor.forEach(vocab => {
+      const similaridade = calcularSimilaridade(textoNorm, vocab.textoNormalizado);
+      
+      if (similaridade > melhorSimilaridade && similaridade >= 70) {
+        // Calcular confiança baseada em histórico
+        const confirmacoes = vocab.confirmacoes || 0;
+        const correcoes = vocab.correcoes || 0;
+        const fatorHistorico = confirmacoes / (confirmacoes + correcoes + 1);
+        const confianca = (similaridade / 100) * fatorHistorico * 100;
+        
+        melhorMatch = {
+          ingredienteId: vocab.ingredienteId,
+          confianca: Math.round(confianca),
+          similaridade: Math.round(similaridade),
+          confirmacoes,
+          correcoes,
+          textoOriginal: vocab.textoOriginal
+        };
+        melhorSimilaridade = similaridade;
+      }
+    });
+    
+    return melhorMatch;
+  };
+
+  /**
+   * Adiciona ou atualiza entrada no vocabulário
+   */
+  const aprenderAssociacao = (textoOCR, ingredienteId, nifFornecedor, foiCorrecao = false) => {
+    if (!textoOCR || !ingredienteId || !nifFornecedor) return;
+    
+    const textoNorm = normalizarTexto(textoOCR);
+    
+    // Verificar se já existe
+    const indexExistente = vocabularioFornecedor.findIndex(
+      v => v.fornecedorNIF === nifFornecedor && 
+           v.textoNormalizado === textoNorm &&
+           v.ingredienteId === ingredienteId
+    );
+    
+    if (indexExistente >= 0) {
+      // Atualizar existente
+      const atualizado = [...vocabularioFornecedor];
+      if (foiCorrecao) {
+        atualizado[indexExistente].correcoes = (atualizado[indexExistente].correcoes || 0) + 1;
+      } else {
+        atualizado[indexExistente].confirmacoes = (atualizado[indexExistente].confirmacoes || 0) + 1;
+      }
+      atualizado[indexExistente].ultimaConfirmacao = new Date().toISOString();
+      setVocabularioFornecedor(atualizado);
+      
+      console.log(`📚 Vocabulário atualizado:`, atualizado[indexExistente]);
+    } else {
+      // Criar novo
+      const novo = {
+        id: `vocab_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        fornecedorNIF: nifFornecedor,
+        textoOriginal: textoOCR,
+        textoNormalizado: textoNorm,
+        ingredienteId: ingredienteId,
+        confirmacoes: foiCorrecao ? 0 : 1,
+        correcoes: foiCorrecao ? 1 : 0,
+        ultimaConfirmacao: new Date().toISOString()
+      };
+      
+      setVocabularioFornecedor([...vocabularioFornecedor, novo]);
+      console.log(`📚 Nova entrada no vocabulário:`, novo);
+    }
+  };
+
+  // ==================== FIM SISTEMA DE APRENDIZAGEM ====================
+
+
   const exportarDados = () => {
     const dados = {
       versao: '2.0',
@@ -1815,7 +2059,8 @@ const RestauranteGestor = () => {
       despesas,
       fornecedores,
       dadosEmpresa,
-      faturas
+      faturas,
+      vocabularioFornecedor // 🧠 Incluir aprendizagem
     };
     
     const blob = new Blob([JSON.stringify(dados, null, 2)], { type: 'application/json' });
@@ -1857,6 +2102,7 @@ const RestauranteGestor = () => {
             ...dados.dadosEmpresa
           });
           if (dados.faturas) setFaturas(dados.faturas);
+          if (dados.vocabularioFornecedor) setVocabularioFornecedor(dados.vocabularioFornecedor); // 🧠 Importar aprendizagem
           
           showNotification('Dados importados!', 'success');
           event.target.value = '';
@@ -2961,14 +3207,15 @@ const RestauranteGestor = () => {
   useEffect(() => {
     const carregar = async () => {
       try {
-        const [p, i, v, d, f, de, ft] = await Promise.all([
+        const [p, i, v, d, f, de, ft, voc] = await Promise.all([
           window.storage.get('produtos').catch(() => null),
           window.storage.get('ingredientes').catch(() => null),
           window.storage.get('vendas').catch(() => null),
           window.storage.get('despesas').catch(() => null),
           window.storage.get('fornecedores').catch(() => null),
           window.storage.get('dadosEmpresa').catch(() => null),
-          window.storage.get('faturas').catch(() => null)
+          window.storage.get('faturas').catch(() => null),
+          window.storage.get('vocabularioFornecedor').catch(() => null) // 🧠 Carregar aprendizagem
         ]);
         if (p) setProdutos(JSON.parse(p.value));
         if (i) setIngredientes(JSON.parse(i.value));
@@ -2977,6 +3224,7 @@ const RestauranteGestor = () => {
         if (f) setFornecedores(JSON.parse(f.value));
         if (de) setDadosEmpresa(JSON.parse(de.value));
         if (ft) setFaturas(JSON.parse(ft.value));
+        if (voc) setVocabularioFornecedor(JSON.parse(voc.value)); // 🧠 Restaurar aprendizagem
       } catch (e) { console.log('Primeira vez'); }
     };
     carregar();
@@ -2998,12 +3246,13 @@ const RestauranteGestor = () => {
           window.storage.set('despesas', JSON.stringify(despesas)),
           window.storage.set('fornecedores', JSON.stringify(fornecedores)),
           window.storage.set('dadosEmpresa', JSON.stringify(dadosEmpresa)),
-          window.storage.set('faturas', JSON.stringify(faturas))
+          window.storage.set('faturas', JSON.stringify(faturas)),
+          window.storage.set('vocabularioFornecedor', JSON.stringify(vocabularioFornecedor)) // 🧠 Salvar aprendizagem
         ]);
       } catch (e) { console.error(e); }
     };
     salvar();
-  }, [produtos, ingredientes, vendas, despesas, fornecedores, dadosEmpresa, faturas]);
+  }, [produtos, ingredientes, vendas, despesas, fornecedores, dadosEmpresa, faturas, vocabularioFornecedor]);
 
 
   const detectarCategoria = (nome) => {
@@ -5145,38 +5394,153 @@ const RestauranteGestor = () => {
   
   // Converter PDF/Imagem para data URL
   const convertPdfToImage = async (file) => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (e) => resolve(e.target.result);
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
+    // Ler PDF como ArrayBuffer
+    const arrayBuffer = await file.arrayBuffer();
+    
+    // Carregar PDF com PDF.js
+    const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+    const pdf = await loadingTask.promise;
+    
+    console.log(`📄 PDF tem ${pdf.numPages} página(s)`);
+    
+    // Converter primeira página para imagem
+    const page = await pdf.getPage(1);
+    const viewport = page.getViewport({ scale: 2.0 }); // Scale 2.0 para melhor qualidade
+    
+    // Criar canvas
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    canvas.height = viewport.height;
+    canvas.width = viewport.width;
+    
+    // Renderizar página no canvas
+    await page.render({
+      canvasContext: context,
+      viewport: viewport
+    }).promise;
+    
+    // Converter canvas para data URL (imagem)
+    const imageDataUrl = canvas.toDataURL('image/png');
+    
+    console.log('✅ PDF convertido para imagem PNG');
+    
+    return imageDataUrl;
   };
   
   // Ignorar linhas
   const shouldIgnoreLine = (linha) => {
     const lower = linha.toLowerCase();
-    const patterns = [
-      /^(fatura|factura|invoice|nif|nipc|vat|data|date)/i,
-      /^(fornecedor|supplier|cliente|client|morada)/i,
-      /^(total|subtotal|iva|vat|tax|desconto)/i,
-      /^(método|metodo|pagamento|payment)/i,
-      /^\d{9}$/, /^\d+\/\d+\/\d+$/
+    
+    // Patterns mais abrangentes para ignorar
+    const ignorePatterns = [
+      // Headers/Footers de fatura
+      /^(fatura|factura|invoice|recibo|receipt)/i,
+      /^(nif|nipc|vat|cif)[\s:]/i,
+      /^(data|date)[\s:]/i,
+      /^(vencimento|due date)[\s:]/i,
+      
+      // Info empresa/cliente
+      /^(fornecedor|supplier|vendedor|seller|exmo|cliente|client)/i,
+      /(lda|limitada|s\.a\.|unipessoal|ltda)/i,
+      /^(rua|avenida|av\.|praça|largo|estrada)/i,
+      /^\d{4}-\d{3}\s/i, // Código postal
+      /(email|e-mail|tel|telefone|phone|fax)[\s:]/i,
+      
+      // Totais e valores agregados
+      /^(total|subtotal|sub-total|iva|vat|tax|imposto)[\s:]/i,
+      /^(desconto|discount)[\s:]/i,
+      
+      // Info pagamento
+      /^(método|metodo|forma|pagamento|payment|transferência)/i,
+      /(iban|nib|swift|bic)[\s:]/i,
+      /^(referência|reference|ref)[\s:]/i,
+      /prazo\s+(de\s+)?pagamento/i,
+      
+      // Headers de tabela
+      /^(descrição|description|artigo|produto|item)/i,
+      /^(quantidade|qtd|qty|unidade|un|unit)/i,
+      /^(preço|preco|price|valor|value)/i,
+      
+      // Informação legal
+      /(processado|emitido)\s+por\s+computador/i,
+      /(documento|comprovativo)\s+(válido|valido)/i,
+      /(conservatória|registo|matricula|matrícula)/i,
+      /(capital social|share capital)/i,
+      /sob\s+o\s+número/i,
+      
+      // Linhas só com números/datas
+      /^\d{9}$/,  // NIF sozinho
+      /^\d+\/\d+\/\d+$/, // Data sozinha
+      /^pt\d{2}\s*\d{4}/i, // IBAN
+      
+      // Linhas muito curtas ou vazias
+      /^[\s\-\+\.]+$/, // Só símbolos
     ];
-    return patterns.some(p => p.test(lower)) || linha.length < 3;
+    
+    // Se algum pattern matchar, ignorar
+    if (ignorePatterns.some(p => p.test(linha))) {
+      return true;
+    }
+    
+    // Ignorar linhas muito curtas (< 5 caracteres)
+    if (linha.length < 5) {
+      return true;
+    }
+    
+    // Linha DEVE ter pelo menos: quantidade + unidade OU preço
+    // Se não tiver nenhum dos dois, provavelmente não é produto
+    const temQuantidade = /\d+[.,]?\d*\s*(kg|g|l|ml|un|unid|cx|emb|dz)/i.test(linha);
+    const temPreco = /\d+[.,]\d{2}\s*€?/i.test(linha);
+    
+    if (!temQuantidade && !temPreco) {
+      return true; // Ignorar se não tiver nem quantidade nem preço
+    }
+    
+    return false;
   };
   
-  // Extrair qtd/unidade
+  // Extrair qtd/unidade - MELHORADO
   const extractQuantidadeUnidade = (texto) => {
-    const match = texto.match(/(\d+[.,]?\d*)\s*(kg|g|l|ml|un|unid|cx|emb|dz)/gi);
-    if (match) {
-      const full = match[0];
-      const qtd = parseFloat(full.replace(/[^\d.,]/g, '').replace(',', '.'));
-      let unidade = full.replace(/[\d.,\s]/g, '').toLowerCase();
-      const map = { 'unid': 'un', 'emb': 'cx' };
-      unidade = map[unidade] || unidade;
-      return { quantidade: qtd, unidade, match: full };
+    // Patterns mais específicos para quantidade + unidade
+    const patterns = [
+      /(\d+[.,]?\d*)\s*(kg|quilos?|kilos?)/gi,
+      /(\d+[.,]?\d*)\s*(g|gramas?)/gi,
+      /(\d+[.,]?\d*)\s*l\b/gi,  // l isolado (litros)
+      /(\d+[.,]?\d*)\s*(ml|mililitros?)/gi,
+      /(\d+[.,]?\d*)\s*(un|unid|unidade|pc|pç|peça)/gi,
+      /(\d+[.,]?\d*)\s*(cx|caixa|emb|embalagem)/gi,
+      /(\d+[.,]?\d*)\s*(dz|duzia|dúzia)/gi,
+    ];
+    
+    for (const pattern of patterns) {
+      const match = texto.match(pattern);
+      if (match && match[0]) {
+        const full = match[0];
+        // Extrair número
+        const numStr = full.match(/\d+[.,]?\d*/);
+        if (numStr) {
+          const qtd = parseFloat(numStr[0].replace(',', '.'));
+          // Extrair unidade
+          let unidade = full.replace(/[\d.,\s]/g, '').toLowerCase().trim();
+          
+          // Normalizar unidades
+          const map = {
+            'quilos': 'kg', 'quilo': 'kg', 'kilos': 'kg', 'kilo': 'kg',
+            'gramas': 'g', 'grama': 'g',
+            'litros': 'l', 'litro': 'l',
+            'mililitros': 'ml', 'mililitro': 'ml',
+            'unid': 'un', 'unidade': 'un', 'pc': 'un', 'pç': 'un', 'peça': 'un',
+            'caixa': 'cx', 'emb': 'cx', 'embalagem': 'cx',
+            'duzia': 'dz', 'dúzia': 'dz'
+          };
+          
+          unidade = map[unidade] || unidade;
+          
+          return { quantidade: qtd, unidade, match: full };
+        }
+      }
     }
+    
     return { quantidade: null, unidade: null, match: '' };
   };
   
@@ -5398,45 +5762,213 @@ const RestauranteGestor = () => {
   const handleConfirmarOCR = (linhasValidadas, metadata) => {
     console.log('📝 Auto-preenchendo fatura...');
     
-    // Criar itens da fatura
+    // 🧠 FASE 2: RECONHECIMENTO AUTOMÁTICO DE INGREDIENTES
+    const nifFornecedor = metadata.nif || novaFatura.fornecedorNIF;
+    
+    if (nifFornecedor) {
+      console.log('🧠 Iniciando reconhecimento inteligente...');
+      
+      linhasValidadas = linhasValidadas.map(linha => {
+        // Se já tem ingrediente confirmado, manter
+        if (linha.ingredienteConfirmado) {
+          console.log(`✅ "${linha.nomeProduto}" já confirmado manualmente`);
+          return linha;
+        }
+        
+        // Buscar no vocabulário do fornecedor
+        const resultado = buscarNoVocabulario(linha.nomeProduto, nifFornecedor);
+        
+        if (resultado) {
+          const { ingredienteId, confianca, similaridade, confirmacoes, correcoes } = resultado;
+          const ingrediente = ingredientes.find(i => i.id === ingredienteId);
+          
+          if (ingrediente) {
+            console.log(`🔵 "${linha.nomeProduto}" → ${ingrediente.nome} (${confianca}% confiança, ${confirmacoes} confirmações)`);
+            
+            // Pré-preencher com sugestão
+            return {
+              ...linha,
+              ingredienteConfirmado: ingredienteId,
+              ingredienteSugerido: true, // Flag para UI mostrar que foi sugerido
+              confiancaSugestao: confianca,
+              similaridadeSugestao: similaridade,
+              historicoSugestao: { confirmacoes, correcoes }
+            };
+          }
+        }
+        
+        console.log(`⚪ "${linha.nomeProduto}" → sem sugestão (desconhecido)`);
+        return linha;
+      });
+      
+      const sugeridos = linhasValidadas.filter(l => l.ingredienteSugerido).length;
+      const total = linhasValidadas.length;
+      
+      if (sugeridos > 0) {
+        console.log(`🎯 ${sugeridos}/${total} ingredientes reconhecidos automaticamente!`);
+      } else {
+        console.log(`📚 Nenhum ingrediente reconhecido (primeira vez com este fornecedor)`);
+      }
+    }
+    
+    // 🆕 ADICIONAR NOVOS INGREDIENTES CRIADOS NO MODAL
+    if (metadata.novosIngredientes && metadata.novosIngredientes.length > 0) {
+      const novosIngs = metadata.novosIngredientes;
+      setIngredientes([...ingredientes, ...novosIngs]);
+      console.log(`✨ ${novosIngs.length} novo(s) ingrediente(s) criado(s):`, novosIngs.map(i => i.nome));
+      
+      // Atualizar lista local para usar nas próximas etapas
+      ingredientesAtualizados.push(...novosIngs);
+    }
+    
+    // ATUALIZAR PREÇOS DOS INGREDIENTES
+    const ingredientesAtualizados = [...ingredientes];
+    let ingredientesModificados = 0;
+    
+    linhasValidadas.forEach(l => {
+      if (l.ingredienteConfirmado && l.preco && l.quantidade) {
+        const index = ingredientesAtualizados.findIndex(i => i.id === l.ingredienteConfirmado);
+        if (index !== -1) {
+          const novoPrecoUnitario = parseFloat(l.preco) / parseFloat(l.quantidade);
+          const precoAnterior = ingredientesAtualizados[index].precoUnitario || 0;
+          
+          // Atualizar se preço mudou
+          if (Math.abs(novoPrecoUnitario - precoAnterior) > 0.01) {
+            console.log(`💰 Atualizando ${ingredientesAtualizados[index].nome}: €${precoAnterior.toFixed(2)} → €${novoPrecoUnitario.toFixed(2)}`);
+            ingredientesAtualizados[index] = {
+              ...ingredientesAtualizados[index],
+              precoUnitario: novoPrecoUnitario
+            };
+            ingredientesModificados++;
+          }
+        }
+      }
+    });
+    
+    // Atualizar ingredientes se houver mudanças
+    if (ingredientesModificados > 0) {
+      setIngredientes(ingredientesAtualizados);
+      console.log(`✅ ${ingredientesModificados} ingrediente(s) atualizado(s)`);
+      
+      // RECALCULAR FOOD COST DOS PRODUTOS
+      const produtosAtualizados = produtos.map(produto => {
+        if (!produto.receita || produto.receita.length === 0) return produto;
+        
+        // Calcular novo custo
+        const novoCusto = produto.receita.reduce((total, item) => {
+          const ing = ingredientesAtualizados.find(i => i.id === item.ingredienteId);
+          if (!ing) return total;
+          
+          const quantidade = parseFloat(item.quantidade) || 0;
+          const precoUnit = parseFloat(ing.precoUnitario) || 0;
+          
+          return total + (quantidade * precoUnit);
+        }, 0);
+        
+        // Calcular nova margem
+        const precoVenda = parseFloat(produto.precoVenda) || 0;
+        const novaMargemLucro = precoVenda > 0 ? ((precoVenda - novoCusto) / precoVenda) * 100 : 0;
+        
+        // Só atualizar se mudou
+        if (Math.abs(novoCusto - (produto.custoReceita || 0)) > 0.01) {
+          console.log(`🍕 Recalculando ${produto.nome}: Custo €${(produto.custoReceita || 0).toFixed(2)} → €${novoCusto.toFixed(2)}, Margem ${(produto.margemLucro || 0).toFixed(1)}% → ${novaMargemLucro.toFixed(1)}%`);
+          
+          return {
+            ...produto,
+            custoReceita: novoCusto,
+            margemLucro: novaMargemLucro
+          };
+        }
+        
+        return produto;
+      });
+      
+      setProdutos(produtosAtualizados);
+      showNotification(`🔄 ${ingredientesModificados} preço(s) atualizado(s) e food costs recalculados!`, 'success');
+    }
+    
+    // Criar itens da fatura COM ESTRUTURA CORRETA
     const novosItens = linhasValidadas
       .filter(l => l.ingredienteConfirmado)
-      .map(l => {
-        const ingrediente = ingredientes.find(i => i.id === l.ingredienteConfirmado);
-        const quantidade = l.quantidade || 1;
-        const precoUnitario = l.preco ? (l.preco / quantidade) : 0;
+      .map((l, index) => {
+        const ingrediente = ingredientesAtualizados.find(i => i.id === l.ingredienteConfirmado);
+        
+        // Garantir valores válidos
+        const quantidade = parseFloat(l.quantidade) || 1;
+        const precoTotal = parseFloat(l.preco) || 0;
+        const precoUnitario = precoTotal > 0 ? (precoTotal / quantidade) : 0;
+        const iva = parseFloat(ingrediente?.iva || 13);
+        const subtotal = precoTotal;
         
         return {
+          id: `ocr_${Date.now()}_${index}`, // ID único
           ingredienteId: l.ingredienteConfirmado,
+          ingredienteNome: ingrediente?.nome || l.nomeProduto,
           descricao: ingrediente?.nome || l.nomeProduto,
           quantidade: quantidade,
           unidade: l.unidade || ingrediente?.unidade || 'un',
-          precoTotal: l.preco || 0,
-          iva: '13',
+          precoUnitario: precoUnitario,
+          precoTotal: precoTotal,
+          subtotal: subtotal,
+          iva: iva,
           num_funcionarios: 1
         };
       });
     
-    // Preencher dados da fatura
-    setNovaFatura({
+    console.log('Itens processados:', novosItens);
+    console.log('PDF Base64 length:', metadata.pdfBase64 ? metadata.pdfBase64.length : 'NULL');
+    
+    // 🧠 FASE 2: APRENDER COM AS CONFIRMAÇÕES DO UTILIZADOR
+    if (nifFornecedor) {
+      linhasValidadas.forEach(linha => {
+        if (linha.ingredienteConfirmado && linha.nomeProduto) {
+          const textoOCR = linha.nomeProduto;
+          const ingredienteId = linha.ingredienteConfirmado;
+          
+          // Verificar se foi alterado (correção) ou confirmado (sugestão aceite)
+          const foiAlterado = linha.ingredienteSugerido && 
+                             linha.ingredienteConfirmado !== linha.ingredienteSugerido;
+          
+          // Aprender a associação
+          aprenderAssociacao(textoOCR, ingredienteId, nifFornecedor, foiAlterado);
+          
+          if (foiAlterado) {
+            const ingrediente = ingredientes.find(i => i.id === ingredienteId);
+            console.log(`📝 Correção aprendida: "${textoOCR}" → ${ingrediente?.nome}`);
+          } else if (linha.ingredienteSugerido) {
+            console.log(`✅ Confirmação aprendida: "${textoOCR}"`);
+          } else {
+            const ingrediente = ingredientes.find(i => i.id === ingredienteId);
+            console.log(`🆕 Nova associação: "${textoOCR}" → ${ingrediente?.nome}`);
+          }
+        }
+      });
+    }
+    
+    // Preencher dados da fatura (preservando PDF!)
+    const novaFaturaAtualizada = {
       ...novaFatura,
       numero: metadata.numeroFatura || novaFatura.numero,
       data: metadata.data ? convertDataToISO(metadata.data) : novaFatura.data,
       itens: novosItens,
-      documentoPDF: metadata.pdfBase64 || null,
-      nomeDocumento: metadata.pdfNome || '',
+      documentoPDF: metadata.pdfBase64 || novaFatura.documentoPDF || null,
+      nomeDocumento: metadata.pdfNome || novaFatura.nomeDocumento || '',
       categoria: 'compras'
-    });
+    };
     
     // Tentar identificar fornecedor pelo NIF (se existir)
     if (metadata.nif) {
       const fornecedor = fornecedores.find(f => f.nif === metadata.nif);
       if (fornecedor) {
-        setNovaFatura(prev => ({ ...prev, fornecedorId: fornecedor.id }));
+        novaFaturaAtualizada.fornecedorId = fornecedor.id;
+        novaFaturaAtualizada.fornecedorNome = fornecedor.nome;
         console.log('✅ Fornecedor identificado:', fornecedor.nome);
       }
     }
     
+    console.log('PDF na fatura final:', novaFaturaAtualizada.documentoPDF ? 'SIM' : 'NÃO');
+    
+    setNovaFatura(novaFaturaAtualizada);
     setMostrarModalOCR(false);
     showNotification(`✅ Fatura preenchida com ${novosItens.length} produtos!`, 'success');
   };
@@ -7813,7 +8345,7 @@ const RestauranteGestor = () => {
                                     'lanches': { emoji: '🥪', label: 'Lanches', cor: 'yellow' },
                                     'outros': { emoji: '📦', label: 'Outros', cor: 'gray' }
                                   };
-                                  const cat = categoriaInfo[p.categoria || 'outros'];
+                                  const cat = categoriaInfo[p.categoria] || categoriaInfo['outros'];
                                   return (
                                     <span className={`ml-2 px-2 py-0.5 bg-${cat.cor}-100 text-${cat.cor}-700 rounded text-xs font-semibold`}>
                                       {cat.emoji} {cat.label}
@@ -8116,10 +8648,10 @@ const RestauranteGestor = () => {
                                       />
                                       
                                       {/* Dropdown de Resultados */}
-                                      {showDropdownIngrediente && searchIngredienteFatura && (
+                                      {showDropdownIngrediente && (
                                         <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
                                           {ingredientes
-                                            .filter(ing => ing.nome.toLowerCase().includes(searchIngredienteFatura.toLowerCase()))
+                                            .filter(ing => !searchIngredienteFatura || ing.nome.toLowerCase().includes(searchIngredienteFatura.toLowerCase()))
                                             .map(ing => (
                                               <div
                                                 key={ing.id}
@@ -8145,9 +8677,9 @@ const RestauranteGestor = () => {
                                             ))}
                                           
                                           {/* Nenhum resultado */}
-                                          {ingredientes.filter(ing => ing.nome.toLowerCase().includes(searchIngredienteFatura.toLowerCase())).length === 0 && (
+                                          {ingredientes.filter(ing => !searchIngredienteFatura || ing.nome.toLowerCase().includes(searchIngredienteFatura.toLowerCase())).length === 0 && (
                                             <div className="px-3 py-4 text-center text-gray-500 text-sm">
-                                              Nenhum ingrediente encontrado
+                                              {searchIngredienteFatura ? 'Nenhum ingrediente encontrado' : 'Nenhum ingrediente criado ainda'}
                                             </div>
                                           )}
                                         </div>
@@ -8754,7 +9286,6 @@ const RestauranteGestor = () => {
                                 ) : (
                                   <div className="bg-red-50 border-2 border-red-300 rounded-lg p-3">
                                     <div className="flex items-center gap-3">
-                                      <AlertCircle size={24} className="text-red-700 flex-shrink-0" />
                                       <div className="flex-1">
                                         <p className="text-sm font-semibold text-red-900">
                                           ⚠️ SEM PDF Anexado
@@ -8866,7 +9397,6 @@ const RestauranteGestor = () => {
                 
                 {!(vendas || []).length && (
                   <div className="text-center py-12">
-                    <Upload size={48} className="mx-auto text-gray-300 mb-3" />
                     <p className="text-gray-400 text-sm">Nenhuma venda importada</p>
                     <p className="text-gray-400 text-xs mt-1">Importe um ficheiro CSV do Moloni ou adicione vendas manualmente</p>
                   </div>
