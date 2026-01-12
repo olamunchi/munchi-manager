@@ -9,30 +9,79 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-  <!-- OCR Libraries com múltiplos CDNs -->
-  <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@4.0.189/build/pdf.min.js"></script>
+  <!-- OCR Libraries - Carregamento garantido -->
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.0.4/dist/tesseract.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/fuzzball@2.1.2/dist/fuzzball.umd.min.js"></script>
+  
+  <!-- PDF.js com carregamento garantido -->
   <script>
-    // Configurar PDF.js worker
-    window.addEventListener('load', () => {
-      if (typeof pdfjsLib !== 'undefined') {
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.0.189/build/pdf.worker.min.js';
-        console.log('✅ PDF.js configurado');
-      } else {
-        console.error('❌ PDF.js não carregou! Tentando fallback...');
-        // Fallback UNPKG
-        const script = document.createElement('script');
-        script.src = 'https://unpkg.com/pdfjs-dist@4.0.189/build/pdf.min.js';
-        script.onload = () => {
-          if (typeof pdfjsLib !== 'undefined') {
-            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://unpkg.com/pdfjs-dist@4.0.189/build/pdf.worker.min.js';
-            console.log('✅ PDF.js carregado via fallback UNPKG');
+    // Função para carregar PDF.js
+    window.loadPDFJS = () => {
+      return new Promise((resolve, reject) => {
+        if (typeof pdfjsLib !== 'undefined') {
+          console.log('✅ PDF.js já estava carregado');
+          resolve();
+          return;
+        }
+        
+        const cdns = [
+          'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.0.189/build/pdf.min.js',
+          'https://unpkg.com/pdfjs-dist@4.0.189/build/pdf.min.js',
+          'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.189/pdf.min.js'
+        ];
+        
+        let attempts = 0;
+        
+        const tryLoadCDN = (index) => {
+          if (index >= cdns.length) {
+            reject(new Error('Todos os CDNs falharam'));
+            return;
           }
+          
+          const script = document.createElement('script');
+          script.src = cdns[index];
+          
+          script.onload = () => {
+            attempts++;
+            console.log(`Tentativa ${attempts}: Testando CDN ${index + 1}...`);
+            
+            // Aguardar um pouco para variável ficar disponível
+            setTimeout(() => {
+              if (typeof pdfjsLib !== 'undefined') {
+                console.log(`✅ PDF.js carregado via CDN ${index + 1}`);
+                pdfjsLib.GlobalWorkerOptions.workerSrc = cdns[index].replace('pdf.min.js', 'pdf.worker.min.js');
+                resolve();
+              } else {
+                console.warn(`CDN ${index + 1} carregou mas pdfjsLib não disponível, tentando próximo...`);
+                tryLoadCDN(index + 1);
+              }
+            }, 500);
+          };
+          
+          script.onerror = () => {
+            console.warn(`❌ CDN ${index + 1} falhou, tentando próximo...`);
+            tryLoadCDN(index + 1);
+          };
+          
+          document.head.appendChild(script);
         };
-        document.head.appendChild(script);
-      }
-    });
+        
+        tryLoadCDN(0);
+      });
+    };
+    
+    // Carregar assim que página estiver pronta
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => {
+        window.loadPDFJS().catch(err => {
+          console.error('❌ Falha crítica ao carregar PDF.js:', err);
+        });
+      });
+    } else {
+      window.loadPDFJS().catch(err => {
+        console.error('❌ Falha crítica ao carregar PDF.js:', err);
+      });
+    }
   </script>
 </head>
 <body>
@@ -1764,26 +1813,43 @@ const RestauranteGestor = () => {
   
   // Verificar carregamento das bibliotecas OCR
   useEffect(() => {
+    let attempts = 0;
+    const maxAttempts = 5;
+    
     const checkLibraries = () => {
-      if (typeof pdfjsLib !== 'undefined' && typeof Tesseract !== 'undefined' && typeof window.fuzzball !== 'undefined') {
+      const pdfjs = typeof pdfjsLib !== 'undefined';
+      const tesseract = typeof Tesseract !== 'undefined';
+      const fuzzball = typeof window.fuzzball !== 'undefined';
+      
+      if (pdfjs && tesseract && fuzzball) {
         console.log('✅ Bibliotecas OCR carregadas com sucesso!');
+        showNotification('✅ Sistema OCR pronto!', 'success');
         return true;
       }
+      
+      console.log(`⏳ Tentativa ${attempts + 1}/${maxAttempts}:`, { pdfjs, tesseract, fuzzball });
       return false;
     };
     
-    // Verificar imediatamente
-    if (!checkLibraries()) {
-      console.log('⏳ Aguardando bibliotecas OCR...');
-      // Verificar novamente após 2 segundos
-      const timer = setTimeout(() => {
-        if (checkLibraries()) {
-          showNotification('✅ Sistema OCR pronto!', 'success');
-        } else {
-          console.warn('⚠️ Algumas bibliotecas OCR não carregaram. Recarregue a página.');
-        }
-      }, 2000);
-      return () => clearTimeout(timer);
+    // Verificar com retry
+    const checkInterval = setInterval(() => {
+      attempts++;
+      
+      if (checkLibraries()) {
+        clearInterval(checkInterval);
+      } else if (attempts >= maxAttempts) {
+        clearInterval(checkInterval);
+        console.error('❌ Bibliotecas OCR não carregaram após', maxAttempts, 'tentativas');
+        console.error('Status final:', {
+          pdfjsLib: typeof pdfjsLib,
+          Tesseract: typeof Tesseract,
+          fuzzball: typeof window.fuzzball
+        });
+        showNotification('⚠️ OCR pode não funcionar. Tente recarregar a página.', 'warning');
+      }
+    }, 1000); // Verificar a cada 1 segundo
+    
+    return () => clearInterval(checkInterval);
     }
   }, []);
   
