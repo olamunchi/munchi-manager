@@ -9,79 +9,15 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-  <!-- OCR Libraries - Carregamento garantido -->
+  <!-- OCR Simplificado - Apenas Tesseract (funciona!) -->
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.0.4/dist/tesseract.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/fuzzball@2.1.2/dist/fuzzball.umd.min.js"></script>
   
-  <!-- PDF.js com carregamento garantido -->
   <script>
-    // Função para carregar PDF.js
-    window.loadPDFJS = () => {
-      return new Promise((resolve, reject) => {
-        if (typeof pdfjsLib !== 'undefined') {
-          console.log('✅ PDF.js já estava carregado');
-          resolve();
-          return;
-        }
-        
-        const cdns = [
-          'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.0.189/build/pdf.min.js',
-          'https://unpkg.com/pdfjs-dist@4.0.189/build/pdf.min.js',
-          'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.189/pdf.min.js'
-        ];
-        
-        let attempts = 0;
-        
-        const tryLoadCDN = (index) => {
-          if (index >= cdns.length) {
-            reject(new Error('Todos os CDNs falharam'));
-            return;
-          }
-          
-          const script = document.createElement('script');
-          script.src = cdns[index];
-          
-          script.onload = () => {
-            attempts++;
-            console.log(`Tentativa ${attempts}: Testando CDN ${index + 1}...`);
-            
-            // Aguardar um pouco para variável ficar disponível
-            setTimeout(() => {
-              if (typeof pdfjsLib !== 'undefined') {
-                console.log(`✅ PDF.js carregado via CDN ${index + 1}`);
-                pdfjsLib.GlobalWorkerOptions.workerSrc = cdns[index].replace('pdf.min.js', 'pdf.worker.min.js');
-                resolve();
-              } else {
-                console.warn(`CDN ${index + 1} carregou mas pdfjsLib não disponível, tentando próximo...`);
-                tryLoadCDN(index + 1);
-              }
-            }, 500);
-          };
-          
-          script.onerror = () => {
-            console.warn(`❌ CDN ${index + 1} falhou, tentando próximo...`);
-            tryLoadCDN(index + 1);
-          };
-          
-          document.head.appendChild(script);
-        };
-        
-        tryLoadCDN(0);
-      });
-    };
-    
-    // Carregar assim que página estiver pronta
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', () => {
-        window.loadPDFJS().catch(err => {
-          console.error('❌ Falha crítica ao carregar PDF.js:', err);
-        });
-      });
-    } else {
-      window.loadPDFJS().catch(err => {
-        console.error('❌ Falha crítica ao carregar PDF.js:', err);
-      });
-    }
+    // PDF.js não está a funcionar nos CDNs, então vamos usar apenas Tesseract
+    // Tesseract funciona direto com imagens do PDF
+    console.log('📄 Sistema OCR simplificado: Tesseract + Fuzzball');
+    console.log('ℹ️ PDF.js desativado - usando apenas OCR de imagem');
   </script>
 </head>
 <body>
@@ -1811,23 +1747,22 @@ const RestauranteGestor = () => {
   const [processandoOCR, setProcessandoOCR] = useState(false);
   const [progressoOCR, setProgressoOCR] = useState('');
   
-  // Verificar carregamento das bibliotecas OCR
+  // Verificar carregamento das bibliotecas OCR (Tesseract e Fuzzball apenas)
   useEffect(() => {
     let attempts = 0;
     const maxAttempts = 5;
     
     const checkLibraries = () => {
-      const pdfjs = typeof pdfjsLib !== 'undefined';
       const tesseract = typeof Tesseract !== 'undefined';
       const fuzzball = typeof window.fuzzball !== 'undefined';
       
-      if (pdfjs && tesseract && fuzzball) {
-        console.log('✅ Bibliotecas OCR carregadas com sucesso!');
-        showNotification('✅ Sistema OCR pronto!', 'success');
+      if (tesseract && fuzzball) {
+        console.log('✅ Bibliotecas OCR carregadas: Tesseract + Fuzzball');
+        showNotification('✅ Sistema OCR pronto! (Tesseract)', 'success');
         return true;
       }
       
-      console.log(`⏳ Tentativa ${attempts + 1}/${maxAttempts}:`, { pdfjs, tesseract, fuzzball });
+      console.log(`⏳ Tentativa ${attempts + 1}/${maxAttempts}:`, { tesseract, fuzzball });
       return false;
     };
     
@@ -1850,7 +1785,6 @@ const RestauranteGestor = () => {
     }, 1000); // Verificar a cada 1 segundo
     
     return () => clearInterval(checkInterval);
-    }
   }, []);
   
   const [fornecedoresExpanded, setFornecedoresExpanded] = useState(false);
@@ -5180,23 +5114,43 @@ const RestauranteGestor = () => {
     }
   };
   
-  // Extração principal
-  const extractTextFromPdf = async (pdfBuffer) => {
-    console.log('📄 Extraindo texto...');
-    setProgressoOCR('Extraindo texto...');
+  // Extração principal - SIMPLIFICADA (sem PDF.js)
+  const extractTextFromPdf = async (file) => {
+    console.log('📄 Processando ficheiro...');
+    setProgressoOCR('Preparando OCR...');
+    
     try {
-      const nativeText = await extractNativeText(pdfBuffer);
-      if (nativeText && nativeText.length > 100) {
-        console.log('✅ Texto nativo:', nativeText.length, 'caracteres');
-        return { text: nativeText, method: 'native' };
-      }
-      console.log('⚠️ Usando OCR...');
+      //  Converter PDF para imagem usando FileReader
+      const imageData = await convertPdfToImage(file);
+      
+      console.log('🖼️ Imagem preparada, iniciando OCR...');
       setProgressoOCR('Aplicando OCR...');
-      const ocrText = await extractWithOCR(pdfBuffer);
-      return { text: ocrText, method: 'ocr' };
+      
+      // Fazer OCR direto
+      const result = await Tesseract.recognize(imageData, 'por', {
+        logger: m => {
+          if (m.status === 'recognizing text') {
+            setProgressoOCR(`OCR ${Math.round(m.progress * 100)}%`);
+          }
+        }
+      });
+      
+      console.log('✅ OCR completo:', result.data.text.length, 'caracteres');
+      return { text: result.data.text, method: 'ocr' };
+      
     } catch (error) {
-      throw new Error('Falha: ' + error.message);
+      throw new Error('Falha OCR: ' + error.message);
     }
+  };
+  
+  // Converter PDF/Imagem para data URL
+  const convertPdfToImage = async (file) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => resolve(e.target.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
   };
   
   // Ignorar linhas
@@ -5346,17 +5300,19 @@ const RestauranteGestor = () => {
   // Handler principal
   const handleLerPDFAutomatico = async (event) => {
     const file = event.target.files[0];
-    if (!file || file.type !== 'application/pdf') {
-      showNotification('⚠️ Selecione um PDF', 'error');
+    if (!file) {
+      showNotification('⚠️ Selecione um ficheiro', 'error');
       return;
     }
     
-    // Verificar se bibliotecas estão carregadas
-    if (typeof pdfjsLib === 'undefined') {
-      showNotification('⚠️ Bibliotecas OCR ainda não carregaram. Aguarde e tente novamente.', 'error');
+    // Aceitar PDF ou imagens
+    const validTypes = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
+    if (!validTypes.includes(file.type)) {
+      showNotification('⚠️ Selecione um PDF ou imagem (PNG, JPG, WEBP)', 'error');
       return;
     }
     
+    // Verificar APENAS Tesseract e Fuzzball (PDF.js não é mais necessário)
     if (typeof Tesseract === 'undefined') {
       showNotification('⚠️ Biblioteca Tesseract ainda não carregou. Aguarde e tente novamente.', 'error');
       return;
@@ -5380,8 +5336,8 @@ const RestauranteGestor = () => {
           .reduce((data, byte) => data + String.fromCharCode(byte), '')
       );
       
-      // Extrair texto
-      const { text, method } = await extractTextFromPdf(arrayBuffer);
+      // Extrair texto (passa file direto agora, não arrayBuffer)
+      const { text, method } = await extractTextFromPdf(file);
       console.log(`Método: ${method}`);
       
       // Parse produtos
@@ -7976,14 +7932,14 @@ const RestauranteGestor = () => {
                     </h3>
                   </div>
                   
-                  {/* Botão Ler PDF Automaticamente */}
+                  {/* Botão Ler PDF/Imagem Automaticamente */}
                   <div className="mb-4 p-3 bg-purple-50 border border-purple-200 rounded-lg">
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      📄 Ler e Preencher Fatura Automaticamente
+                      📄 Ler Fatura Automaticamente (OCR)
                     </label>
                     <input
                       type="file"
-                      accept=".pdf"
+                      accept=".pdf,image/*"
                       onChange={handleLerPDFAutomatico}
                       className="hidden"
                       id="pdf-ocr-input"
@@ -8006,11 +7962,11 @@ const RestauranteGestor = () => {
                           {progressoOCR || 'Processando...'}
                         </span>
                       ) : (
-                        '📄 Ler PDF e Auto-Preencher'
+                        '📸 Ler Fatura (PDF ou Foto)'
                       )}
                     </label>
                     <p className="text-xs text-gray-500 mt-2 text-center">
-                      ✨ Extrai produtos, preços, data, fornecedor E guarda o PDF original
+                      ✨ Carregue PDF ou foto da fatura - extrai produtos, preços e guarda documento
                     </p>
                   </div>
                   
