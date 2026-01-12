@@ -1515,6 +1515,7 @@ const RestauranteGestor = () => {
   const [faturaEditando, setFaturaEditando] = useState(null);
   const [modoFormulario, setModoFormulario] = useState('completo'); // 'completo' ou 'rapido'
   const [dadosEmpresaExpanded, setDadosEmpresaExpanded] = useState(false);
+  const [backupExpanded, setBackupExpanded] = useState(false);
   const [fornecedoresExpanded, setFornecedoresExpanded] = useState(false);
   const [deliveryAppsExpanded, setDeliveryAppsExpanded] = useState(false);
   const [editandoFornecedor, setEditandoFornecedor] = useState(false);
@@ -8895,13 +8896,24 @@ const RestauranteGestor = () => {
                 </div>
                 
                 {/* Backup e Sincronização */}
-                <div className="border rounded-lg p-4 bg-gradient-to-r from-gray-50 to-blue-50">
-                  <h3 className="font-bold text-lg mb-2 flex items-center gap-2">
-                    💾 Backup e Sincronização
-                  </h3>
-                  <p className="text-sm text-gray-600 mb-4">
-                    Sincronize automaticamente com a cloud ou faça backup/restauro manual.
-                  </p>
+                <div className="border rounded-lg overflow-hidden bg-gradient-to-r from-gray-50 to-blue-50">
+                  <button
+                    onClick={() => setBackupExpanded(!backupExpanded)}
+                    className="w-full p-4 flex items-center justify-between hover:bg-blue-100 transition"
+                  >
+                    <div>
+                      <h3 className="font-bold text-lg flex items-center gap-2">
+                        💾 Backup e Sincronização
+                      </h3>
+                      <p className="text-sm text-gray-600 text-left mt-1">
+                        Sincronize automaticamente com a cloud ou faça backup/restauro manual.
+                      </p>
+                    </div>
+                    {backupExpanded ? <ChevronUp size={24} /> : <ChevronDown size={24} />}
+                  </button>
+                  
+                  {backupExpanded && (
+                  <div className="border-t border-gray-200 bg-white p-4">
                   
                   {/* Grid: Export/Import + GitHub + Google Drive */}
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
@@ -9097,6 +9109,8 @@ const RestauranteGestor = () => {
                       <strong>💡 Dica:</strong> Use GitHub ou Google Drive para backup automático. Export/Import para backup manual.
                     </p>
                   </div>
+                  </div>
+                  )}
                 </div>
                 
                 {/* Exportar para Excel/CSV */}
