@@ -2624,7 +2624,6 @@ const RestauranteGestor = () => {
         fornecedores: fornecedores || [],
         dadosEmpresa: dadosEmpresa || {},
         deliveryApps: deliveryApps || [],
-        funcionarios: funcionarios || [],
         lastUpdate: new Date().toISOString()
       };
       let fileId = driveFileId;
@@ -2676,7 +2675,6 @@ const RestauranteGestor = () => {
         if (data.fornecedores) setFornecedores(data.fornecedores);
         if (data.dadosEmpresa) setDadosEmpresa(data.dadosEmpresa);
         if (data.deliveryApps) setDeliveryApps(data.deliveryApps);
-        if (data.funcionarios) setFuncionarios(data.funcionarios);
         setDriveLastSync(new Date(file.modifiedTime));
         showNotification('✅ Dados carregados!', 'success');
       }
@@ -8977,8 +8975,6 @@ const RestauranteGestor = () => {
                       <strong>💡 GitHub:</strong> Backup automático e seguro na cloud. Configure o token nas definições acima.
                     </p>
                   </div>
-                </div>
-                
                 {/* ===== GOOGLE DRIVE SYNC ===== */}
                 <div className="border-b pb-4">
                   <h3 className="font-semibold mb-3 flex items-center gap-2">
@@ -9100,6 +9096,8 @@ const RestauranteGestor = () => {
                       )}
                     </div>
                   )}
+                </div>
+                
                 </div>
                 
                 {/* Exportar para Excel/CSV */}
