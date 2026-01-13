@@ -6712,37 +6712,7 @@ const RestauranteGestor = () => {
               </div>
             </div>
 
-            {/* Card de Status de PDFs */}
-            <div className="bg-gradient-to-br from-purple-500 to-pink-600 rounded-lg shadow p-4 text-white">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <FilePdf size={24} />
-                  <h3 className="font-bold">Documentos Fiscais</h3>
-                </div>
-              </div>
-              <div className="grid grid-cols-3 gap-3">
-                <div className="bg-white/20 rounded-lg p-3 text-center">
-                  <p className="text-2xl font-bold">{filteredDespesas.length}</p>
-                  <p className="text-purple-100 text-xs mt-1">Total Faturas</p>
-                </div>
-                <div className="bg-green-500/30 rounded-lg p-3 text-center">
-                  <p className="text-2xl font-bold">{filteredDespesas.filter(d => d.documentoPDF).length}</p>
-                  <p className="text-green-100 text-xs mt-1">✅ Com PDF</p>
-                </div>
-                <div className="bg-red-500/30 rounded-lg p-3 text-center">
-                  <p className="text-2xl font-bold">{filteredDespesas.filter(d => !d.documentoPDF).length}</p>
-                  <p className="text-red-100 text-xs mt-1">⚠️ Sem PDF</p>
-                </div>
-              </div>
-              {filteredDespesas.filter(d => !d.documentoPDF).length > 0 && (
-                <div className="mt-3 bg-red-500/20 rounded p-2 border border-red-300/30">
-                  <p className="text-xs flex items-center gap-2">
-                    <AlertCircle size={14} />
-                    <span>{filteredDespesas.filter(d => !d.documentoPDF).length} fatura(s) sem PDF! Adicione os documentos para deduzir IVA.</span>
-                  </p>
-                </div>
-              )}
-            </div>
+
 
             {/* Todos os produtos e análises em colunas lado a lado */}
             <div className="grid grid-cols-5 gap-2 overflow-x-auto">
@@ -9107,7 +9077,6 @@ const RestauranteGestor = () => {
                                       {/* NOVA SECÇÃO: Preço Total e Quantidade na Embalagem */}
                                       <div className="col-span-2 bg-blue-50 border-2 border-blue-300 rounded-lg p-3 space-y-2">
                                         <div className="flex items-center gap-2 mb-2">
-                                          <Package className="text-blue-600" size={16} />
                                           <h6 className="font-semibold text-sm text-blue-800">📦 Método Prático (Recomendado)</h6>
                                         </div>
                                         <p className="text-xs text-blue-700 mb-2">
@@ -9674,7 +9643,6 @@ const RestauranteGestor = () => {
                                   <div className="bg-green-50 border-2 border-green-300 rounded-lg p-3">
                                     <div className="flex items-center justify-between">
                                       <div className="flex items-center gap-3">
-                                        <FilePdf size={24} className="text-green-700" />
                                         <div>
                                           <p className="text-sm font-semibold text-green-900">
                                             📄 {fatura.nomeDocumento || 'Documento.pdf'}
@@ -10753,9 +10721,6 @@ const RestauranteGestor = () => {
                     {/* Cabeçalho com botões - sempre visível */}
                     <div className="p-4">
                       <div className="flex items-center gap-3 mb-3">
-                        <div className="bg-blue-600 rounded-lg p-2">
-                          <FileText size={20} className="text-white" />
-                        </div>
                         <h4 className="font-bold text-blue-900 flex-1">
                           📋 Relatório de Apoio Contabilístico
                         </h4>
@@ -10802,6 +10767,36 @@ const RestauranteGestor = () => {
                       <p className="text-sm text-gray-700 mb-3">
                         Ficheiro CSV estruturado com vendas e despesas para lançamento contabilístico
                       </p>
+                      
+                      
+                      {/* Documentos Fiscais - Movido do Dashboard */}
+                      <div className="bg-gradient-to-br from-purple-50 to-pink-50 border border-purple-200 rounded p-3 mb-3">
+                        <div className="flex items-center gap-2 mb-3">
+                          <h4 className="font-bold text-purple-900">📄 Documentos Fiscais</h4>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2">
+                          <div className="bg-white rounded-lg p-2 text-center border border-purple-200">
+                            <p className="text-xl font-bold text-purple-600">{despesas.length}</p>
+                            <p className="text-purple-600 text-xs mt-1">Total Faturas</p>
+                          </div>
+                          <div className="bg-green-50 rounded-lg p-2 text-center border border-green-200">
+                            <p className="text-xl font-bold text-green-600">{despesas.filter(d => d.documentoPDF).length}</p>
+                            <p className="text-green-600 text-xs mt-1">✅ Com PDF</p>
+                          </div>
+                          <div className="bg-red-50 rounded-lg p-2 text-center border border-red-200">
+                            <p className="text-xl font-bold text-red-600">{despesas.filter(d => !d.documentoPDF).length}</p>
+                            <p className="text-red-600 text-xs mt-1">⚠️ Sem PDF</p>
+                          </div>
+                        </div>
+                        {despesas.filter(d => !d.documentoPDF).length > 0 && (
+                          <div className="mt-2 bg-red-50 rounded p-2 border border-red-200">
+                            <p className="text-xs flex items-center gap-1 text-red-800">
+                              <AlertCircle size={12} />
+                              <span>{despesas.filter(d => !d.documentoPDF).length} fatura(s) sem PDF! Adicione os documentos na aba Gestão de Compras.</span>
+                            </p>
+                          </div>
+                        )}
+                      </div>
                       
                       {/* AVISO LEGAL */}
                       <div className="bg-red-50 border border-red-300 rounded p-2.5 mb-3">
