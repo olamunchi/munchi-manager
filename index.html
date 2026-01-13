@@ -1386,6 +1386,15 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
   const [linhasEditadas, setLinhasEditadas] = useState(linhas);
   const [stats, setStats] = useState(null);
   const [ingredientesLocais, setIngredientesLocais] = useState(ingredientes); // Lista local que pode crescer
+  const [mostrarModalCriarIng, setMostrarModalCriarIng] = useState(false);
+  const [novoIngrediente, setNovoIngrediente] = useState({
+    nome: '',
+    categoria: 'outros',
+    unidade: 'kg',
+    custo: '',
+    iva: '13'
+  });
+  const [linhaIndexCriando, setLinhaIndexCriando] = useState(null);
 
   useEffect(() => {
     const calculateStats = (linhas) => {
@@ -1428,6 +1437,63 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
 
   const handleRemoverLinha = (index) => {
     setLinhasEditadas(linhasEditadas.filter((_, i) => i !== index));
+  };
+  
+  // 🚫 Adicionar linha à blacklist e remover
+  const handleBlacklistLinha = (index) => {
+    const linha = linhasEditadas[index];
+    const nifFornecedor = metadata.nif;
+    
+    if (!nifFornecedor) {
+      alert('⚠️ NIF do fornecedor não detectado. Não é possível adicionar à blacklist.');
+      return;
+    }
+    
+    // Confirmar ação
+    if (confirm(`🚫 Adicionar à blacklist permanente?\n\nLinha: "${linha.textoOriginal.substring(0, 60)}..."\n\nEsta linha nunca mais aparecerá em faturas deste fornecedor.`)) {
+      // Adicionar à blacklist (via window global para chamar função do componente pai)
+      if (window._adicionarABlacklist) {
+        window._adicionarABlacklist(nifFornecedor, linha.textoOriginal);
+      }
+      
+      // Remover da lista
+      setLinhasEditadas(linhasEditadas.filter((_, i) => i !== index));
+    }
+  };
+
+  const handleCriarIngrediente = () => {
+    // Validar
+    if (!novoIngrediente.nome || !novoIngrediente.custo) {
+      alert('❌ Preencha nome e custo!');
+      return;
+    }
+    
+    // Criar
+    const novoIng = {
+      id: `ing_${Date.now()}`,
+      nome: novoIngrediente.nome,
+      categoria: novoIngrediente.categoria,
+      unidade: novoIngrediente.unidade,
+      custoUnitario: parseFloat(novoIngrediente.custo),
+      precoUnitario: parseFloat(novoIngrediente.custo),
+      iva: parseFloat(novoIngrediente.iva)
+    };
+    
+    // Adicionar à lista
+    setIngredientesLocais([...ingredientesLocais, novoIng]);
+    
+    // Guardar globalmente
+    if (!window._novosIngredientes) window._novosIngredientes = [];
+    window._novosIngredientes.push(novoIng);
+    
+    // Selecionar automaticamente
+    if (linhaIndexCriando !== null) {
+      handleIngredienteChange(linhaIndexCriando, novoIng.id);
+    }
+    
+    // Fechar modal
+    setMostrarModalCriarIng(false);
+    setNovoIngrediente({ nome: '', categoria: 'outros', unidade: 'kg', custo: '', iva: '13' });
   };
 
   const handleConfirmar = () => {
@@ -1484,6 +1550,11 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
               <div className="bg-purple-50 px-3 py-1 rounded"><strong>{stats.percentagemAuto}%</strong> auto</div>
             </div>
           )}
+          {!metadata.nif && (
+            <div className="mt-3 bg-yellow-50 border border-yellow-300 rounded px-3 py-2 text-sm text-yellow-800">
+              ⚠️ <strong>NIF não detectado!</strong> Botão blacklist (🚫) não funcionará. O sistema procura por "NIF:", "NIPC:" ou "Contribuinte:" seguido de 9 dígitos.
+            </div>
+          )}
         </div>
         <div className="flex-1 overflow-auto p-6">
           <table className="w-full border-collapse">
@@ -1525,42 +1596,17 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
                         </select>
                         <button
                           onClick={() => {
-                            const nome = prompt(`Criar ingrediente para "${linha.nomeProduto}"?\n\nNome do ingrediente:`);
-                            if (!nome) return;
-                            
-                            const unidade = prompt('Unidade (kg, l, un, etc):', 'kg');
-                            if (!unidade) return;
-                            
-                            const custo = prompt('Custo unitário (€):', '0');
-                            if (!custo) return;
-                            
-                            const iva = prompt('IVA (%):', '13');
-                            if (!iva) return;
-                            
-                            // Criar novo ingrediente
-                            const novoIng = {
-                              id: `ing_${Date.now()}`,
-                              nome: nome,
-                              unidade: unidade,
-                              custoUnitario: parseFloat(custo),
-                              precoUnitario: parseFloat(custo),
-                              iva: parseFloat(iva),
-                              categoria: 'outros'
-                            };
-                            
-                            // Adicionar à lista local do modal
-                            setIngredientesLocais([...ingredientesLocais, novoIng]);
-                            
-                            // Guardar para adicionar aos ingredientes globais depois
-                            if (!window._novosIngredientes) window._novosIngredientes = [];
-                            window._novosIngredientes.push(novoIng);
-                            
-                            // Selecionar automaticamente
-                            handleIngredienteChange(index, novoIng.id);
-                            
-                            alert(`✅ Ingrediente "${nome}" criado e selecionado!`);
+                            setNovoIngrediente({
+                              nome: linha.nomeProduto || '',
+                              categoria: 'outros',
+                              unidade: linha.unidade || 'kg',
+                              custo: linha.preco ? linha.preco.toString() : '',
+                              iva: linha.iva ? linha.iva.toString() : (metadata.iva ? metadata.iva.toString() : '13')
+                            });
+                            setLinhaIndexCriando(index);
+                            setMostrarModalCriarIng(true);
                           }}
-                          className="px-2 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-xs font-bold"
+                          className="ml-1 px-2 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700"
                           title="Criar novo ingrediente"
                         >
                           +
@@ -1602,8 +1648,6 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
                         <option value="l">l</option>
                         <option value="ml">ml</option>
                         <option value="un">un</option>
-                        <option value="cx">cx</option>
-                        <option value="dz">dz</option>
                       </select>
                     </td>
                     <td className="border p-2">
@@ -1619,10 +1663,17 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
                     <td className="border p-2 text-center">
                       <button
                         onClick={() => handleRemoverLinha(index)}
-                        className="text-red-600 hover:text-red-800 text-sm"
-                        title="Remover"
+                        className="text-red-600 hover:text-red-800 text-sm mr-1"
+                        title="Apagar (só desta vez)"
                       >
                         🗑️
+                      </button>
+                      <button
+                        onClick={() => handleBlacklistLinha(index)}
+                        className="text-gray-700 hover:text-black text-sm"
+                        title="Blacklist (nunca mais aparece)"
+                      >
+                        🚫
                       </button>
                     </td>
                   </tr>
@@ -1669,6 +1720,112 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
           </div>
         </div>
       </div>
+
+      {/* Modal Criar Ingrediente */}
+      {mostrarModalCriarIng && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]">
+          <div className="bg-white rounded-lg shadow-2xl w-full max-w-md p-6">
+            <h3 className="text-xl font-bold mb-4 text-gray-800">✨ Criar Novo Ingrediente</h3>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Nome *</label>
+                <input
+                  type="text"
+                  value={novoIngrediente.nome}
+                  onChange={(e) => setNovoIngrediente({...novoIngrediente, nome: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  placeholder="Ex: Tomate Cherry"
+                  autoFocus
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Categoria *</label>
+                <select
+                  value={novoIngrediente.categoria}
+                  onChange={(e) => setNovoIngrediente({...novoIngrediente, categoria: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="vegetais">🥬 Vegetais</option>
+                  <option value="frutas">🍎 Frutas</option>
+                  <option value="carnes">🥩 Carnes</option>
+                  <option value="peixe">🐟 Peixe/Marisco</option>
+                  <option value="laticínios">🥛 Laticínios</option>
+                  <option value="óleos">🫒 Óleos/Gorduras</option>
+                  <option value="cereais">🌾 Cereais/Massas</option>
+                  <option value="especiarias">🌶️ Especiarias</option>
+                  <option value="bebidas">🍺 Bebidas</option>
+                  <option value="embalagens">📦 Embalagens</option>
+                  <option value="limpeza">🧹 Limpeza</option>
+                  <option value="compotas">🍯 Compotas/Doces</option>
+                  <option value="outros">📋 Outros</option>
+                </select>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">Unidade *</label>
+                  <select
+                    value={novoIngrediente.unidade}
+                    onChange={(e) => setNovoIngrediente({...novoIngrediente, unidade: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="kg">kg</option>
+                    <option value="g">g</option>
+                    <option value="l">l</option>
+                    <option value="ml">ml</option>
+                    <option value="un">un</option>
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">Custo (€) *</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={novoIngrediente.custo}
+                    onChange={(e) => setNovoIngrediente({...novoIngrediente, custo: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    placeholder="0.00"
+                  />
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">IVA (%) *</label>
+                <select
+                  value={novoIngrediente.iva}
+                  onChange={(e) => setNovoIngrediente({...novoIngrediente, iva: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="6">6% (Essencial)</option>
+                  <option value="13">13% (Reduzido)</option>
+                  <option value="23">23% (Normal)</option>
+                </select>
+              </div>
+            </div>
+            
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => {
+                  setMostrarModalCriarIng(false);
+                  setNovoIngrediente({ nome: '', categoria: 'outros', unidade: 'kg', custo: '', iva: '13' });
+                }}
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 font-semibold text-gray-700"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleCriarIngrediente}
+                className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold"
+              >
+                ✨ Criar Ingrediente
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -1701,6 +1858,7 @@ const RestauranteGestor = () => {
   const [despesas, setDespesas] = useState([]);
   const [fornecedores, setFornecedores] = useState([]);
   const [vocabularioFornecedor, setVocabularioFornecedor] = useState([]); // 🧠 Sistema de aprendizagem
+  const [templatesOCR, setTemplatesOCR] = useState([]); // 📋 Templates por fornecedor
   const [novoProduto, setNovoProduto] = useState({ nome: '', precoVenda: '', iva: '6', categoria: 'cafes', receita: [], embalagens: [], porcoes: 1 });
   const [editandoProduto, setEditandoProduto] = useState(false);
   const [produtoEditandoId, setProdutoEditandoId] = useState(null);
@@ -1760,7 +1918,7 @@ const RestauranteGestor = () => {
   const [showIngredienteSuggestions, setShowIngredienteSuggestions] = useState(false);
   const [searchIngredienteFatura, setSearchIngredienteFatura] = useState('');
   const [showIngredienteSuggestionsFatura, setShowIngredienteSuggestionsFatura] = useState(false);
-  const [novoIngrediente, setNovoIngrediente] = useState({ nome: '', unidade: 'kg', custoUnitario: '', iva: '6', quantidade: '1', categoria: 'outros' });
+  const [novoIngrediente, setNovoIngrediente] = useState({ nome: '', unidade: 'kg', custoUnitario: '', iva: '6', quantidade: '1', categoria: 'outros', precoTotal: '', quantidadeEmbalagem: '' });
   const [editandoIngrediente, setEditandoIngrediente] = useState(false);
   const [ingredienteEditandoId, setIngredienteEditandoId] = useState(null);
   const [novaDespesa, setNovaDespesa] = useState({ 
@@ -2048,6 +2206,172 @@ const RestauranteGestor = () => {
 
   // ==================== FIM SISTEMA DE APRENDIZAGEM ====================
 
+  // ==================== 📋 SISTEMA DE TEMPLATES OCR ====================
+  
+  const detectarLayoutFatura = (texto) => {
+    const linhas = texto.split('\n').map(l => l.trim());
+    const marcadoresInicio = [
+      /ref.*artigo.*designa/i,
+      /produto.*quantidade.*pre/i,
+      /designação.*qtd.*preço/i
+    ];
+    const marcadoresFim = [
+      /resumo.*impost/i,
+      /total.*pagar/i,
+      /informa.*bancária/i
+    ];
+    
+    let linhaInicio = -1;
+    let linhaFim = linhas.length;
+    
+    for (let i = 0; i < linhas.length; i++) {
+      if (marcadoresInicio.some(m => m.test(linhas[i]))) {
+        linhaInicio = i + 1;
+        break;
+      }
+    }
+    
+    for (let i = linhaInicio + 1; i < linhas.length; i++) {
+      if (marcadoresFim.some(m => m.test(linhas[i]))) {
+        linhaFim = i;
+        break;
+      }
+    }
+    
+    return { linhaInicio: Math.max(0, linhaInicio), linhaFim };
+  };
+  
+  const buscarTemplateOCR = (nifFornecedor) => {
+    if (!nifFornecedor) return null;
+    return templatesOCR.find(t => t.nifFornecedor === nifFornecedor);
+  };
+  
+  // 🚫 Extrair palavras-chave de uma linha para blacklist
+  const extrairPalavrasChave = (linha) => {
+    // Remove números, símbolos, unidades comuns
+    const texto = linha
+      .toLowerCase()
+      .replace(/[0-9€%\-\+\.,:\(\)]/g, ' ') // Remove números e símbolos
+      .replace(/\s+/g, ' ')
+      .trim();
+    
+    // Palavras que NÃO devem ir para blacklist (são normais em produtos)
+    const palavrasComuns = ['kg', 'g', 'l', 'ml', 'un', 'cx', 'caixa', 'pack', 'unid', 'unidade', 'lts'];
+    
+    const palavras = texto
+      .split(/\s+/)
+      .filter(p => p.length > 2) // Mínimo 3 caracteres
+      .filter(p => !palavrasComuns.includes(p))
+      .slice(0, 3); // Máximo 3 palavras-chave por linha
+    
+    return palavras;
+  };
+  
+  // 🚫 Adicionar linha à blacklist do template
+  const adicionarABlacklist = (nifFornecedor, linha) => {
+    if (!nifFornecedor) return;
+    
+    const palavras = extrairPalavrasChave(linha);
+    if (palavras.length === 0) return;
+    
+    const template = buscarTemplateOCR(nifFornecedor);
+    if (!template) {
+      console.log('⚠️ Template não existe ainda, não é possível adicionar à blacklist');
+      return;
+    }
+    
+    const index = templatesOCR.findIndex(t => t.nifFornecedor === nifFornecedor);
+    const blacklistAtual = template.blacklist || [];
+    const novaBlacklist = [...new Set([...blacklistAtual, ...palavras])]; // Remove duplicados
+    
+    const novoTemplate = {
+      ...template,
+      blacklist: novaBlacklist
+    };
+    
+    const novos = [...templatesOCR];
+    novos[index] = novoTemplate;
+    setTemplatesOCR(novos);
+    
+    console.log(`🚫 Adicionado à blacklist: ${palavras.join(', ')}`);
+  };
+  
+  const aprenderTemplateOCR = (nifFornecedor, texto, linhasValidadas) => {
+    if (!nifFornecedor) return;
+    
+    const layout = detectarLayoutFatura(texto);
+    const template = {
+      nifFornecedor,
+      linhaInicio: layout.linhaInicio,
+      linhaFim: layout.linhaFim,
+      blacklist: [], // 🚫 Lista de palavras a ignorar
+      numProdutosEsperado: linhasValidadas.length,
+      vezeUsado: 1
+    };
+    
+    const index = templatesOCR.findIndex(t => t.nifFornecedor === nifFornecedor);
+    if (index !== -1) {
+      const atual = templatesOCR[index];
+      const novoTemplate = {
+        ...atual,
+        linhaInicio: Math.round((atual.linhaInicio + layout.linhaInicio) / 2),
+        linhaFim: Math.round((atual.linhaFim + layout.linhaFim) / 2),
+        blacklist: atual.blacklist || [], // Preservar blacklist
+        vezeUsado: atual.vezeUsado + 1
+      };
+      const novos = [...templatesOCR];
+      novos[index] = novoTemplate;
+      setTemplatesOCR(novos);
+      console.log(`📋 Template atualizado (${novoTemplate.vezeUsado}x usado)`);
+    } else {
+      setTemplatesOCR([...templatesOCR, template]);
+      console.log(`📋 Novo template criado para NIF ${nifFornecedor}`);
+    }
+  };
+  
+  const parseComTemplate = (texto, template) => {
+    if (!template) return parseLinhasProdutos(texto);
+    
+    console.log(`📋 Usando template (${template.vezeUsado}x usado)`);
+    const linhas = texto.split('\n').map(l => l.trim());
+    const start = Math.max(0, template.linhaInicio);
+    const end = Math.min(linhas.length, template.linhaFim);
+    const blacklist = template.blacklist || [];
+    
+    if (blacklist.length > 0) {
+      console.log(`🚫 Blacklist ativa: ${blacklist.join(', ')}`);
+    }
+    
+    const linhasProdutos = [];
+    let linhasIgnoradasBlacklist = 0;
+    
+    for (let i = start; i < end; i++) {
+      const linha = linhas[i];
+      
+      // Verificar se linha contém palavra da blacklist
+      const linhaLower = linha.toLowerCase();
+      const temPalavraBlacklist = blacklist.some(palavra => linhaLower.includes(palavra));
+      
+      if (temPalavraBlacklist) {
+        console.log(`🚫 Ignorado por blacklist: "${linha.substring(0, 50)}..."`);
+        linhasIgnoradasBlacklist++;
+        continue;
+      }
+      
+      if (shouldIgnoreLine(linha)) continue;
+      const parsed = parseLinha(linha);
+      if (parsed && parsed.nomeProduto) linhasProdutos.push(parsed);
+    }
+    
+    console.log(`✅ ${linhasProdutos.length} produtos detectados`);
+    if (linhasIgnoradasBlacklist > 0) {
+      console.log(`🚫 ${linhasIgnoradasBlacklist} linha(s) ignorada(s) por blacklist`);
+    }
+    return linhasProdutos;
+  };
+
+  // ==================== FIM TEMPLATES OCR ====================
+
 
   const exportarDados = () => {
     const dados = {
@@ -2060,7 +2384,8 @@ const RestauranteGestor = () => {
       fornecedores,
       dadosEmpresa,
       faturas,
-      vocabularioFornecedor // 🧠 Incluir aprendizagem
+      vocabularioFornecedor, // 🧠 Incluir aprendizagem
+      templatesOCR // 📋 Incluir templates
     };
     
     const blob = new Blob([JSON.stringify(dados, null, 2)], { type: 'application/json' });
@@ -2103,6 +2428,7 @@ const RestauranteGestor = () => {
           });
           if (dados.faturas) setFaturas(dados.faturas);
           if (dados.vocabularioFornecedor) setVocabularioFornecedor(dados.vocabularioFornecedor); // 🧠 Importar aprendizagem
+          if (dados.templatesOCR) setTemplatesOCR(dados.templatesOCR); // 📋 Importar templates
           
           showNotification('Dados importados!', 'success');
           event.target.value = '';
@@ -3207,7 +3533,7 @@ const RestauranteGestor = () => {
   useEffect(() => {
     const carregar = async () => {
       try {
-        const [p, i, v, d, f, de, ft, voc] = await Promise.all([
+        const [p, i, v, d, f, de, ft, voc, templ] = await Promise.all([
           window.storage.get('produtos').catch(() => null),
           window.storage.get('ingredientes').catch(() => null),
           window.storage.get('vendas').catch(() => null),
@@ -3215,7 +3541,8 @@ const RestauranteGestor = () => {
           window.storage.get('fornecedores').catch(() => null),
           window.storage.get('dadosEmpresa').catch(() => null),
           window.storage.get('faturas').catch(() => null),
-          window.storage.get('vocabularioFornecedor').catch(() => null) // 🧠 Carregar aprendizagem
+          window.storage.get('vocabularioFornecedor').catch(() => null), // 🧠 Carregar aprendizagem
+          window.storage.get('templatesOCR').catch(() => null) // 📋 Carregar templates
         ]);
         if (p) setProdutos(JSON.parse(p.value));
         if (i) setIngredientes(JSON.parse(i.value));
@@ -3225,11 +3552,19 @@ const RestauranteGestor = () => {
         if (de) setDadosEmpresa(JSON.parse(de.value));
         if (ft) setFaturas(JSON.parse(ft.value));
         if (voc) setVocabularioFornecedor(JSON.parse(voc.value)); // 🧠 Restaurar aprendizagem
+        if (templ) setTemplatesOCR(JSON.parse(templ.value)); // 📋 Restaurar templates
       } catch (e) { console.log('Primeira vez'); }
     };
     carregar();
   }, []);
 
+  // 🚫 Expor função de blacklist globalmente para o modal
+  useEffect(() => {
+    window._adicionarABlacklist = adicionarABlacklist;
+    return () => {
+      delete window._adicionarABlacklist;
+    };
+  }, [templatesOCR]);
 
   // Close ingredient suggestions when changing tabs
   useEffect(() => {
@@ -3247,12 +3582,13 @@ const RestauranteGestor = () => {
           window.storage.set('fornecedores', JSON.stringify(fornecedores)),
           window.storage.set('dadosEmpresa', JSON.stringify(dadosEmpresa)),
           window.storage.set('faturas', JSON.stringify(faturas)),
-          window.storage.set('vocabularioFornecedor', JSON.stringify(vocabularioFornecedor)) // 🧠 Salvar aprendizagem
+          window.storage.set('vocabularioFornecedor', JSON.stringify(vocabularioFornecedor)), // 🧠 Salvar aprendizagem
+          window.storage.set('templatesOCR', JSON.stringify(templatesOCR)) // 📋 Salvar templates
         ]);
       } catch (e) { console.error(e); }
     };
     salvar();
-  }, [produtos, ingredientes, vendas, despesas, fornecedores, dadosEmpresa, faturas, vocabularioFornecedor]);
+  }, [produtos, ingredientes, vendas, despesas, fornecedores, dadosEmpresa, faturas, vocabularioFornecedor, templatesOCR]);
 
 
   const detectarCategoria = (nome) => {
@@ -3299,12 +3635,24 @@ const RestauranteGestor = () => {
   
   // CRIAR INGREDIENTE INLINE NA FATURA
   const criarIngredienteInline = () => {
-    if (!novoIngrediente.nome || !novoIngrediente.custoUnitario) {
-      showNotification('Preencha nome e custo do ingrediente!', 'error');
+    if (!novoIngrediente.nome) {
+      showNotification('Preencha o nome do ingrediente!', 'error');
       return;
     }
     
-    const custoComIva = parseFloat(novoIngrediente.custoUnitario);
+    // NOVO: Se tiver preço total e quantidade na embalagem, calcular custo unitário automaticamente
+    let custoComIva;
+    if (novoIngrediente.precoTotal && novoIngrediente.quantidadeEmbalagem) {
+      const precoTotal = parseFloat(novoIngrediente.precoTotal);
+      const qtdEmbalagem = parseFloat(novoIngrediente.quantidadeEmbalagem);
+      custoComIva = precoTotal / qtdEmbalagem; // Ex: €21.29 / 12 unidades = €1.77/un
+    } else if (novoIngrediente.custoUnitario) {
+      custoComIva = parseFloat(novoIngrediente.custoUnitario);
+    } else {
+      showNotification('Preencha o preço total e quantidade na embalagem, ou o custo unitário!', 'error');
+      return;
+    }
+    
     const iva = parseFloat(novoIngrediente.iva);
     const custoSemIva = custoComIva / (1 + iva / 100);
     const quantidade = parseFloat(novoIngrediente.quantidade || 1);
@@ -3346,7 +3694,7 @@ const RestauranteGestor = () => {
     // Reset
     setCriandoIngrediente(false);
     setSearchIngredienteFatura(novoIng.nome);
-    setNovoIngrediente({ nome: '', unidade: 'kg', custoUnitario: '', iva: '6', quantidade: '1', categoria: 'outros' });
+    setNovoIngrediente({ nome: '', unidade: 'kg', custoUnitario: '', iva: '6', quantidade: '1', categoria: 'outros', precoTotal: '', quantidadeEmbalagem: '' });
     
     showNotification(`✨ Ingrediente "${novoIng.nome}" criado e adicionado à fatura!`, 'success');
   };
@@ -5489,7 +5837,7 @@ const RestauranteGestor = () => {
     
     // Linha DEVE ter pelo menos: quantidade + unidade OU preço
     // Se não tiver nenhum dos dois, provavelmente não é produto
-    const temQuantidade = /\d+[.,]?\d*\s*(kg|g|l|ml|un|unid|cx|emb|dz)/i.test(linha);
+    const temQuantidade = /\d+[.,]?\d*\s*(kg|g|l|ml|un|unid)/i.test(linha);
     const temPreco = /\d+[.,]\d{2}\s*€?/i.test(linha);
     
     if (!temQuantidade && !temPreco) {
@@ -5507,9 +5855,7 @@ const RestauranteGestor = () => {
       /(\d+[.,]?\d*)\s*(g|gramas?)/gi,
       /(\d+[.,]?\d*)\s*l\b/gi,  // l isolado (litros)
       /(\d+[.,]?\d*)\s*(ml|mililitros?)/gi,
-      /(\d+[.,]?\d*)\s*(un|unid|unidade|pc|pç|peça)/gi,
-      /(\d+[.,]?\d*)\s*(cx|caixa|emb|embalagem)/gi,
-      /(\d+[.,]?\d*)\s*(dz|duzia|dúzia)/gi,
+      /(\d+[.,]?\d*)\s*(un|unid|unidade|pc|pç|peça|cx|caixa|emb|embalagem|dz|duzia|dúzia)/gi,
     ];
     
     for (const pattern of patterns) {
@@ -5530,8 +5876,8 @@ const RestauranteGestor = () => {
             'litros': 'l', 'litro': 'l',
             'mililitros': 'ml', 'mililitro': 'ml',
             'unid': 'un', 'unidade': 'un', 'pc': 'un', 'pç': 'un', 'peça': 'un',
-            'caixa': 'cx', 'emb': 'cx', 'embalagem': 'cx',
-            'duzia': 'dz', 'dúzia': 'dz'
+            'caixa': 'un', 'emb': 'un', 'embalagem': 'un',  // Converter para 'un'
+            'duzia': 'un', 'dúzia': 'un'  // Converter para 'un'
           };
           
           unidade = map[unidade] || unidade;
@@ -5604,7 +5950,7 @@ const RestauranteGestor = () => {
         if (data) metadata.data = data[1];
       }
       if (!metadata.nif) {
-        const nif = linha.match(/(?:nif|nipc)[\s:]*(\d{9})/i);
+        const nif = linha.match(/(?:nif|nipc|contribuinte)[:\s]*(\d{9})/i);
         if (nif) metadata.nif = nif[1];
       }
       if (!metadata.total) {
@@ -5612,6 +5958,7 @@ const RestauranteGestor = () => {
         if (total) metadata.total = parseFloat(total[1].replace(',', '.'));
       }
     }
+    console.log('📋 Metadata extraída:', metadata);
     return metadata;
   };
   
@@ -5704,11 +6051,13 @@ const RestauranteGestor = () => {
       const { text, method } = await extractTextFromPdf(file);
       console.log(`Método: ${method}`);
       
-      // Parse produtos
-      const linhas = parseLinhasProdutos(text);
-      
-      // Extrair metadata (sempre, mesmo sem produtos)
+      // Extrair metadata PRIMEIRO (para ter NIF)
       const metadata = extractFaturaMetadata(text);
+      metadata.textoCompleto = text; // Guardar para aprender template
+      
+      // 📋 Usar template se existir
+      const template = buscarTemplateOCR(metadata.nif);
+      const linhas = template ? parseComTemplate(text, template) : parseLinhasProdutos(text);
       
       // SEMPRE guardar PDF (independente de ter produtos ou não)
       metadata.pdfBase64 = base64;
@@ -5811,6 +6160,9 @@ const RestauranteGestor = () => {
       }
     }
     
+    // ATUALIZAR PREÇOS DOS INGREDIENTES
+    const ingredientesAtualizados = [...ingredientes];
+    
     // 🆕 ADICIONAR NOVOS INGREDIENTES CRIADOS NO MODAL
     if (metadata.novosIngredientes && metadata.novosIngredientes.length > 0) {
       const novosIngs = metadata.novosIngredientes;
@@ -5821,8 +6173,6 @@ const RestauranteGestor = () => {
       ingredientesAtualizados.push(...novosIngs);
     }
     
-    // ATUALIZAR PREÇOS DOS INGREDIENTES
-    const ingredientesAtualizados = [...ingredientes];
     let ingredientesModificados = 0;
     
     linhasValidadas.forEach(l => {
@@ -5943,6 +6293,11 @@ const RestauranteGestor = () => {
           }
         }
       });
+    }
+    
+    // 📋 Aprender template do fornecedor
+    if (nifFornecedor && metadata.textoCompleto) {
+      aprenderTemplateOCR(nifFornecedor, metadata.textoCompleto, linhasValidadas);
     }
     
     // Preencher dados da fatura (preservando PDF!)
@@ -8690,7 +9045,14 @@ const RestauranteGestor = () => {
                                     <button
                                       type="button"
                                       onClick={() => {
-                                        setNovoIngrediente({ ...novoIngrediente, nome: searchIngredienteFatura });
+                                        // Pré-preencher com dados do OCR se disponíveis
+                                        setNovoIngrediente({ 
+                                          ...novoIngrediente, 
+                                          nome: searchIngredienteFatura,
+                                          iva: itemFatura.iva || '6',  // IVA da fatura
+                                          precoTotal: itemFatura.precoTotal || '',  // Preço total da linha
+                                          quantidade: itemFatura.quantidade || '1'  // Quantidade se disponível
+                                        });
                                         setCriandoIngrediente(true);
                                       }}
                                       className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-semibold flex items-center gap-2 whitespace-nowrap"
@@ -8707,7 +9069,7 @@ const RestauranteGestor = () => {
                                         onClick={() => {
                                           setCriandoIngrediente(false);
                                           setSearchIngredienteFatura('');
-                                          setNovoIngrediente({ nome: '', unidade: 'kg', custoUnitario: '', iva: '6', quantidade: '1', categoria: 'outros' });
+                                          setNovoIngrediente({ nome: '', unidade: 'kg', custoUnitario: '', iva: '6', quantidade: '1', categoria: 'outros', precoTotal: '', quantidadeEmbalagem: '' });
                                         }}
                                         className="text-gray-500 hover:text-gray-700"
                                       >
@@ -8722,8 +9084,8 @@ const RestauranteGestor = () => {
                                           type="text"
                                           value={novoIngrediente.nome}
                                           onChange={(e) => setNovoIngrediente({...novoIngrediente, nome: e.target.value})}
-                                          placeholder="Ex: Café em Grão"
-                                          className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"
+                                          placeholder="Ex: Pink Punk Party"
+                                          className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-green-500"
                                         />
                                       </div>
                                       
@@ -8732,47 +9094,103 @@ const RestauranteGestor = () => {
                                         <select
                                           value={novoIngrediente.unidade}
                                           onChange={(e) => setNovoIngrediente({...novoIngrediente, unidade: e.target.value})}
-                                          className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"
+                                          className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-green-500"
                                         >
                                           <option value="kg">kg</option>
                                           <option value="g">g</option>
-                                          <option value="L">L</option>
+                                          <option value="L">L (litro)</option>
                                           <option value="ml">ml</option>
                                           <option value="un">unidade</option>
                                         </select>
                                       </div>
                                       
-                                      <div>
-                                        <label className="block text-xs font-medium text-gray-700 mb-1">
-                                          Custo/kg ou L (€) *
-                                        </label>
-                                        <input
-                                          type="number"
-                                          step="0.01"
-                                          value={novoIngrediente.custoUnitario}
-                                          onChange={(e) => setNovoIngrediente({...novoIngrediente, custoUnitario: e.target.value})}
-                                          placeholder="12.50"
-                                          className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"
-                                        />
-                                        <p className="text-xs text-gray-500 mt-0.5">
-                                          {novoIngrediente.unidade === 'g' && '(preço por kg, mesmo comprando em g)'}
-                                          {novoIngrediente.unidade === 'ml' && '(preço por L, mesmo comprando em ml)'}
-                                          {novoIngrediente.unidade === 'kg' && '(preço por kg)'}
-                                          {novoIngrediente.unidade === 'L' && '(preço por litro)'}
-                                          {novoIngrediente.unidade === 'un' && '(preço por unidade)'}
+                                      {/* NOVA SECÇÃO: Preço Total e Quantidade na Embalagem */}
+                                      <div className="col-span-2 bg-blue-50 border-2 border-blue-300 rounded-lg p-3 space-y-2">
+                                        <div className="flex items-center gap-2 mb-2">
+                                          <Package className="text-blue-600" size={16} />
+                                          <h6 className="font-semibold text-sm text-blue-800">📦 Método Prático (Recomendado)</h6>
+                                        </div>
+                                        <p className="text-xs text-blue-700 mb-2">
+                                          Insira o preço total da embalagem e quantas unidades vêm dentro. O custo unitário será calculado automaticamente!
                                         </p>
+                                        
+                                        <div className="grid grid-cols-2 gap-2">
+                                          <div>
+                                            <label className="block text-xs font-medium text-blue-800 mb-1">Preço Total da Embalagem (€)</label>
+                                            <input
+                                              type="number"
+                                              step="0.01"
+                                              value={novoIngrediente.precoTotal}
+                                              onChange={(e) => setNovoIngrediente({...novoIngrediente, precoTotal: e.target.value})}
+                                              placeholder="21.29"
+                                              className="w-full px-2 py-1.5 border border-blue-300 rounded text-sm focus:ring-2 focus:ring-blue-500 bg-white"
+                                            />
+                                            <p className="text-xs text-blue-600 mt-0.5">Ex: €21.29 (total na fatura)</p>
+                                          </div>
+                                          
+                                          <div>
+                                            <label className="block text-xs font-medium text-blue-800 mb-1">Qtd. de Unidades na Embalagem</label>
+                                            <input
+                                              type="number"
+                                              step="1"
+                                              value={novoIngrediente.quantidadeEmbalagem}
+                                              onChange={(e) => setNovoIngrediente({...novoIngrediente, quantidadeEmbalagem: e.target.value})}
+                                              placeholder="12"
+                                              className="w-full px-2 py-1.5 border border-blue-300 rounded text-sm focus:ring-2 focus:ring-blue-500 bg-white"
+                                            />
+                                            <p className="text-xs text-blue-600 mt-0.5">Ex: 12 (cervejas na caixa)</p>
+                                          </div>
+                                        </div>
+                                        
+                                        {/* Preview do cálculo automático */}
+                                        {novoIngrediente.precoTotal && novoIngrediente.quantidadeEmbalagem && (
+                                          <div className="bg-white border border-blue-400 rounded p-2 mt-2">
+                                            <div className="flex justify-between items-center">
+                                              <span className="text-xs font-medium text-gray-600">💡 Custo Unitário Calculado:</span>
+                                              <span className="text-sm font-bold text-green-600">
+                                                €{(parseFloat(novoIngrediente.precoTotal) / parseFloat(novoIngrediente.quantidadeEmbalagem)).toFixed(3)}/{novoIngrediente.unidade}
+                                              </span>
+                                            </div>
+                                            <p className="text-xs text-gray-500 mt-1">
+                                              €{novoIngrediente.precoTotal} ÷ {novoIngrediente.quantidadeEmbalagem} {novoIngrediente.unidade} = €{(parseFloat(novoIngrediente.precoTotal) / parseFloat(novoIngrediente.quantidadeEmbalagem)).toFixed(3)}/{novoIngrediente.unidade}
+                                            </p>
+                                          </div>
+                                        )}
                                       </div>
                                       
-                                      <div>
-                                        <label className="block text-xs font-medium text-gray-700 mb-1">Quantidade *</label>
-                                        <input
-                                          type="number"
-                                          step="0.01"
-                                          value={novoIngrediente.quantidade || '1'}
-                                          onChange={(e) => setNovoIngrediente({...novoIngrediente, quantidade: e.target.value})}
-                                          placeholder="5"
-                                          className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"
-                                        />
+                                      {/* Divisor OU */}
+                                      <div className="col-span-2 flex items-center gap-2 my-1">
+                                        <div className="flex-1 border-t border-gray-300"></div>
+                                        <span className="text-xs text-gray-500 font-medium">OU</span>
+                                        <div className="flex-1 border-t border-gray-300"></div>
+                                      </div>
+                                      
+                                      {/* MÉTODO ALTERNATIVO: Custo Unitário Direto */}
+                                      <div className="col-span-2 bg-gray-50 border border-gray-300 rounded-lg p-3">
+                                        <h6 className="font-semibold text-xs text-gray-700 mb-2">📊 Método Alternativo</h6>
+                                        <p className="text-xs text-gray-600 mb-2">Ou insira diretamente o custo unitário se já o conhecer:</p>
+                                        
+                                        <div>
+                                          <label className="block text-xs font-medium text-gray-700 mb-1">
+                                            Custo Unitário (€/{novoIngrediente.unidade === 'g' ? 'kg' : novoIngrediente.unidade === 'ml' ? 'L' : novoIngrediente.unidade})
+                                          </label>
+                                          <input
+                                            type="number"
+                                            step="0.001"
+                                            value={novoIngrediente.custoUnitario}
+                                            onChange={(e) => setNovoIngrediente({...novoIngrediente, custoUnitario: e.target.value})}
+                                            placeholder="1.77"
+                                            className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-gray-400"
+                                            disabled={novoIngrediente.precoTotal && novoIngrediente.quantidadeEmbalagem}
+                                          />
+                                          <p className="text-xs text-gray-500 mt-0.5">
+                                            {novoIngrediente.unidade === 'g' && '(preço por kg, mesmo comprando em g)'}
+                                            {novoIngrediente.unidade === 'ml' && '(preço por L, mesmo comprando em ml)'}
+                                            {novoIngrediente.unidade === 'kg' && '(preço por kg)'}
+                                            {novoIngrediente.unidade === 'L' && '(preço por litro)'}
+                                            {novoIngrediente.unidade === 'un' && '(preço por unidade)'}
+                                          </p>
+                                        </div>
                                       </div>
                                       
                                       <div>
@@ -8780,7 +9198,7 @@ const RestauranteGestor = () => {
                                         <select
                                           value={novoIngrediente.iva}
                                           onChange={(e) => setNovoIngrediente({...novoIngrediente, iva: e.target.value})}
-                                          className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"
+                                          className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-green-500"
                                         >
                                           <option value="6">6%</option>
                                           <option value="13">13%</option>
@@ -8793,8 +9211,9 @@ const RestauranteGestor = () => {
                                         <select
                                           value={novoIngrediente.categoria}
                                           onChange={(e) => setNovoIngrediente({...novoIngrediente, categoria: e.target.value})}
-                                          className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"
+                                          className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-green-500"
                                         >
+                                          <option value="bebidas">Bebidas</option>
                                           <option value="cafe">Café</option>
                                           <option value="lacteos">Laticínios</option>
                                           <option value="padaria">Padaria</option>
@@ -8806,27 +9225,23 @@ const RestauranteGestor = () => {
                                         </select>
                                       </div>
                                       
-                                      {/* Preview Preço Total */}
-                                      {novoIngrediente.custoUnitario && novoIngrediente.quantidade && (
-                                        <div className="col-span-2 bg-white rounded border border-green-300 p-2">
-                                          <div className="flex justify-between items-center text-sm">
-                                            <span className="text-gray-600">Preço Total:</span>
-                                            <span className="font-bold text-green-700">
-                                              €{(() => {
-                                                const custo = parseFloat(novoIngrediente.custoUnitario);
-                                                const qtd = parseFloat(novoIngrediente.quantidade || 1);
-                                                let qtdConvertida = qtd;
-                                                if (novoIngrediente.unidade === 'g') qtdConvertida = qtd / 1000;
-                                                if (novoIngrediente.unidade === 'ml') qtdConvertida = qtd / 1000;
-                                                return (custo * qtdConvertida).toFixed(2);
-                                              })()}
-                                            </span>
-                                          </div>
-                                          <div className="text-xs text-gray-500 mt-0.5">
-                                            {novoIngrediente.quantidade || 1} {novoIngrediente.unidade} × €{parseFloat(novoIngrediente.custoUnitario || 0).toFixed(2)}/{novoIngrediente.unidade === 'g' ? 'kg' : novoIngrediente.unidade === 'ml' ? 'L' : novoIngrediente.unidade}
-                                          </div>
-                                        </div>
-                                      )}
+                                      {/* Quantidade para fatura (opcional) */}
+                                      <div className="col-span-2 border-t border-gray-200 pt-2 mt-1">
+                                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                                          Quantidade Comprada (para esta fatura)
+                                        </label>
+                                        <input
+                                          type="number"
+                                          step="0.01"
+                                          value={novoIngrediente.quantidade || '1'}
+                                          onChange={(e) => setNovoIngrediente({...novoIngrediente, quantidade: e.target.value})}
+                                          placeholder="12"
+                                          className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-green-500"
+                                        />
+                                        <p className="text-xs text-gray-500 mt-0.5">
+                                          Quantas {novoIngrediente.unidade === 'un' ? 'unidades' : novoIngrediente.unidade} comprou nesta fatura?
+                                        </p>
+                                      </div>
                                     </div>
                                     
                                     <button
@@ -9271,10 +9686,26 @@ const RestauranteGestor = () => {
                                       </div>
                                       <button
                                         onClick={() => {
-                                          const w = window.open('');
-                                          w.document.write(
-                                            `<iframe width='100%' height='100%' src='${fatura.documentoPDF}'></iframe>`
-                                          );
+                                          try {
+                                            // Converter base64 para Blob
+                                            const base64Data = fatura.documentoPDF.split(',')[1] || fatura.documentoPDF;
+                                            const byteCharacters = atob(base64Data);
+                                            const byteNumbers = new Array(byteCharacters.length);
+                                            for (let i = 0; i < byteCharacters.length; i++) {
+                                              byteNumbers[i] = byteCharacters.charCodeAt(i);
+                                            }
+                                            const byteArray = new Uint8Array(byteNumbers);
+                                            const blob = new Blob([byteArray], { type: 'application/pdf' });
+                                            
+                                            // Criar URL do blob
+                                            const blobUrl = URL.createObjectURL(blob);
+                                            
+                                            // Abrir em nova janela
+                                            window.open(blobUrl, '_blank');
+                                          } catch (error) {
+                                            console.error('Erro ao abrir PDF:', error);
+                                            alert('Erro ao abrir PDF. Verifique a consola para detalhes.');
+                                          }
                                         }}
                                         className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-semibold flex items-center gap-2 transition"
                                       >
