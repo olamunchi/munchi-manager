@@ -1973,6 +1973,72 @@ const RestauranteGestor = () => {
   
   // Novos estados para Faturas
   const [faturas, setFaturas] = useState([]);
+
+  // ============================================
+  // 📦 SISTEMA DE IMPORTAÇÃO AUTOMÁTICA
+  // ============================================
+  
+  // Mapeamento de nomes Moloni/Zobaze → Sistema
+  const MAPEAMENTO_PRODUTOS = {"Expresso":"Café Expresso","Bica/Expresso":"Café Expresso","Expresso Take Away":"Café Expresso","Bica/Take Away":"Café Expresso","Meia De Leite":"Meia de Leite","Meia Leite":"Meia de Leite","Meia de Leite/White Coffee":"Meia de Leite","Meia de Leite Take Away":"Meia de Leite","Meia de Leite/White Coffee Take Away":"Meia de Leite","Capuccino":"Cappuccino","Cappuccino Take Away":"Cappuccino","Americano Take Away":"Americano","Americano/Black Coffee":"Americano","Descafeinado/Decaf":"Descafeinado","Galao":"Galão","Matcha com Leite/Matcha Latte":"Matcha Latte","Matcha com Leite/Matcha Latte Take Away":"Matcha Latte","Matcha":"Matcha Latte","Matcha TG":"Matcha Latte","Cha/Tea":"Chá","Sumo de Laranja":"Sumo Laranja","Sumo de Laranja/Orange Juice":"Sumo Laranja","Sumo de Laranja Take Away":"Sumo Laranja","Sumo de Laranja/Take Away":"Sumo Laranja","Sumo Laranja TG":"Sumo Laranja","Sumo Caseiro Take Away":"Sumo Caseiro","Sumo Caseiro/Home made juice Take Away":"Sumo Caseiro","Mojito Picante/Spicy Mojito":"Spicy Mojito","Mojito Spicy":"Spicy Mojito","Mojito S/ Alcool":"Mojito Sem Álcool","Agua 1.5l":"Água 1.5L","Agua Penacova 1.5L":"Água 1.5L","Agua/Water 0.33l":"Água 33cl","Aguas Penacova 33":"Água 33cl","Aguas Penacova 50cl":"Água 50cl","Água Com Gás":"Água com Gás 33cl","Agua com Gas Castello 25cl":"Água com Gás 25cl","Agua com Gas/Sparkling Water 0.33l":"Água com Gás 33cl","Cerveja Super Bock/Beer Super Bock 33l":"Cerveja Super Bock","Super Bock":"Cerveja Super Bock","Super Bock 33cl":"Cerveja Super Bock","Super Bock Stout":"Cerveja Super Bock Stout","Cerveja Preta/Stout":"Cerveja Super Bock Stout","Cerveja Artesanal 33l":"Cerveja Artesanal Mania","Cerveja Artesanal/Craft Beer 33l":"Cerveja Artesanal Mania","Castelo Rodrigo (branco) Garrafa":"Castelo Rodrigo Branco Garrafa","Castelo Rogrido Branco Copo":"Castelo Rodrigo Branco Copo","Castelo Rodrigo 100% Touriga Nacional Tinto (Beira Interior)":"Castelo Rodrigo Tinto Garrafa","Convento Aguiar Reserva Branco (Beira Interior)":"Convento Aguiar Branco Garrafa","Ladeira Santa Branco (Garrafa)":"Ladeira Santa Branco Garrafa","Ladeira da Santa Colheita Branco (Dao)":"Ladeira Santa Branco Garrafa","Ladeira da Santa 2023 Tinto (Dao)":"Ladeira Santa Tinto Garrafa","Ladeira da Santa Encruzado 2023 Tinto (Dao)":"Ladeira Santa Tinto Garrafa","Ladeira Santa Rose Copo":"Ladeira Santa Rosé Copo","Ladeira da Santa Rose (Dao)":"Ladeira Santa Rosé Copo","Falatório Bastardo Tinto (Lisboa)":"Falatório Bastardo Tinto","Aromas 4u Verde Copo":"Ladeira Santa Branco Copo","Aromas4U Sentido (Verde)":"Ladeira Santa Branco Garrafa","Ovos Turcos / Turkish Eggs":"Ovos Turcos","Ovos Turcos / Turkish Eggs s/picante":"Ovos Turcos","Croissant":"Olh'ó Croissant","Croque Monsieur":"Croque Monsieur Munchi","Croque Monsiur":"Croque Monsieur Munchi","Tosta de Abacate":"Tosta Abacate","Tosta Aberta de Abacate":"Tosta Abacate","Tosta de Requeijão":"Tosta Requeijão","Tosta de Requeijão":"Tosta Requeijão","Tosta Aberta de Requeijão":"Tosta Requeijão","Tosta Aberta de Requeijão":"Tosta Requeijão","Tosta Amendoim":"Tosta Manteiga Amendoim","Tosta Aberta de Manteiga de Amendoim":"Tosta Manteiga Amendoim","Wrap":"Wrap Ovo Bacon","Burrito":"Wrap Ovo Bacon","Rolos Crocantes picantes":"Rolos Crocantes Picante","Queijo Chevre":"Queijo Chèvre Flambeado","Queijo Chevre Flambeado":"Queijo Chèvre Flambeado","Sandes Polvo":"Sandes de Polvo","Sandes de Presunto, Brie e Mel":"Sandes Presunto TA","Sandes de Salmão Fumado e Salada de Ovo":"Sandes Salmão TA","Sandes de Salmão Fumado e Salada de Ovo":"Sandes Salmão TA","Salada de Queijo Burrata com Pêssego":"Salada Pêssegos Grelhados","Salada de Queijo Burrata com Pêssego":"Salada Pêssegos Grelhados","Salada de Queijo Burrata e Pêssego Grelhado":"Salada Pêssegos Grelhados","Salada de Queijo Burrata e Pêssego Grelhado":"Salada Pêssegos Grelhados","Salada Burrata":"Salada Pêssegos Grelhados","Salada Burrata C/Presunto":"Salada Pêssegos Grelhados","Salada de Burrata e Pêssego Grelhado C/ Presunto":"Salada Pêssegos Grelhados","Salada de Burrata e Pêssego Grelhado C/ Presunto":"Salada Pêssegos Grelhados","Salada de Queijo Feta com Pêssego":"Salada Pêssegos Grelhados","Salada de Queijo Feta com Pêssego":"Salada Pêssegos Grelhados","Salada Feta":"Salada Pêssegos Grelhados","Salada de Queijo com Pêssego Grelhado":"Salada Pêssegos Grelhados","Salada de Queijo com Pêssego Grelhado":"Salada Pêssegos Grelhados","Salada Extra":"Salada Pêssegos Grelhados","Bolo de Limão/Lemon Cake":"Bolo de Limão com Mirtilos","Bolo de Limão/Lemon Cake":"Bolo de Limão com Mirtilos","Bolo Limão":"Bolo de Limão com Mirtilos","Bolo Chocolate":"Bolo de Chocolate com Caramelo Salgado","Red Velvet":"Bolo Red Velvet com Frutos Vermelhos","Bolo Banana":"Bolo de Banana","Bolo Bolacha":"Bolo de Bolacha","Cheesecake Frutos Vermelhos":"Cheesecake de Frutos Vermelhos","Cheesecake Frutos Tropicais":"Cheesecake de Frutos Tropicais","Cheesecake frutos tropicais":"Cheesecake de Frutos Tropicais","Cheesecake Matcha":"Cheesecake de Matcha","Cheesecake Matcha Manga e Maracuja":"Cheesecake de Matcha","Cheesecake Merengue queimado":"Cheesecake Merengue Queimado","Pavlova":"Mini Pavlova de Frutos Vermelhos","Pudim Chia Frutos Vermelhos":"Pudim Chia","Pudim Chia com Matcha":"Pudim Chia Matcha","Pudin Chia Vegan":"Pudim Chia","Cebola 100":"Chutney Cebola 100ml","Cebola 100 ml":"Chutney Cebola 100ml","Cebola 250":"Chutney Cebola 250ml","Cebola 250 ml":"Chutney Cebola 250ml","Chipotle 100":"Chutney Chipotle 100ml","Chipotle 100 ml":"Chutney Chipotle 100ml","Chipotle 250":"Chutney Chipotle 250ml","Chipotle 250 ml":"Chutney Chipotle 250ml","Jalapeños Verdes 100":"Chutney Jalapeños Verde 100ml","Jalapenos Verde 100 ml":"Chutney Jalapeños Verde 100ml","Jalapeños Verdes 250":"Chutney Jalapeños Verde 250ml","Jalapenos Verde 250 ml":"Chutney Jalapeños Verde 250ml","Jalapeños Vermelhos 100":"Chutney Jalapeños Vermelho 100ml","Jalapenos Vermelhos 100 ml":"Chutney Jalapeños Vermelho 100ml","Jalapeños Vermelho 250":"Chutney Jalapeños Vermelho 250ml","Jalapenos Vermelhos 250 ml":"Chutney Jalapeños Vermelho 250ml","Pimentos Vermelhos 100":"Chutney Pimentos 100ml","Pimentos Vermelhos 100ml":"Chutney Pimentos 100ml","Pimentos Vermelhos 250ml":"Chutney Pimentos 250ml","Abóbora 100":"Compota Abóbora 100ml","Abobora 100 ml":"Compota Abóbora 100ml","Abóbora 250":"Compota Abóbora 250ml","Abobora 250 ml":"Compota Abóbora 250ml","Figo 100":"Compota Figo 100ml","Figo 250":"Compota Figo 250ml","Tomate 100":"Compota Tomate 100ml","Tomate 100 ml":"Compota Tomate 100ml","Tomate 250":"Compota Tomate 250ml","Tomate 250 ml":"Compota Tomate 250ml","Laranja 100":"Vinagrete Laranja 100ml","Laranja 100 ml":"Vinagrete Laranja 100ml","Laranja 250":"Vinagrete Laranja 250ml","Laranja 250 ml":"Vinagrete Laranja 250ml"};
+  
+  const mapearNomeProduto = (nome) => MAPEAMENTO_PRODUTOS[nome] || nome;
+  
+  const [mostrarImportacao, setMostrarImportacao] = useState(false);
+  const [fonteImportacao, setFonteImportacao] = useState('moloni');
+  
+  // Importar vendas CSV
+  const importarVendasCSV = (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const texto = e.target.result;
+        const linhas = texto.split('\n');
+        const vendasImportadas = [];
+        
+        for (let i = 1; i < linhas.length; i++) {
+          const linha = linhas[i].trim();
+          if (!linha) continue;
+          
+          const campos = linha.split(',').map(c => c.replace(/"/g, '').trim());
+          if (campos.length < 3) continue;
+          
+          const [data, nomeProduto, valorStr] = campos;
+          const valor = parseFloat(valorStr);
+          
+          if (!data || !nomeProduto || isNaN(valor)) continue;
+          
+          const nomeCorrigido = mapearNomeProduto(nomeProduto);
+          const produto = produtos.find(p => p.nome === nomeCorrigido);
+          
+          vendasImportadas.push({
+            id: Date.now() + Math.random(),
+            data: data,
+            produto: nomeCorrigido,
+            produtoId: produto?.id || null,
+            quantidade: 1,
+            valor: valor,
+            iva: produto?.iva || 6,
+            tipo: 'local',
+            fonte: fonteImportacao
+          });
+        }
+        
+        if (vendasImportadas.length > 0) {
+          setVendas([...vendas, ...vendasImportadas]);
+          alert(`✅ ${vendasImportadas.length} vendas importadas!\nFonte: ${fonteImportacao}`);
+          setMostrarImportacao(false);
+        } else {
+          alert('❌ Nenhuma venda válida encontrada.');
+        }
+      } catch (error) {
+        alert('❌ Erro: ' + error.message);
+      }
+    };
+    reader.readAsText(file);
+  };
   const [novaFatura, setNovaFatura] = useState({
     numero: '',
     data: new Date().toISOString().split('T')[0],
@@ -5521,6 +5587,15 @@ const RestauranteGestor = () => {
   const calcLucroVenda = (v) => {
     const p = produtos.find(pr => pr.nome.toLowerCase() === v.produto.toLowerCase());
     if (!p) return { lucro: 0, temCusto: false };
+    
+    // Verificar se produto TEM receita
+    const temReceita = p.receita && p.receita.length > 0;
+    
+    // Se não tem receita, retornar lucro 0 (não sabemos o custo real)
+    if (!temReceita) {
+      return { lucro: 0, temCusto: false };
+    }
+    
     const custo = calcCusto(p);
     const precoSemIva = v.valor / (1 + (v.iva / 100));
     const custoTotal = custo * v.quantidade;
@@ -5567,18 +5642,37 @@ const RestauranteGestor = () => {
   const filteredDespesas = getFilteredData(despesas);
   const filteredFaturas = getFilteredData(faturas);
 
+  // Total de vendas do filtro do utilizador
   const totV = filteredVendas.reduce((s, v) => s + v.valor, 0);
   const totD = filteredDespesas.reduce((s, d) => s + d.valor, 0);
   
-  // IVA Vendas (a receber do estado)
-  const ivaV = filteredVendas.reduce((s, v) => s + (v.valor * v.iva / (100 + v.iva)), 0);
+  // Limite IVA: SEMPRE calcular apenas vendas do ano atual (reset a 1 Janeiro)
+  const anoAtual = new Date().getFullYear();
+  const vendasAnoAtual = vendas.filter(v => {
+    const dataVenda = new Date(v.data);
+    return dataVenda.getFullYear() === anoAtual;
+  });
+  const totalVendasAnoAtual = vendasAnoAtual.reduce((s, v) => s + v.valor, 0);
   
-  // IVA Compras (das faturas - a deduzir)
-  const ivaComprasFaturas = filteredFaturas.reduce((s, f) => s + (f.totalIva || 0), 0);
+  // Filtrar também faturas do ano atual para cálculo de IVA
+  const faturasAnoAtual = faturas.filter(f => {
+    const dataFatura = new Date(f.data);
+    return dataFatura.getFullYear() === anoAtual;
+  });
   
-  // IVA Compras (das despesas com categoria "compras")
-  const ivaComprasDespesas = filteredDespesas
-    .filter(d => d.categoria === 'compras')
+  // IVA Vendas (a receber do estado) - APENAS ANO ATUAL
+  const ivaV = vendasAnoAtual.reduce((s, v) => s + (v.valor * v.iva / (100 + v.iva)), 0);
+  
+  // IVA Compras (das faturas - a deduzir) - APENAS ANO ATUAL
+  const ivaComprasFaturas = faturasAnoAtual.reduce((s, f) => s + (f.totalIva || 0), 0);
+  
+  // IVA Compras (das despesas com categoria "compras") - APENAS ANO ATUAL
+  const despesasComprasAnoAtual = despesas.filter(d => {
+    const dataDespesa = new Date(d.data);
+    return dataDespesa.getFullYear() === anoAtual && d.categoria === 'compras';
+  });
+  
+  const ivaComprasDespesas = despesasComprasAnoAtual
     .reduce((s, d) => {
       const ivaPerc = d.iva || 23;
       const valorSemIva = d.valor / (1 + ivaPerc / 100);
@@ -6811,7 +6905,7 @@ const RestauranteGestor = () => {
               </div>
 
               <div className="bg-gradient-to-br from-orange-500 to-amber-600 rounded-lg shadow p-3 text-white">
-                <p className="text-orange-100 text-xs mb-1">IVA {ivaP >= 0 ? 'Pagar' : 'Receber'}</p>
+                <p className="text-orange-100 text-xs mb-1">IVA {ivaP >= 0 ? 'Pagar' : 'Receber'} {anoAtual}</p>
                 <p className="text-xl font-bold">€{Math.abs(ivaP).toFixed(2)}</p>
                 <p className="text-orange-100 text-xs">{ivaP >= 0 ? 'Entregar' : 'Crédito'}</p>
               </div>
@@ -6824,18 +6918,18 @@ const RestauranteGestor = () => {
               {/* IVA Limit */}
               <div className="bg-white rounded-lg shadow p-3 min-w-[180px]">
                 <div className="flex justify-between items-center mb-2">
-                  <h3 className="text-xs font-bold">Limite IVA</h3>
+                  <h3 className="text-xs font-bold">Limite IVA {anoAtual}</h3>
                   <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${
-                    totV >= 15000 ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'
+                    totalVendasAnoAtual >= 15000 ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'
                   }`}>
-                    {((totV / 15000) * 100).toFixed(0)}%
+                    {((totalVendasAnoAtual / 15000) * 100).toFixed(0)}%
                   </span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
-                  <div className={`h-2 rounded-full ${totV >= 15000 ? 'bg-red-500' : 'bg-blue-500'}`} 
-                    style={{ width: `${Math.min((totV / 15000) * 100, 100)}%` }}></div>
+                  <div className={`h-2 rounded-full ${totalVendasAnoAtual >= 15000 ? 'bg-red-500' : 'bg-blue-500'}`} 
+                    style={{ width: `${Math.min((totalVendasAnoAtual / 15000) * 100, 100)}%` }}></div>
                 </div>
-                <p className="text-xs text-gray-600 mb-1">€{totV.toFixed(0)}</p>
+                <p className="text-xs text-gray-600 mb-1">€{totalVendasAnoAtual.toFixed(0)}</p>
                 <p className="text-xs text-gray-500">de €15.000</p>
               </div>
 
@@ -7390,17 +7484,42 @@ const RestauranteGestor = () => {
                             const margemPerc = p.faturacao > 0 ? (p.lucro / p.faturacao) * 100 : 0;
                             const ticketMedio = p.quantidade > 0 ? p.faturacao / p.quantidade : 0;
                             
+                            // Verificar se produto tem receita
+                            const produto = produtos.find(pr => pr.nome === p.nome);
+                            const temReceita = produto && produto.receita && produto.receita.length > 0;
+                            
+                            // DEBUG apenas para primeiro produto
+                            if (idx === 0) {
+                              console.log('🔍 DEBUG Desempenho:');
+                              console.log('  Total produtos:', produtos.length);
+                              console.log('  Produto #1:', p.nome);
+                              console.log('  Encontrado?', !!produto);
+                              if (produto) {
+                                console.log('  Receita:', produto.receita?.length || 0, 'ingredientes');
+                                console.log('  Campos:', Object.keys(produto));
+                              }
+                            }
+                            
                             return (
                               <tr key={p.nome} className="border-b hover:bg-blue-50 transition">
                                 <td className="p-2 font-bold text-blue-600">#{idx + 1}</td>
-                                <td className="p-2 font-semibold">{p.nome}</td>
+                                <td className="p-2 font-semibold">
+                                  {p.nome}
+                                  {!temReceita && (
+                                    <span className="ml-2 text-xs text-orange-600 font-bold" title="Produto sem receita - margem não calculada">
+                                      ⚠️
+                                    </span>
+                                  )}
+                                </td>
                                 <td className="p-2 text-right font-semibold">{p.quantidade}</td>
                                 <td className="p-2 text-right font-semibold text-green-700">€{p.faturacao.toFixed(2)}</td>
                                 <td className="p-2 text-right font-semibold text-blue-700">€{p.lucro.toFixed(2)}</td>
                                 <td className={`p-2 text-right font-bold ${
+                                  !temReceita ? 'text-red-600' :
                                   margemPerc > 60 ? 'text-green-600' :
                                   margemPerc > 40 ? 'text-blue-600' : 'text-orange-600'
                                 }`}>
+                                  {!temReceita && '⚠️ '}
                                   {margemPerc.toFixed(1)}%
                                 </td>
                                 <td className="p-2 text-right text-gray-700">€{ticketMedio.toFixed(2)}</td>
@@ -7626,7 +7745,7 @@ const RestauranteGestor = () => {
                   
                   <div className={`rounded-lg p-4 border ${ivaP >= 0 ? 'bg-orange-50 border-orange-200' : 'bg-green-50 border-green-200'}`}>
                     <p className={`text-xs mb-1 font-semibold ${ivaP >= 0 ? 'text-orange-700' : 'text-green-700'}`}>
-                      {ivaP >= 0 ? 'IVA a Pagar' : 'IVA a Receber'}
+                      {ivaP >= 0 ? 'IVA a Pagar' : 'IVA a Receber'} {anoAtual}
                     </p>
                     <p className={`text-xl font-bold ${ivaP >= 0 ? 'text-orange-900' : 'text-green-900'}`}>
                       €{Math.abs(ivaP).toFixed(2)}
@@ -9810,7 +9929,17 @@ const RestauranteGestor = () => {
                     </div>
                   )}
                 </div>
-              </div>
+              
+                  {/* NOVO: Importação com Mapeamento Automático */}
+                  <button
+                    onClick={() => setMostrarImportacao(true)}
+                    className="bg-purple-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-purple-700 transition flex items-center gap-2 font-semibold shadow mt-2 w-full justify-center"
+                  >
+                    <Upload size={18} />
+                    🚀 Importar com Mapeamento Automático
+                  </button>
+
+</div>
             )}
 
             {gestaoSubTab === 'vendas' && (
@@ -10990,6 +11119,69 @@ const RestauranteGestor = () => {
           onConfirmar={handleConfirmarOCR}
           onCancelar={() => setMostrarModalOCR(false)}
         />
+      )}
+      
+      {/* Modal de Importação com Mapeamento Automático */}
+      {mostrarImportacao && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full">
+            <h3 className="text-lg font-bold mb-4">📦 Importar Vendas (Automático)</h3>
+            
+            <div className="mb-4">
+              <label className="block text-sm font-semibold mb-2">Fonte dos Dados:</label>
+              <select
+                value={fonteImportacao}
+                onChange={(e) => setFonteImportacao(e.target.value)}
+                className="w-full border rounded p-2"
+              >
+                <option value="moloni">🏢 Moloni</option>
+                <option value="zobaze">📱 Zobaze</option>
+              </select>
+            </div>
+            
+            <div className="bg-purple-50 border border-purple-200 rounded p-3 mb-4">
+              <p className="text-xs text-purple-800 mb-2 font-semibold">
+                ✨ Mapeamento Automático Ativado!
+              </p>
+              <p className="text-xs text-purple-700">
+                • <strong>134 regras</strong> de conversão automáticas<br/>
+                • Nomes corrigidos instantaneamente<br/>
+                • Ex: "Expresso" → "Café Expresso"
+              </p>
+            </div>
+            
+            <div className="mb-4">
+              <label className="block text-sm font-semibold mb-2">Formato CSV esperado:</label>
+              <div className="bg-gray-50 border rounded p-2 text-xs font-mono">
+                Data,Produto,Valor<br/>
+                2026-02-01,Expresso,1.35<br/>
+                2026-02-01,Croissant,10.00
+              </div>
+            </div>
+            
+            <div className="mb-4">
+              <label className="bg-purple-600 text-white rounded px-4 py-2 text-sm hover:bg-purple-700 cursor-pointer inline-flex items-center gap-2 font-semibold shadow hover:shadow-lg transition w-full justify-center">
+                <Upload size={16} />
+                Escolher Arquivo CSV
+                <input
+                  type="file"
+                  accept=".csv"
+                  onChange={importarVendasCSV}
+                  className="hidden"
+                />
+              </label>
+            </div>
+            
+            <div className="flex gap-2">
+              <button
+                onClick={() => setMostrarImportacao(false)}
+                className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-400"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
