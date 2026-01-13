@@ -5899,10 +5899,11 @@ const RestauranteGestor = () => {
         ivaCompras: 0
       };
     }
-    dadosPorMes[mes].faturacao += v.valor;
-    dadosPorMes[mes].lucro += calcLucroVenda(v).lucro;
+    // Arredondar para evitar erros de ponto flutuante
+    dadosPorMes[mes].faturacao = Math.round((dadosPorMes[mes].faturacao + v.valor) * 100) / 100;
+    dadosPorMes[mes].lucro = Math.round((dadosPorMes[mes].lucro + calcLucroVenda(v).lucro) * 100) / 100;
     dadosPorMes[mes].vendas += 1;
-    dadosPorMes[mes].ivaVendas += (v.valor * v.iva / (100 + v.iva));
+    dadosPorMes[mes].ivaVendas = Math.round((dadosPorMes[mes].ivaVendas + (v.valor * v.iva / (100 + v.iva))) * 100) / 100;
   });
 
   despesas.forEach(d => {
@@ -7841,9 +7842,10 @@ const RestauranteGestor = () => {
                       };
                     }
                     
-                    vendasPorProduto[v.produto].quantidade += v.quantidade;
-                    vendasPorProduto[v.produto].faturacao += v.valor;
-                    vendasPorProduto[v.produto].lucro += calcLucroVenda(v).lucro;
+                    // Arredondar TUDO para evitar erros de ponto flutuante
+                    vendasPorProduto[v.produto].quantidade = Math.round((vendasPorProduto[v.produto].quantidade + v.quantidade) * 100) / 100;
+                    vendasPorProduto[v.produto].faturacao = Math.round((vendasPorProduto[v.produto].faturacao + v.valor) * 100) / 100;
+                    vendasPorProduto[v.produto].lucro = Math.round((vendasPorProduto[v.produto].lucro + calcLucroVenda(v).lucro) * 100) / 100;
                   });
                   
                   const produtosArray = Object.values(vendasPorProduto)
@@ -7995,9 +7997,10 @@ const RestauranteGestor = () => {
                       };
                     }
                     
-                    vendasPorCategoria[categoria].quantidade += v.quantidade;
-                    vendasPorCategoria[categoria].faturacao += v.valor;
-                    vendasPorCategoria[categoria].lucro += calcLucroVenda(v).lucro;
+                    // Arredondar TUDO para evitar erros de ponto flutuante
+                    vendasPorCategoria[categoria].quantidade = Math.round((vendasPorCategoria[categoria].quantidade + v.quantidade) * 100) / 100;
+                    vendasPorCategoria[categoria].faturacao = Math.round((vendasPorCategoria[categoria].faturacao + v.valor) * 100) / 100;
+                    vendasPorCategoria[categoria].lucro = Math.round((vendasPorCategoria[categoria].lucro + calcLucroVenda(v).lucro) * 100) / 100;
                   });
                   
                   const categorias = {
@@ -8032,7 +8035,7 @@ const RestauranteGestor = () => {
                           <div key={cat} className={`bg-${info.cor}-50 border-2 border-${info.cor}-300 rounded-lg p-3`}>
                             <p className="text-xs font-bold mb-1">{info.nome}</p>
                             <p className="text-2xl font-bold text-gray-900 mb-1">
-                              {dados.quantidade}
+                              {Math.round(dados.quantidade)}
                             </p>
                             <p className="text-xs text-gray-600 mb-2">unidades vendidas</p>
                             
