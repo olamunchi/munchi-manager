@@ -1396,6 +1396,10 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
     iva: '13'
   });
   const [linhaIndexCriando, setLinhaIndexCriando] = useState(null);
+  
+  // States para search de ingredientes
+  const [searchIngredienteOCR, setSearchIngredienteOCR] = useState({});
+  const [showDropdownOCR, setShowDropdownOCR] = useState({});
 
   useEffect(() => {
     const calculateStats = (linhas) => {
@@ -1542,6 +1546,23 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
           <p className="text-sm text-gray-600">
             Valide os produtos. Verde = alta confiança, Amarelo = verificar, Vermelho = escolher manualmente.
           </p>
+          
+          {/* Mostrar metadata detectada */}
+          {(metadata.numeroFatura || metadata.nif) && (
+            <div className="mt-3 flex gap-3 text-sm flex-wrap">
+              {metadata.numeroFatura && (
+                <div className="bg-purple-50 border border-purple-300 px-3 py-1 rounded">
+                  <strong>📋 Fatura:</strong> {metadata.numeroFatura}
+                </div>
+              )}
+              {metadata.nif && (
+                <div className="bg-blue-50 border border-blue-300 px-3 py-1 rounded">
+                  <strong>🏢 NIF:</strong> {metadata.nif}
+                </div>
+              )}
+            </div>
+          )}
+          
           {stats && (
             <div className="mt-3 flex gap-4 text-sm">
               <div className="bg-blue-50 px-3 py-1 rounded"><strong>{stats.total}</strong> produtos</div>
@@ -1585,16 +1606,81 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
                     </td>
                     <td className="border p-2">
                       <div className="flex gap-1">
-                        <select
-                          value={linha.ingredienteConfirmado || ''}
-                          onChange={(e) => handleIngredienteChange(index, e.target.value)}
-                          className={`flex-1 px-2 py-1 text-sm border rounded ${getConfidenceClass(confianca)}`}
-                        >
-                          <option value="">-- Selecionar --</option>
-                          {ingredientesLocais.map(ing => (
-                            <option key={ing.id} value={ing.id}>{ing.nome}</option>
-                          ))}
-                        </select>
+                        {/* Search + Dropdown de ingredientes */}
+                        <div className="flex-1 relative">
+                          <input
+                            type="text"
+                            value={searchIngredienteOCR[index] || ''}
+                            onChange={(e) => {
+                              const valor = e.target.value;
+                              setSearchIngredienteOCR({...searchIngredienteOCR, [index]: valor});
+                              setShowDropdownOCR({...showDropdownOCR, [index]: valor.length >= 2});
+                            }}
+                            onFocus={() => {
+                              if ((searchIngredienteOCR[index] || '').length >= 2) {
+                                setShowDropdownOCR({...showDropdownOCR, [index]: true});
+                              }
+                            }}
+                            onBlur={() => {
+                              // Delay para permitir click no dropdown
+                              setTimeout(() => {
+                                setShowDropdownOCR({...showDropdownOCR, [index]: false});
+                              }, 200);
+                            }}
+                            placeholder="Digite para buscar..."
+                            className={`w-full px-2 py-1 text-sm border rounded ${getConfidenceClass(confianca)}`}
+                          />
+                          
+                          {/* Dropdown de sugestões */}
+                          {showDropdownOCR[index] && (
+                            (() => {
+                              const search = (searchIngredienteOCR[index] || '').toLowerCase();
+                              const sugestoes = ingredientesLocais
+                                .filter(ing => ing.nome.toLowerCase().includes(search))
+                                .slice(0, 10);
+                              
+                              if (sugestoes.length === 0) return null;
+                              
+                              return (
+                                <div className="absolute top-full left-0 right-0 bg-white border shadow-lg z-50 max-h-60 overflow-y-auto mt-1 rounded">
+                                  {sugestoes.map(ing => (
+                                    <div
+                                      key={ing.id}
+                                      onMouseDown={(e) => {
+                                        e.preventDefault();
+                                        handleIngredienteChange(index, ing.id);
+                                        setSearchIngredienteOCR({...searchIngredienteOCR, [index]: ing.nome});
+                                        setShowDropdownOCR({...showDropdownOCR, [index]: false});
+                                      }}
+                                      className="p-2 hover:bg-blue-50 cursor-pointer border-b"
+                                    >
+                                      <div className="font-semibold text-sm">{ing.nome}</div>
+                                      <div className="text-xs text-gray-600">
+                                        €{ing.custoUnitario.toFixed(2)}/{ing.unidade} · {ing.categoria}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              );
+                            })()
+                          )}
+                          
+                          {/* Mostrar ingrediente selecionado */}
+                          {linha.ingredienteConfirmado && !searchIngredienteOCR[index] && (
+                            (() => {
+                              const ingSelecionado = ingredientesLocais.find(i => i.id === linha.ingredienteConfirmado);
+                              if (ingSelecionado) {
+                                return (
+                                  <div className="mt-1 text-xs text-blue-600 font-semibold">
+                                    ✓ {ingSelecionado.nome}
+                                  </div>
+                                );
+                              }
+                              return null;
+                            })()
+                          )}
+                        </div>
+                        
                         <button
                           onClick={() => {
                             setNovoIngrediente({
@@ -2067,6 +2153,10 @@ const RestauranteGestor = () => {
   const [faturaEditando, setFaturaEditando] = useState(null);
   const [modoFormulario, setModoFormulario] = useState('completo'); // 'completo' ou 'rapido'
   const [dadosEmpresaExpanded, setDadosEmpresaExpanded] = useState(false);
+  const [blacklistExpanded, setBlacklistExpanded] = useState(false);
+  const [categoriaFiltroDesempenho, setCategoriaFiltroDesempenho] = useState('todos');
+  const [mesSelecionado, setMesSelecionado] = useState(new Date().getMonth());
+  const [anoSelecionado, setAnoSelecionado] = useState(new Date().getFullYear());
   const [backupExpanded, setBackupExpanded] = useState(false);
   
   // Estados OCR
@@ -2336,31 +2426,60 @@ const RestauranteGestor = () => {
   
   // 🚫 Adicionar linha à blacklist do template
   const adicionarABlacklist = (nifFornecedor, linha) => {
-    if (!nifFornecedor) return;
+    console.log('🔍 adicionarABlacklist chamada:', { nifFornecedor, linha });
+    
+    if (!nifFornecedor) {
+      console.log('❌ NIF não fornecido');
+      showNotification('❌ NIF não detectado! Impossível adicionar à blacklist.', 'error');
+      return;
+    }
     
     const palavras = extrairPalavrasChave(linha);
-    if (palavras.length === 0) return;
+    console.log('🔍 Palavras extraídas:', palavras);
     
-    const template = buscarTemplateOCR(nifFornecedor);
-    if (!template) {
-      console.log('⚠️ Template não existe ainda, não é possível adicionar à blacklist');
+    if (palavras.length === 0) {
+      console.log('❌ Nenhuma palavra-chave extraída');
+      showNotification('❌ Nenhuma palavra-chave extraída desta linha.', 'error');
       return;
+    }
+    
+    let template = buscarTemplateOCR(nifFornecedor);
+    console.log('🔍 Template encontrado:', template ? 'SIM' : 'NÃO');
+    
+    // Se não existe template, criar um novo
+    if (!template) {
+      console.log('⚠️ Template não existe, criando novo...');
+      template = {
+        nifFornecedor: nifFornecedor,
+        linhaInicio: 0,
+        linhaFim: 999,
+        blacklist: [],
+        numProdutosEsperado: 0,
+        vezeUsado: 0
+      };
+      setTemplatesOCR([...templatesOCR, template]);
     }
     
     const index = templatesOCR.findIndex(t => t.nifFornecedor === nifFornecedor);
     const blacklistAtual = template.blacklist || [];
     const novaBlacklist = [...new Set([...blacklistAtual, ...palavras])]; // Remove duplicados
     
+    console.log('🔍 Blacklist antes:', blacklistAtual);
+    console.log('🔍 Blacklist depois:', novaBlacklist);
+    
     const novoTemplate = {
       ...template,
       blacklist: novaBlacklist
     };
     
-    const novos = [...templatesOCR];
-    novos[index] = novoTemplate;
+    const novos = index === -1 
+      ? [...templatesOCR, novoTemplate]  // Adicionar novo
+      : templatesOCR.map((t, i) => i === index ? novoTemplate : t);  // Atualizar existente
+    
     setTemplatesOCR(novos);
     
-    console.log(`🚫 Adicionado à blacklist: ${palavras.join(', ')}`);
+    console.log(`✅ Adicionado à blacklist: ${palavras.join(', ')}`);
+    showNotification(`🚫 Adicionado à blacklist: ${palavras.join(', ')}`, 'success');
   };
   
   const aprenderTemplateOCR = (nifFornecedor, texto, linhasValidadas) => {
@@ -3955,11 +4074,14 @@ const RestauranteGestor = () => {
         nome: novoProduto.nome,
         precoVenda: parseFloat(novoProduto.precoVenda),
         iva: parseFloat(novoProduto.iva),
-        receita: novoProduto.receita
+        categoria: novoProduto.categoria || 'cafes',
+        receita: novoProduto.receita,
+        embalagens: novoProduto.embalagens || [],
+        porcoes: novoProduto.porcoes || 1
       } : p
     ));
     
-    setNovoProduto({ nome: '', precoVenda: '', iva: '6', receita: [], porcoes: 1 });
+    setNovoProduto({ nome: '', precoVenda: '', iva: '6', categoria: 'cafes', receita: [], embalagens: [], porcoes: 1 });
     setSearchIngrediente('');
     setShowIngredienteSuggestions(false);
     setEditandoProduto(false);
@@ -6141,8 +6263,27 @@ const RestauranteGestor = () => {
     const metadata = { numeroFatura: null, data: null, nif: null, total: null };
     for (const linha of linhas) {
       if (!metadata.numeroFatura) {
-        const num = linha.match(/(?:fatura|factura)[\s:]*(\d+\/\d+)/i);
-        if (num) metadata.numeroFatura = num[1];
+        // Procurar múltiplos padrões de número de fatura
+        const padroes = [
+          /FT[\s\/-]*(\d{4}[\/-]\d+)/gi,                    // FT 2024/123, FT/2024/123
+          /FT[\s\/-]*(\d+)/gi,                              // FT 123, FT123
+          /(?:fatura|factura)[\s:nº°#]*(\d+\/\d+)/gi,      // Fatura 2024/123
+          /(?:fatura|factura)[\s:nº°#]*(\d{4,})/gi,        // Fatura 123456
+          /(?:invoice)[\s:#]*(\d+)/gi,                      // Invoice #123
+          /N[º°][\s:]*(\d{4,})/gi                          // Nº 123456
+        ];
+        
+        for (const padrao of padroes) {
+          const match = linha.match(padrao);
+          if (match) {
+            // Extrair apenas os números/identificador
+            const numMatch = match[0].match(/[\d\/\-]+$/);
+            if (numMatch) {
+              metadata.numeroFatura = numMatch[0];
+              break;
+            }
+          }
+        }
       }
       if (!metadata.data) {
         const data = linha.match(/(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/);
@@ -6219,17 +6360,20 @@ const RestauranteGestor = () => {
     const validTypes = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
     if (!validTypes.includes(file.type)) {
       showNotification('⚠️ Selecione um PDF ou imagem (PNG, JPG, WEBP)', 'error');
+      event.target.value = ''; // Limpar input
       return;
     }
     
     // Verificar APENAS Tesseract e Fuzzball (PDF.js não é mais necessário)
     if (typeof Tesseract === 'undefined') {
       showNotification('⚠️ Biblioteca Tesseract ainda não carregou. Aguarde e tente novamente.', 'error');
+      event.target.value = ''; // Limpar input
       return;
     }
     
     if (typeof fuzz === 'undefined' && typeof window.fuzzball === 'undefined') {
       showNotification('⚠️ Biblioteca de matching ainda não carregou. Aguarde e tente novamente.', 'error');
+      event.target.value = ''; // Limpar input
       return;
     }
     
@@ -6275,6 +6419,7 @@ const RestauranteGestor = () => {
         
         showNotification('⚠️ Nenhum produto identificado, mas PDF foi guardado! Adicione produtos manualmente.', 'warning');
         setProcessandoOCR(false);
+        event.target.value = ''; // Limpar input
         return;
       }
       
@@ -6303,6 +6448,7 @@ const RestauranteGestor = () => {
     } finally {
       setProcessandoOCR(false);
       setProgressoOCR('');
+      event.target.value = ''; // ✅ LIMPAR INPUT SEMPRE NO FINAL
     }
   };
   
@@ -7427,13 +7573,259 @@ const RestauranteGestor = () => {
               </div>
 
               {/* ============================================ */}
+              {/* SECTION: ANÁLISE MENSAL COMPARATIVA */}
+              {/* ============================================ */}
+              <div className="bg-white rounded-lg shadow p-4 mb-3">
+                <h2 className="text-xl font-bold mb-3 flex items-center gap-2">
+                  📅 Análise Mensal Comparativa
+                </h2>
+                
+                {(() => {
+                  const meses = [
+                    'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+                    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+                  ];
+                  
+                  // Função para calcular métricas de um mês
+                  const calcularMetricasMes = (mes, ano) => {
+                    const vendasMes = vendas.filter(v => {
+                      const d = new Date(v.data);
+                      return d.getMonth() === mes && d.getFullYear() === ano;
+                    });
+                    
+                    const despesasMes = despesas.filter(d => {
+                      const data = new Date(d.data);
+                      return data.getMonth() === mes && data.getFullYear() === ano;
+                    });
+                    
+                    const faturacao = vendasMes.reduce((s, v) => s + v.valor, 0);
+                    const custosDespesas = despesasMes.reduce((s, d) => s + d.valor, 0);
+                    const lucroVendas = vendasMes.reduce((s, v) => s + calcLucroVenda(v).lucro, 0);
+                    const lucroTotal = lucroVendas - custosDespesas;
+                    
+                    // Produto mais vendido
+                    const produtosPorQtd = {};
+                    vendasMes.forEach(v => {
+                      produtosPorQtd[v.produto] = (produtosPorQtd[v.produto] || 0) + v.quantidade;
+                    });
+                    
+                    const entries = Object.entries(produtosPorQtd);
+                    const maisVendido = entries.length > 0 
+                      ? entries.sort((a, b) => b[1] - a[1])[0]
+                      : null;
+                    const menosVendido = entries.length > 0
+                      ? entries.sort((a, b) => a[1] - b[1])[0]
+                      : null;
+                    
+                    return {
+                      faturacao,
+                      lucroTotal,
+                      totalVendas: vendasMes.length,
+                      totalQuantidade: vendasMes.reduce((s, v) => s + v.quantidade, 0),
+                      maisVendido: maisVendido ? { nome: maisVendido[0], qtd: maisVendido[1] } : null,
+                      menosVendido: menosVendido ? { nome: menosVendido[0], qtd: menosVendido[1] } : null
+                    };
+                  };
+                  
+                  const mesAtual = calcularMetricasMes(mesSelecionado, anoSelecionado);
+                  
+                  // Mês anterior
+                  const mesAnteriorNum = mesSelecionado === 0 ? 11 : mesSelecionado - 1;
+                  const anoAnteriorNum = mesSelecionado === 0 ? anoSelecionado - 1 : anoSelecionado;
+                  const mesAnterior = calcularMetricasMes(mesAnteriorNum, anoAnteriorNum);
+                  
+                  // Cálculo de variações
+                  const variacaoFaturacao = mesAnterior.faturacao > 0 
+                    ? ((mesAtual.faturacao - mesAnterior.faturacao) / mesAnterior.faturacao) * 100 
+                    : 0;
+                  const variacaoLucro = mesAnterior.lucroTotal > 0
+                    ? ((mesAtual.lucroTotal - mesAnterior.lucroTotal) / mesAnterior.lucroTotal) * 100
+                    : 0;
+                  const variacaoVendas = mesAnterior.totalVendas > 0
+                    ? ((mesAtual.totalVendas - mesAnterior.totalVendas) / mesAnterior.totalVendas) * 100
+                    : 0;
+                  
+                  // Verificar se restaurante estava aberto no ano anterior
+                  const dataAbertura = new Date('2025-08-01'); // Agosto 2025
+                  const mesAnoAnterior = new Date(anoSelecionado - 1, mesSelecionado);
+                  const temDadosAnoAnterior = mesAnoAnterior >= dataAbertura;
+                  
+                  return (
+                    <div>
+                      {/* Seletor de Mês */}
+                      <div className="mb-4 flex flex-wrap gap-2">
+                        {meses.map((mes, idx) => (
+                          <button
+                            key={idx}
+                            onClick={() => setMesSelecionado(idx)}
+                            className={`px-3 py-1 rounded text-sm font-semibold transition ${
+                              mesSelecionado === idx
+                                ? 'bg-blue-600 text-white shadow-lg'
+                                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                            }`}
+                          >
+                            {mes.substring(0, 3)}
+                          </button>
+                        ))}
+                      </div>
+                      
+                      {/* Card do Mês */}
+                      <div className="bg-gradient-to-br from-blue-50 to-purple-50 border-2 border-blue-300 rounded-lg p-6">
+                        <h3 className="text-2xl font-bold text-blue-900 mb-4">
+                          📅 {meses[mesSelecionado]} {anoSelecionado}
+                        </h3>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                          {/* Faturação */}
+                          <div className="bg-white rounded-lg p-4 shadow">
+                            <div className="text-sm text-gray-600 mb-1">💰 Faturação Total</div>
+                            <div className="text-2xl font-bold text-green-600">
+                              €{mesAtual.faturacao.toFixed(2)}
+                            </div>
+                            {mesAnterior.faturacao > 0 && (
+                              <div className={`text-sm mt-1 ${variacaoFaturacao >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                vs {meses[mesAnteriorNum]}: {variacaoFaturacao >= 0 ? '↑' : '↓'} {Math.abs(variacaoFaturacao).toFixed(1)}%
+                                <span className="text-gray-600 ml-1">
+                                  ({variacaoFaturacao >= 0 ? '+' : ''}€{(mesAtual.faturacao - mesAnterior.faturacao).toFixed(2)})
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                          
+                          {/* Lucro */}
+                          <div className="bg-white rounded-lg p-4 shadow">
+                            <div className="text-sm text-gray-600 mb-1">🏆 Lucro Total</div>
+                            <div className={`text-2xl font-bold ${mesAtual.lucroTotal >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
+                              €{mesAtual.lucroTotal.toFixed(2)}
+                            </div>
+                            {mesAnterior.lucroTotal !== 0 && (
+                              <div className={`text-sm mt-1 ${variacaoLucro >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                vs {meses[mesAnteriorNum]}: {variacaoLucro >= 0 ? '↑' : '↓'} {Math.abs(variacaoLucro).toFixed(1)}%
+                                <span className="text-gray-600 ml-1">
+                                  ({variacaoLucro >= 0 ? '+' : ''}€{(mesAtual.lucroTotal - mesAnterior.lucroTotal).toFixed(2)})
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                          
+                          {/* Total Vendas */}
+                          <div className="bg-white rounded-lg p-4 shadow">
+                            <div className="text-sm text-gray-600 mb-1">📦 Total Vendas</div>
+                            <div className="text-2xl font-bold text-purple-600">
+                              {mesAtual.totalQuantidade} un
+                            </div>
+                            {mesAnterior.totalVendas > 0 && (
+                              <div className={`text-sm mt-1 ${variacaoVendas >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                vs {meses[mesAnteriorNum]}: {variacaoVendas >= 0 ? '↑' : '↓'} {Math.abs(variacaoVendas).toFixed(1)}%
+                                <span className="text-gray-600 ml-1">
+                                  ({variacaoVendas >= 0 ? '+' : ''}{mesAtual.totalVendas - mesAnterior.totalVendas} vendas)
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                          
+                          {/* Produto Mais Vendido */}
+                          <div className="bg-white rounded-lg p-4 shadow">
+                            <div className="text-sm text-gray-600 mb-1">🥇 Mais Vendido</div>
+                            {mesAtual.maisVendido ? (
+                              <>
+                                <div className="text-lg font-bold text-amber-600">
+                                  {mesAtual.maisVendido.nome}
+                                </div>
+                                <div className="text-sm text-gray-600">
+                                  {mesAtual.maisVendido.qtd}x vendidas
+                                </div>
+                                {mesAnterior.maisVendido && mesAnterior.maisVendido.nome !== mesAtual.maisVendido.nome && (
+                                  <div className="text-xs text-gray-500 mt-1">
+                                    {meses[mesAnteriorNum]}: {mesAnterior.maisVendido.nome}
+                                  </div>
+                                )}
+                              </>
+                            ) : (
+                              <div className="text-gray-400">Sem dados</div>
+                            )}
+                          </div>
+                          
+                          {/* Produto Menos Vendido */}
+                          <div className="bg-white rounded-lg p-4 shadow">
+                            <div className="text-sm text-gray-600 mb-1">📉 Menos Vendido</div>
+                            {mesAtual.menosVendido ? (
+                              <>
+                                <div className="text-lg font-bold text-gray-600">
+                                  {mesAtual.menosVendido.nome}
+                                </div>
+                                <div className="text-sm text-gray-600">
+                                  {mesAtual.menosVendido.qtd}x vendidas
+                                </div>
+                                {mesAnterior.menosVendido && mesAnterior.menosVendido.nome !== mesAtual.menosVendido.nome && (
+                                  <div className="text-xs text-gray-500 mt-1">
+                                    {meses[mesAnteriorNum]}: {mesAnterior.menosVendido.nome}
+                                  </div>
+                                )}
+                              </>
+                            ) : (
+                              <div className="text-gray-400">Sem dados</div>
+                            )}
+                          </div>
+                        </div>
+                        
+                        {/* Nota sobre ano anterior */}
+                        {!temDadosAnoAnterior && (
+                          <div className="mt-4 bg-blue-100 border border-blue-300 rounded-lg p-3">
+                            <p className="text-sm text-blue-800">
+                              ℹ️ <strong>Comparação com {meses[mesSelecionado]} {anoSelecionado - 1}:</strong> Dados não disponíveis
+                              <br/>
+                              <span className="text-xs">(Restaurante aberto desde Agosto 2025)</span>
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* ============================================ */}
               {/* SECTION: MÉTRICAS POR PRODUTO (GERAL) */}
               {/* ============================================ */}
               <div className="bg-white rounded-lg shadow p-4 mb-3">
                 <h2 className="text-xl font-bold mb-3 flex items-center gap-2">
                   📊 Desempenho por Produto
                 </h2>
-                <p className="text-xs text-gray-600 mb-3">Ranking de vendas, lucro e margens de todos os produtos</p>
+                
+                {/* Filtros de Categoria */}
+                <div className="mb-4 p-3 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-200">
+                  <p className="text-xs font-semibold text-gray-700 mb-2">Filtrar por categoria:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { id: 'todos', label: '📊 Todos', color: 'gray' },
+                      { id: 'cafes', label: '☕ Cafés', color: 'amber' },
+                      { id: 'bebidas', label: '🥤 Bebidas', color: 'blue' },
+                      { id: 'pratos', label: '🍳 Pratos', color: 'orange' },
+                      { id: 'sobremesas', label: '🍰 Sobremesas', color: 'pink' },
+                      { id: 'takeaway', label: '📦 Take Away', color: 'green' }
+                    ].map(cat => (
+                      <button
+                        key={cat.id}
+                        onClick={() => setCategoriaFiltroDesempenho(cat.id)}
+                        className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all shadow-sm ${
+                          categoriaFiltroDesempenho === cat.id
+                            ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg scale-105'
+                            : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-300'
+                        }`}
+                      >
+                        {cat.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                
+                <p className="text-xs text-gray-600 mb-3">
+                  Ranking de vendas, lucro e margens
+                  {categoriaFiltroDesempenho !== 'todos' && (
+                    <span className="font-bold text-blue-600"> - {categoriaFiltroDesempenho}</span>
+                  )}
+                </p>
                 
                 {(() => {
                   // Calcular vendas por produto
@@ -7457,10 +7849,21 @@ const RestauranteGestor = () => {
                   const produtosArray = Object.values(vendasPorProduto)
                     .sort((a, b) => b.faturacao - a.faturacao);
                   
-                  if (produtosArray.length === 0) {
+                  // Aplicar filtro de categoria
+                  let produtosFiltrados = produtosArray;
+                  if (categoriaFiltroDesempenho !== 'todos') {
+                    produtosFiltrados = produtosArray.filter(pVenda => {
+                      const produto = produtos.find(p => p.nome === pVenda.nome);
+                      return produto && produto.categoria === categoriaFiltroDesempenho;
+                    });
+                  }
+                  
+                  if (produtosFiltrados.length === 0) {
                     return (
                       <div className="text-center py-8 bg-gray-50 rounded-lg">
-                        <p className="text-gray-600">📦 Sem vendas no período selecionado</p>
+                        <p className="text-gray-600">
+                          📦 Sem vendas de produtos da categoria "{categoriaFiltroDesempenho}" no período selecionado
+                        </p>
                       </div>
                     );
                   }
@@ -7480,7 +7883,7 @@ const RestauranteGestor = () => {
                           </tr>
                         </thead>
                         <tbody>
-                          {produtosArray.map((p, idx) => {
+                          {produtosFiltrados.map((p, idx) => {
                             const margemPerc = p.faturacao > 0 ? (p.lucro / p.faturacao) * 100 : 0;
                             const ticketMedio = p.quantidade > 0 ? p.faturacao / p.quantidade : 0;
                             
@@ -7531,25 +7934,25 @@ const RestauranteGestor = () => {
                           <tr className="bg-gradient-to-r from-gray-100 to-gray-200 border-t-2 border-gray-400 font-bold">
                             <td className="p-2" colspan="2">TOTAL</td>
                             <td className="p-2 text-right text-blue-900">
-                              {produtosArray.reduce((s, p) => s + p.quantidade, 0)}
+                              {produtosFiltrados.reduce((s, p) => s + p.quantidade, 0)}
                             </td>
                             <td className="p-2 text-right text-green-700">
-                              €{produtosArray.reduce((s, p) => s + p.faturacao, 0).toFixed(2)}
+                              €{produtosFiltrados.reduce((s, p) => s + p.faturacao, 0).toFixed(2)}
                             </td>
                             <td className="p-2 text-right text-blue-700">
-                              €{produtosArray.reduce((s, p) => s + p.lucro, 0).toFixed(2)}
+                              €{produtosFiltrados.reduce((s, p) => s + p.lucro, 0).toFixed(2)}
                             </td>
                             <td className="p-2 text-right text-gray-700">
                               {(() => {
-                                const totalFat = produtosArray.reduce((s, p) => s + p.faturacao, 0);
-                                const totalLucro = produtosArray.reduce((s, p) => s + p.lucro, 0);
+                                const totalFat = produtosFiltrados.reduce((s, p) => s + p.faturacao, 0);
+                                const totalLucro = produtosFiltrados.reduce((s, p) => s + p.lucro, 0);
                                 return totalFat > 0 ? ((totalLucro / totalFat) * 100).toFixed(1) : '0.0';
                               })()}%
                             </td>
                             <td className="p-2 text-right text-gray-700">
                               €{(() => {
-                                const totalQtd = produtosArray.reduce((s, p) => s + p.quantidade, 0);
-                                const totalFat = produtosArray.reduce((s, p) => s + p.faturacao, 0);
+                                const totalQtd = produtosFiltrados.reduce((s, p) => s + p.quantidade, 0);
+                                const totalFat = produtosFiltrados.reduce((s, p) => s + p.faturacao, 0);
                                 return totalQtd > 0 ? (totalFat / totalQtd).toFixed(2) : '0.00';
                               })()}
                             </td>
@@ -10278,6 +10681,105 @@ const RestauranteGestor = () => {
               <p className="text-gray-600 mb-6">Configure as preferências do Munchi Manager</p>
               
               <div className="space-y-6">
+                {/* GESTÃO DE BLACKLIST OCR */}
+                <div className="border rounded-lg overflow-hidden bg-gradient-to-r from-red-50 to-orange-50">
+                  <button
+                    onClick={() => setBlacklistExpanded(!blacklistExpanded)}
+                    className="w-full p-4 flex items-center justify-between hover:bg-red-100 transition"
+                  >
+                    <div>
+                      <h3 className="font-bold text-lg flex items-center gap-2">
+                        🚫 Blacklist OCR
+                      </h3>
+                      <p className="text-sm text-gray-600 text-left mt-1">
+                        Gerir linhas ignoradas pelo OCR
+                      </p>
+                    </div>
+                    {blacklistExpanded ? <ChevronUp size={24} /> : <ChevronDown size={24} />}
+                  </button>
+                  
+                  {blacklistExpanded && (
+                    <div className="p-4 border-t border-red-200 bg-white">
+                      <p className="text-sm text-gray-600 mb-4">
+                        Estas são linhas que foram adicionadas à blacklist e nunca aparecerão nas sugestões do OCR.
+                        Se adicionaste algo por engano, podes remover aqui.
+                      </p>
+                      
+                      {(() => {
+                        // Agrupar blacklist por fornecedor
+                        const blacklistPorFornecedor = {};
+                        
+                        templatesOCR.forEach(template => {
+                          if (template.blacklist && template.blacklist.length > 0) {
+                            const fornecedor = fornecedores.find(f => f.nif === template.nifFornecedor);
+                            blacklistPorFornecedor[template.nifFornecedor] = {
+                              nome: fornecedor?.nome || `NIF ${template.nifFornecedor}`,
+                              items: template.blacklist
+                            };
+                          }
+                        });
+                        
+                        const numFornecedores = Object.keys(blacklistPorFornecedor).length;
+                        
+                        if (numFornecedores === 0) {
+                          return (
+                            <div className="text-center py-8 bg-gray-50 rounded-lg">
+                              <p className="text-gray-500">
+                                ✅ Blacklist vazia<br/>
+                                <span className="text-sm">Nenhuma linha foi adicionada à blacklist ainda.</span>
+                              </p>
+                            </div>
+                          );
+                        }
+                        
+                        return (
+                          <div className="space-y-4">
+                            <p className="text-sm font-semibold text-gray-700">
+                              📋 {numFornecedores} fornecedor(es) com blacklist
+                            </p>
+                            
+                            {Object.entries(blacklistPorFornecedor).map(([nif, dados]) => (
+                              <div key={nif} className="border border-gray-200 rounded-lg p-3 bg-gray-50">
+                                <h4 className="font-semibold text-sm mb-2 flex items-center gap-2">
+                                  🏢 {dados.nome}
+                                  <span className="text-xs text-gray-500">({dados.items.length} items)</span>
+                                </h4>
+                                
+                                <div className="space-y-2">
+                                  {dados.items.map((item, idx) => (
+                                    <div key={idx} className="flex items-center justify-between bg-white p-2 rounded border border-gray-200">
+                                      <span className="text-sm font-mono text-gray-700">{item}</span>
+                                      <button
+                                        onClick={() => {
+                                          if (confirm(`Remover "${item}" da blacklist?`)) {
+                                            // Remover da blacklist
+                                            const template = templatesOCR.find(t => t.nifFornecedor === nif);
+                                            if (template) {
+                                              const novaBlacklist = template.blacklist.filter(b => b !== item);
+                                              const index = templatesOCR.findIndex(t => t.nifFornecedor === nif);
+                                              const novos = [...templatesOCR];
+                                              novos[index] = { ...template, blacklist: novaBlacklist };
+                                              setTemplatesOCR(novos);
+                                              showNotification('✅ Removido da blacklist!', 'success');
+                                            }
+                                          }
+                                        }}
+                                        className="text-red-600 hover:text-red-800 text-xs font-semibold px-2 py-1 hover:bg-red-50 rounded transition"
+                                      >
+                                        ❌ Remover
+                                      </button>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
+                </div>
+                
                 {/* Dados da Empresa */}
                 <div className="border rounded-lg overflow-hidden bg-gradient-to-r from-blue-50 to-purple-50">
                   <button
