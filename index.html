@@ -70,6 +70,7 @@ const ChevronUp = (props) => <svg className={props.className || "w-5 h-5"} fill=
 const Search = (props) => <svg className={props.className || "w-5 h-5"} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>;
 const Settings = (props) => <svg className={props.className || "w-5 h-5"} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>;
 const Edit2 = (props) => <svg className={props.className || "w-5 h-5"} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>;
+const Edit = (props) => <svg className={props.className || "w-5 h-5"} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>;
 const Save = (props) => <svg className={props.className || "w-5 h-5"} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>;
 const Users = (props) => <svg className={props.className || "w-5 h-5"} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>;
 const Paperclip = (props) => <svg className={props.className || "w-5 h-5"} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>;
@@ -1383,7 +1384,7 @@ const Tooltip = ({ children, text, position = 'top' }) => {
 };
 
 // ===== MODAL CONFIRMAÇÃO OCR =====
-const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCancelar }) => {
+const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCancelar, fornecedores }) => {
   const [linhasEditadas, setLinhasEditadas] = useState(linhas);
   const [stats, setStats] = useState(null);
   const [ingredientesLocais, setIngredientesLocais] = useState(ingredientes); // Lista local que pode crescer
@@ -1400,6 +1401,18 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
   // States para search de ingredientes
   const [searchIngredienteOCR, setSearchIngredienteOCR] = useState({});
   const [showDropdownOCR, setShowDropdownOCR] = useState({});
+  
+  // States para documento
+  const [numeroFaturaManual, setNumeroFaturaManual] = useState(metadata.numeroFatura || '');
+  const [fornecedorManual, setFornecedorManual] = useState('');
+  const [fornecedoresLocais, setFornecedoresLocais] = useState(fornecedores); // Lista local
+  const [mostrarModalNovoFornecedor, setMostrarModalNovoFornecedor] = useState(false);
+  const [novoFornecedor, setNovoFornecedor] = useState({
+    nome: '',
+    nif: metadata.nif || '',
+    contacto: '',
+    email: ''
+  });
 
   useEffect(() => {
     const calculateStats = (linhas) => {
@@ -1447,15 +1460,25 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
   // 🚫 Adicionar linha à blacklist e remover
   const handleBlacklistLinha = (index) => {
     const linha = linhasEditadas[index];
-    const nifFornecedor = metadata.nif;
+    
+    // Buscar NIF: 1) metadata.nif, 2) fornecedor selecionado manualmente
+    let nifFornecedor = metadata.nif;
+    
+    if (!nifFornecedor && fornecedorManual) {
+      // Buscar NIF do fornecedor selecionado
+      const fornecedorObj = fornecedoresLocais.find(f => f.id === fornecedorManual);
+      if (fornecedorObj && fornecedorObj.nif) {
+        nifFornecedor = fornecedorObj.nif;
+      }
+    }
     
     if (!nifFornecedor) {
-      alert('⚠️ NIF do fornecedor não detectado. Não é possível adicionar à blacklist.');
+      alert('⚠️ NIF do fornecedor não detectado ou fornecedor não tem NIF cadastrado. Não é possível adicionar à blacklist.');
       return;
     }
     
     // Confirmar ação
-    if (confirm(`🚫 Adicionar à blacklist permanente?\n\nLinha: "${linha.textoOriginal.substring(0, 60)}..."\n\nEsta linha nunca mais aparecerá em faturas deste fornecedor.`)) {
+    if (confirm(`🚫 Adicionar à blacklist permanente?\n\nLinha: "${linha.textoOriginal.substring(0, 60)}..."\n\nEsta linha nunca mais aparecerá em faturas deste fornecedor (NIF: ${nifFornecedor}).`)) {
       // Adicionar à blacklist (via window global para chamar função do componente pai)
       if (window._adicionarABlacklist) {
         window._adicionarABlacklist(nifFornecedor, linha.textoOriginal);
@@ -1515,15 +1538,28 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
     
     // Passar novos ingredientes criados no modal
     const novosIngs = window._novosIngredientes || [];
-    const metadataComNovosIngs = { 
-      ...metadata, 
+    
+    // Adicionar dados do documento à metadata
+    const numeroFinal = numeroFaturaManual || metadata.numeroFatura || null;
+    
+    // Adicionar "FT " se número existe mas não tem prefixo
+    let numeroComPrefixo = numeroFinal;
+    if (numeroFinal && !numeroFinal.toUpperCase().startsWith('FT')) {
+      numeroComPrefixo = 'FT ' + numeroFinal;
+    }
+    
+    const metadataCompleta = { 
+      ...metadata,
+      numeroFatura: numeroComPrefixo,
+      tipoDocumento: numeroComPrefixo ? 'fatura' : 'recibo', // Auto-detecta tipo
+      fornecedorManual: fornecedorManual, // ID do fornecedor selecionado manualmente
       novosIngredientes: novosIngs 
     };
     
     // Limpar cache de novos ingredientes
     window._novosIngredientes = [];
     
-    onConfirmar(linhasFinais, metadataComNovosIngs);
+    onConfirmar(linhasFinais, metadataCompleta);
   };
 
   const getConfidenceClass = (confianca) => {
@@ -1540,41 +1576,95 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] flex flex-col">
-        <div className="p-6 border-b">
-          <h2 className="text-2xl font-bold mb-2">📄 Confirmar Produtos Extraídos</h2>
-          <p className="text-sm text-gray-600">
-            Valide os produtos. Verde = alta confiança, Amarelo = verificar, Vermelho = escolher manualmente.
-          </p>
+      <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-[95vh] flex flex-col">
+        <div className="p-4 border-b flex-shrink-0">
+          <h2 className="text-xl font-bold mb-2">📄 Confirmar Produtos Extraídos</h2>
           
-          {/* Mostrar metadata detectada */}
-          {(metadata.numeroFatura || metadata.nif) && (
-            <div className="mt-3 flex gap-3 text-sm flex-wrap">
-              {metadata.numeroFatura && (
-                <div className="bg-purple-50 border border-purple-300 px-3 py-1 rounded">
-                  <strong>📋 Fatura:</strong> {metadata.numeroFatura}
-                </div>
-              )}
-              {metadata.nif && (
-                <div className="bg-blue-50 border border-blue-300 px-3 py-1 rounded">
-                  <strong>🏢 NIF:</strong> {metadata.nif}
-                </div>
-              )}
+          {/* Info do Documento - COMPACTO */}
+          <div className="mb-3 p-3 bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded">
+            <div className="grid grid-cols-3 gap-3 text-sm">
+              {/* Número Fatura */}
+              <div>
+                <label className="text-xs font-semibold text-gray-600 block mb-1">📋 Número</label>
+                {metadata.numeroFatura ? (
+                  <div className="px-2 py-1 bg-white border border-green-300 rounded font-bold text-green-700 text-sm">
+                    {metadata.numeroFatura}
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1">
+                    <span className="px-2 py-1 bg-gray-100 border rounded text-sm font-semibold text-gray-600">FT</span>
+                    <input
+                      type="text"
+                      value={numeroFaturaManual}
+                      onChange={(e) => setNumeroFaturaManual(e.target.value)}
+                      placeholder="2025/156"
+                      className="flex-1 px-2 py-1 border rounded text-sm"
+                    />
+                  </div>
+                )}
+              </div>
+              
+              {/* Fornecedor */}
+              <div>
+                <label className="text-xs font-semibold text-gray-600 block mb-1">🏢 Fornecedor</label>
+                {(() => {
+                  const fornecedorDetectado = metadata.nif 
+                    ? fornecedores.find(f => f.nif === metadata.nif)
+                    : null;
+                  
+                  if (fornecedorDetectado) {
+                    return (
+                      <div className="px-2 py-1 bg-white border border-blue-300 rounded text-sm">
+                        <span className="font-bold text-blue-700">{fornecedorDetectado.nome}</span>
+                      </div>
+                    );
+                  } else {
+                    return (
+                      <select
+                        value={fornecedorManual}
+                        onChange={(e) => {
+                          if (e.target.value === 'novo') {
+                            setMostrarModalNovoFornecedor(true);
+                          } else {
+                            setFornecedorManual(e.target.value);
+                          }
+                        }}
+                        className="w-full px-2 py-1 border rounded text-sm"
+                      >
+                        <option value="">Escolher...</option>
+                        {fornecedoresLocais.map(f => (
+                          <option key={f.id} value={f.id}>
+                            {f.nome}
+                          </option>
+                        ))}
+                        <option value="novo" className="font-bold">➕ Criar Novo</option>
+                      </select>
+                    );
+                  }
+                })()}
+              </div>
+              
+              {/* Badge Tipo */}
+              <div className="flex items-end">
+                <span className={`px-3 py-1 rounded text-xs font-bold ${
+                  metadata.numeroFatura || numeroFaturaManual
+                    ? 'bg-green-100 text-green-700' 
+                    : 'bg-gray-100 text-gray-700'
+                }`}>
+                  {metadata.numeroFatura || numeroFaturaManual ? '🧾 FATURA' : '📝 RECIBO'}
+                </span>
+              </div>
             </div>
-          )}
+          </div>
           
+          {/* Stats - COMPACTO */}
           {stats && (
-            <div className="mt-3 flex gap-4 text-sm">
-              <div className="bg-blue-50 px-3 py-1 rounded"><strong>{stats.total}</strong> produtos</div>
-              <div className="bg-green-50 px-3 py-1 rounded"><strong>{stats.altaConfianca}</strong> alta</div>
-              <div className="bg-yellow-50 px-3 py-1 rounded"><strong>{stats.mediaConfianca}</strong> verificar</div>
-              <div className="bg-red-50 px-3 py-1 rounded"><strong>{stats.semSugestao}</strong> manual</div>
-              <div className="bg-purple-50 px-3 py-1 rounded"><strong>{stats.percentagemAuto}%</strong> auto</div>
-            </div>
-          )}
-          {!metadata.nif && (
-            <div className="mt-3 bg-yellow-50 border border-yellow-300 rounded px-3 py-2 text-sm text-yellow-800">
-              ⚠️ <strong>NIF não detectado!</strong> Botão blacklist (🚫) não funcionará. O sistema procura por "NIF:", "NIPC:" ou "Contribuinte:" seguido de 9 dígitos.
+            <div className="flex gap-2 text-xs">
+              <div className="bg-blue-50 px-2 py-1 rounded"><strong>{stats.total}</strong> produtos</div>
+              <div className="bg-green-50 px-2 py-1 rounded"><strong>{stats.altaConfianca}</strong> alta</div>
+              <div className="bg-yellow-50 px-2 py-1 rounded"><strong>{stats.mediaConfianca}</strong> verificar</div>
+              <div className="bg-red-50 px-2 py-1 rounded"><strong>{stats.semSugestao}</strong> manual</div>
+              <div className="bg-purple-50 px-2 py-1 rounded"><strong>{stats.percentagemAuto}%</strong> auto</div>
             </div>
           )}
         </div>
@@ -1769,7 +1859,24 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
             </tbody>
           </table>
           {linhasEditadas.length === 0 && (
-            <div className="text-center py-8 text-gray-500">Nenhum produto</div>
+            <div className="text-center py-12 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+              <p className="text-gray-600 mb-3">⚠️ Nenhum produto detectado no OCR</p>
+              <p className="text-sm text-gray-500 mb-4">Adicione produtos manualmente clicando no botão abaixo</p>
+              <button
+                onClick={() => {
+                  const novaLinha = {
+                    nomeProduto: '',
+                    quantidade: '',
+                    preco: '',
+                    ingredienteConfirmado: null
+                  };
+                  setLinhasEditadas([novaLinha]);
+                }}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold"
+              >
+                ➕ Adicionar Primeira Linha
+              </button>
+            </div>
           )}
         </div>
         <div className="p-6 border-t bg-gray-50">
@@ -1913,6 +2020,109 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
           </div>
         </div>
       )}
+      
+      {/* Modal Criar Fornecedor */}
+      {mostrarModalNovoFornecedor && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-[60]">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <h3 className="text-xl font-bold mb-4">➕ Criar Novo Fornecedor</h3>
+            
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-semibold mb-1">Nome *</label>
+                <input
+                  type="text"
+                  value={novoFornecedor.nome}
+                  onChange={(e) => setNovoFornecedor({...novoFornecedor, nome: e.target.value})}
+                  placeholder="Ex: Pingo Doce"
+                  className="w-full px-3 py-2 border rounded"
+                  autoFocus
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-semibold mb-1">NIF</label>
+                <input
+                  type="text"
+                  value={novoFornecedor.nif}
+                  onChange={(e) => setNovoFornecedor({...novoFornecedor, nif: e.target.value})}
+                  placeholder="9 dígitos"
+                  maxLength="9"
+                  className="w-full px-3 py-2 border rounded"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-semibold mb-1">Contacto</label>
+                <input
+                  type="text"
+                  value={novoFornecedor.contacto}
+                  onChange={(e) => setNovoFornecedor({...novoFornecedor, contacto: e.target.value})}
+                  placeholder="Telefone"
+                  className="w-full px-3 py-2 border rounded"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-semibold mb-1">Email</label>
+                <input
+                  type="email"
+                  value={novoFornecedor.email}
+                  onChange={(e) => setNovoFornecedor({...novoFornecedor, email: e.target.value})}
+                  placeholder="email@exemplo.com"
+                  className="w-full px-3 py-2 border rounded"
+                />
+              </div>
+            </div>
+            
+            <div className="flex gap-2 mt-6">
+              <button
+                onClick={() => {
+                  setMostrarModalNovoFornecedor(false);
+                  setNovoFornecedor({ nome: '', nif: metadata.nif || '', contacto: '', email: '' });
+                }}
+                className="flex-1 px-4 py-2 bg-gray-300 rounded-lg hover:bg-gray-400"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  if (!novoFornecedor.nome.trim()) {
+                    alert('Nome é obrigatório!');
+                    return;
+                  }
+                  
+                  // Criar fornecedor temporário
+                  const novoFornTemp = {
+                    id: 'temp_' + Date.now(),
+                    nome: novoFornecedor.nome.trim(),
+                    nif: novoFornecedor.nif.trim(),
+                    contacto: novoFornecedor.contacto.trim(),
+                    email: novoFornecedor.email.trim()
+                  };
+                  
+                  // Adicionar à lista LOCAL (aparece no dropdown imediatamente)
+                  setFornecedoresLocais([...fornecedoresLocais, novoFornTemp]);
+                  
+                  // Adicionar ao metadata para ser processado depois
+                  if (!window._novosFornecedores) window._novosFornecedores = [];
+                  window._novosFornecedores.push(novoFornTemp);
+                  
+                  // Selecionar o fornecedor recém-criado
+                  setFornecedorManual(novoFornTemp.id);
+                  
+                  // Fechar modal
+                  setMostrarModalNovoFornecedor(false);
+                  setNovoFornecedor({ nome: '', nif: metadata.nif || '', contacto: '', email: '' });
+                }}
+                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold"
+              >
+                ✨ Criar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -1952,6 +2162,8 @@ const RestauranteGestor = () => {
   
   // Estados para venda manual
   const [mostrarVendaManual, setMostrarVendaManual] = useState(false);
+  const [vendaEditando, setVendaEditando] = useState(null); // ID da venda sendo editada
+  const [mostrarEditarVenda, setMostrarEditarVenda] = useState(false);
   const [novaVenda, setNovaVenda] = useState({
     data: new Date().toISOString().split('T')[0],
     produtoId: '',
@@ -2113,9 +2325,20 @@ const RestauranteGestor = () => {
         }
         
         if (vendasImportadas.length > 0) {
-          setVendas([...vendas, ...vendasImportadas]);
-          alert(`✅ ${vendasImportadas.length} vendas importadas!\nFonte: ${fonteImportacao}`);
+          const novasVendas = [...vendas, ...vendasImportadas];
+          setVendas(novasVendas);
           setMostrarImportacao(false);
+          
+          const comEmparelhamento = vendasImportadas.filter(v => v.produtoId).length;
+          const semEmparelhamento = vendasImportadas.length - comEmparelhamento;
+          
+          showNotification(
+            `✅ ${vendasImportadas.length} vendas importadas!\n` +
+            `✓ ${comEmparelhamento} emparelhadas\n` +
+            `⚠ ${semEmparelhamento} sem emparelhamento\n` +
+            `Fonte: ${fonteImportacao}`,
+            'success'
+          );
         } else {
           alert('❌ Nenhuma venda válida encontrada.');
         }
@@ -2127,6 +2350,7 @@ const RestauranteGestor = () => {
   };
   const [novaFatura, setNovaFatura] = useState({
     numero: '',
+    tipoDocumento: 'fatura', // NOVO: 'fatura' ou 'recibo'
     data: new Date().toISOString().split('T')[0],
     fornecedorId: '',
     itens: [],
@@ -3377,7 +3601,14 @@ const RestauranteGestor = () => {
   // ===== EXPORT COMPLETO: CSV + ZIP COM PDFs =====
   const exportarPacoteCompleto = async () => {
     const filteredVendas = getFilteredData(vendas || []);
-    const filteredFaturas = getFilteredData(faturas || []); // Usar faturas (compras/despesas)
+    const filteredFaturasCompletas = getFilteredData(faturas || []); // Todas
+    
+    // ⚠️ FILTRAR: Só FATURAS (não recibos) para contabilista
+    const filteredFaturas = filteredFaturasCompletas.filter(f => 
+      f.tipoDocumento === 'fatura' || !f.tipoDocumento // Retrocompatibilidade
+    );
+    
+    const recibosIgnorados = filteredFaturasCompletas.length - filteredFaturas.length;
     
     if (filteredVendas.length === 0 && filteredFaturas.length === 0) {
       showNotification('Nenhum dado para exportar no período selecionado!', 'error');
@@ -3388,10 +3619,17 @@ const RestauranteGestor = () => {
     const faturasComPDF = filteredFaturas.filter(f => f.documentoPDF);
     const faturasSemPDF = filteredFaturas.filter(f => !f.documentoPDF);
     
+    // Aviso se há recibos ignorados
+    if (recibosIgnorados > 0) {
+      const msg = `ℹ️ Nota: ${recibosIgnorados} recibo(s) NÃO serão exportados (apenas faturas vão para contabilista)`;
+      console.log(msg);
+    }
+    
     if (faturasSemPDF.length > 0) {
       const confirmar = confirm(
         `⚠️ ATENÇÃO!\n\n` +
-        `${faturasSemPDF.length} fatura(s) NÃO têm PDF anexado.\n\n` +
+        `${faturasSemPDF.length} fatura(s) NÃO têm PDF anexado.\n` +
+        (recibosIgnorados > 0 ? `${recibosIgnorados} recibo(s) serão ignorados.\n\n` : '\n') +
         `Sem PDFs, o contabilista não pode deduzir IVA!\n\n` +
         `Deseja continuar mesmo assim?`
       );
@@ -4681,12 +4919,20 @@ const RestauranteGestor = () => {
       return;
     }
     
-    // Gerar número automaticamente se não fornecido
-    if (!novaFatura.numero || novaFatura.numero.trim() === '') {
+    // Gerar número automaticamente APENAS para FATURAS (não recibos)
+    // Se não tem tipoDocumento, assume fatura (retrocompatibilidade)
+    const tipoDoc = novaFatura.tipoDocumento || 'fatura';
+    
+    if (tipoDoc === 'fatura' && (!novaFatura.numero || novaFatura.numero.trim() === '')) {
       const hoje = new Date();
       const ano = hoje.getFullYear();
       const faturasHoje = (faturas || []).filter(f => f.data === novaFatura.data).length;
       novaFatura.numero = `FAT/${ano}/${String(faturasHoje + 1).padStart(4, '0')}`;
+    }
+    
+    // Se é recibo e não tem número, deixa null
+    if (tipoDoc === 'recibo' && (!novaFatura.numero || novaFatura.numero.trim() === '')) {
+      novaFatura.numero = null;
     }
     
     // Verificar se algum item tem preço muito diferente
@@ -4769,6 +5015,7 @@ const RestauranteGestor = () => {
     const novaFaturaCompleta = {
       id: Date.now(),
       numero: faturaParaGuardar.numero,
+      tipoDocumento: faturaParaGuardar.tipoDocumento || 'fatura', // NOVO: tipo de documento
       data: faturaParaGuardar.data,
       fornecedorId: faturaParaGuardar.fornecedorId || '',
       fornecedorNome: fornecedorNome,
@@ -4791,6 +5038,7 @@ const RestauranteGestor = () => {
     // Resetar formulário
     setNovaFatura({
       numero: '',
+      tipoDocumento: 'fatura', // NOVO
       data: new Date().toISOString().split('T')[0],
       fornecedorId: '',
       itens: [],
@@ -4970,6 +5218,7 @@ const RestauranteGestor = () => {
     const faturaRapida = {
       id: Date.now(),
       numero: numeroAuto,
+      tipoDocumento: novaFatura.tipoDocumento || 'fatura', // NOVO
       data: novaFatura.data,
       fornecedorId: novaFatura.fornecedorId,
       fornecedorNome: fornecedorNome,
@@ -5054,6 +5303,7 @@ const RestauranteGestor = () => {
     const faturaRapida = {
       id: Date.now(),
       numero: numeroAuto,
+      tipoDocumento: novaFatura.tipoDocumento || 'fatura', // NOVO
       data: novaFatura.data,
       fornecedorId: novaFatura.fornecedorId || '',
       fornecedorNome: fornecedorNome,
@@ -5122,12 +5372,19 @@ const RestauranteGestor = () => {
       return;
     }
     
-    // Gerar número automaticamente se não fornecido
-    if (!novaFatura.numero || novaFatura.numero.trim() === '') {
+    // Gerar número automaticamente APENAS para FATURAS (não recibos)
+    const tipoDoc = novaFatura.tipoDocumento || 'fatura';
+    
+    if (tipoDoc === 'fatura' && (!novaFatura.numero || novaFatura.numero.trim() === '')) {
       const hoje = new Date();
       const ano = hoje.getFullYear();
       const faturasHoje = (faturas || []).filter(f => f.data === novaFatura.data && f.id !== faturaEditando).length;
       novaFatura.numero = `FAT/${ano}/${String(faturasHoje + 1).padStart(4, '0')}`;
+    }
+    
+    // Se é recibo e não tem número, deixa null
+    if (tipoDoc === 'recibo' && (!novaFatura.numero || novaFatura.numero.trim() === '')) {
+      novaFatura.numero = null;
     }
     
     // Verificar se algum item tem preço muito diferente
@@ -6407,31 +6664,21 @@ const RestauranteGestor = () => {
       metadata.pdfBase64 = base64;
       metadata.pdfNome = file.name;
       
-      // Se não encontrou produtos, guarda PDF mas não abre modal
-      if (linhas.length === 0) {
-        // Guardar PDF diretamente na fatura
-        setNovaFatura({
-          ...novaFatura,
-          documentoPDF: base64,
-          nomeDocumento: file.name,
-          numero: metadata.numeroFatura || novaFatura.numero,
-          data: metadata.data ? convertDataToISO(metadata.data) : novaFatura.data
-        });
-        
-        showNotification('⚠️ Nenhum produto identificado, mas PDF foi guardado! Adicione produtos manualmente.', 'warning');
-        setProcessandoOCR(false);
-        event.target.value = ''; // Limpar input
-        return;
-      }
+      // Fazer matching dos ingredientes (pode estar vazio)
+      const linhasComMatch = linhas.length > 0 
+        ? matchIngredientes(linhas, ingredientes)
+        : []; // Lista vazia mas abre modal na mesma
       
-      // Se encontrou produtos, continua com matching e modal
-      const linhasComMatch = matchIngredientes(linhas, ingredientes);
-      
+      // SEMPRE abrir modal (user pode adicionar ingredientes manualmente)
       setLinhasOCR(linhasComMatch);
       setMetadataOCR(metadata);
       setMostrarModalOCR(true);
       
-      showNotification(`✅ ${linhas.length} produtos identificados!`, 'success');
+      if (linhas.length === 0) {
+        showNotification('⚠️ Nenhum produto detectado. Adicione manualmente no modal!', 'warning');
+      } else {
+        showNotification(`✅ ${linhas.length} produtos identificados!`, 'success');
+      }
     } catch (error) {
       console.error('Erro:', error);
       
@@ -6517,6 +6764,16 @@ const RestauranteGestor = () => {
       
       // Atualizar lista local para usar nas próximas etapas
       ingredientesAtualizados.push(...novosIngs);
+    }
+    
+    // 🆕 ADICIONAR NOVOS FORNECEDORES CRIADOS NO MODAL
+    if (window._novosFornecedores && window._novosFornecedores.length > 0) {
+      const novosForn = window._novosFornecedores;
+      setFornecedores([...fornecedores, ...novosForn]);
+      console.log(`✨ ${novosForn.length} novo(s) fornecedor(es) criado(s):`, novosForn.map(f => f.nome));
+      
+      // Limpar cache
+      window._novosFornecedores = [];
     }
     
     let ingredientesModificados = 0;
@@ -6650,6 +6907,7 @@ const RestauranteGestor = () => {
     const novaFaturaAtualizada = {
       ...novaFatura,
       numero: metadata.numeroFatura || novaFatura.numero,
+      tipoDocumento: metadata.tipoDocumento || 'fatura', // ← NOVO: tipo do documento
       data: metadata.data ? convertDataToISO(metadata.data) : novaFatura.data,
       itens: novosItens,
       documentoPDF: metadata.pdfBase64 || novaFatura.documentoPDF || null,
@@ -6663,15 +6921,36 @@ const RestauranteGestor = () => {
       if (fornecedor) {
         novaFaturaAtualizada.fornecedorId = fornecedor.id;
         novaFaturaAtualizada.fornecedorNome = fornecedor.nome;
+        novaFaturaAtualizada.fornecedorNif = metadata.nif;
         console.log('✅ Fornecedor identificado:', fornecedor.nome);
       }
     }
     
+    // Se fornecedor foi selecionado manualmente (sem NIF detectado)
+    if (metadata.fornecedorManual && !novaFaturaAtualizada.fornecedorId) {
+      // Verificar se é fornecedor temporário (recém-criado)
+      let fornecedorManual = fornecedores.find(f => f.id === metadata.fornecedorManual);
+      
+      if (!fornecedorManual && window._novosFornecedores) {
+        fornecedorManual = window._novosFornecedores.find(f => f.id === metadata.fornecedorManual);
+      }
+      
+      if (fornecedorManual) {
+        novaFaturaAtualizada.fornecedorId = fornecedorManual.id;
+        novaFaturaAtualizada.fornecedorNome = fornecedorManual.nome;
+        novaFaturaAtualizada.fornecedorNif = fornecedorManual.nif;
+        console.log('✅ Fornecedor selecionado manualmente:', fornecedorManual.nome);
+      }
+    }
+    
     console.log('PDF na fatura final:', novaFaturaAtualizada.documentoPDF ? 'SIM' : 'NÃO');
+    console.log('Tipo documento:', novaFaturaAtualizada.tipoDocumento);
     
     setNovaFatura(novaFaturaAtualizada);
     setMostrarModalOCR(false);
-    showNotification(`✅ Fatura preenchida com ${novosItens.length} produtos!`, 'success');
+    
+    const tipoMsg = novaFaturaAtualizada.tipoDocumento === 'fatura' ? 'Fatura' : 'Recibo';
+    showNotification(`✅ ${tipoMsg} preenchida com ${novosItens.length} produtos!`, 'success');
   };
   
   // Converter data DD/MM/YYYY para YYYY-MM-DD
@@ -10099,7 +10378,7 @@ const RestauranteGestor = () => {
                         onClick={salvarFatura}
                         className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold transition flex items-center justify-center gap-2"
                       >
-                        <Save size={16} /> Guardar Fatura
+                        <Save size={16} /> Guardar
                       </button>
                     )}
                   </div>
@@ -10141,8 +10420,19 @@ const RestauranteGestor = () => {
                               <div className="flex-1">
                                 <div className="flex items-center gap-3 mb-1">
                                   <span className="font-bold text-blue-700">
-                                    {fatura.tipo === 'rapido' ? '⚡' : '📄'} {fatura.numero}
+                                    {fatura.tipo === 'rapido' ? '⚡' : '📄'} {fatura.numero || 'Recibo'}
                                   </span>
+                                  
+                                  {/* Badge Fatura/Recibo */}
+                                  {fatura.tipoDocumento && (
+                                    <span className={`text-xs px-2 py-1 rounded font-bold ${
+                                      fatura.tipoDocumento === 'fatura'
+                                        ? 'bg-green-100 text-green-700 border border-green-300'
+                                        : 'bg-gray-100 text-gray-700 border border-gray-300'
+                                    }`}>
+                                      {fatura.tipoDocumento === 'fatura' ? '🧾 FATURA' : '📝 RECIBO'}
+                                    </span>
+                                  )}
                                   
                                   {/* Indicador de PDF */}
                                   {fatura.documentoPDF ? (
@@ -10164,16 +10454,6 @@ const RestauranteGestor = () => {
                                     </span>
                                   )}
                                   
-                                  {fatura.tipo === 'rapido' && (
-                                    <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded font-semibold">
-                                      RÁPIDO
-                                    </span>
-                                  )}
-                                  {fatura.tipo === 'completa' && (
-                                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded font-semibold">
-                                      FATURA
-                                    </span>
-                                  )}
                                   <span className="text-sm text-gray-600">{fatura.fornecedorNome}</span>
                                   <span className="text-xs text-gray-500">{new Date(fatura.data).toLocaleDateString('pt-PT')}</span>
                                 </div>
@@ -10336,14 +10616,6 @@ const RestauranteGestor = () => {
                   )}
                 </div>
               
-                  {/* NOVO: Importação com Mapeamento Automático */}
-                  <button
-                    onClick={() => setMostrarImportacao(true)}
-                    className="bg-purple-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-purple-700 transition flex items-center gap-2 font-semibold shadow mt-2 w-full justify-center"
-                  >
-                    <Upload size={18} />
-                    🚀 Importar com Mapeamento Automático
-                  </button>
 
 </div>
             )}
@@ -10361,35 +10633,22 @@ const RestauranteGestor = () => {
                   </button>
                 </div>
                 
-                <div className="bg-blue-50 border border-blue-200 rounded p-3 mb-4">
-                  <h3 className="font-semibold text-sm mb-2">📥 Importar Vendas:</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {/* Moloni CSV */}
-                    <div>
-                      <h4 className="text-xs font-semibold mb-1">Moloni (CSV)</h4>
-                      <ol className="text-xs space-y-1 list-decimal list-inside mb-2">
-                        <li>Exporte dados do Moloni em CSV</li>
-                        <li>Clique no botão abaixo</li>
-                      </ol>
-                      <label className="bg-blue-600 text-white rounded px-4 py-2 text-sm hover:bg-blue-700 cursor-pointer inline-flex items-center gap-2 font-semibold shadow hover:shadow-lg transition">
-                        <Upload size={16} />Escolher CSV Moloni
-                        <input type="file" accept=".csv,.txt" onChange={processarFicheiro} className="hidden" />
-                      </label>
-                    </div>
-                    
-                    {/* Zobaze Excel */}
-                    <div>
-                      <h4 className="text-xs font-semibold mb-1">Zobaze (Excel)</h4>
-                      <ol className="text-xs space-y-1 list-decimal list-inside mb-2">
-                        <li>Exporte do Zobaze em Excel</li>
-                        <li>Clique no botão abaixo</li>
-                      </ol>
-                      <label className="bg-purple-600 text-white rounded px-4 py-2 text-sm hover:bg-purple-700 cursor-pointer inline-flex items-center gap-2 font-semibold shadow hover:shadow-lg transition">
-                        <Upload size={16} />Escolher Excel Zobaze
-                        <input type="file" accept=".xlsx,.xls" onChange={processarZobaze} className="hidden" />
-                      </label>
-                    </div>
-                  </div>
+                {/* NOVO: Importação com Mapeamento Automático */}
+                <div className="bg-gradient-to-r from-purple-50 to-blue-50 border-2 border-purple-200 rounded-lg p-4 mb-4">
+                  <h3 className="font-bold text-lg mb-2 flex items-center gap-2">
+                    <Upload size={20} />
+                    📥 Importar Vendas
+                  </h3>
+                  <p className="text-sm text-gray-600 mb-3">
+                    Importe vendas do Moloni (CSV) ou Zobaze (Excel) com mapeamento automático de produtos.
+                  </p>
+                  <button
+                    onClick={() => setMostrarImportacao(true)}
+                    className="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-6 py-3 rounded-lg hover:from-purple-700 hover:to-blue-700 transition flex items-center gap-2 font-bold shadow-lg w-full justify-center"
+                  >
+                    <Upload size={18} />
+                    🚀 Importar com Mapeamento Automático
+                  </button>
                 </div>
 
                 {/* Sales Table */}
@@ -10412,6 +10671,11 @@ const RestauranteGestor = () => {
                           <td className="px-2 py-2 font-medium">
                             <div className="flex items-center gap-2">
                               {v.produto}
+                              {!v.produtoId && (
+                                <span className="px-2 py-0.5 bg-orange-100 text-orange-700 rounded text-xs font-semibold" title="Produto não emparelhado">
+                                  ⚠️ Sem emparelhamento
+                                </span>
+                              )}
                               {v.tipo === 'manual' && (
                                 <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded text-xs font-semibold">
                                   Manual
@@ -10427,15 +10691,37 @@ const RestauranteGestor = () => {
                             </span>
                           </td>
                           <td className="px-2 py-2 text-center">
-                            <button onClick={() => {
-                              if (confirm('Eliminar esta venda?')) {
-                                setVendas(vendas.filter(x => x.id !== v.id));
-                                showNotification('Venda eliminada!', 'success');
-                              }
-                            }}
-                              className="text-red-600 hover:bg-red-50 p-1 rounded">
-                              <Trash2 size={14} />
-                            </button>
+                            <div className="flex items-center justify-center gap-1">
+                              <button 
+                                onClick={() => {
+                                  setVendaEditando(v.id);
+                                  setNovaVenda({
+                                    data: v.data,
+                                    produtoId: v.produtoId || '',
+                                    produto: v.produto,
+                                    quantidade: v.quantidade,
+                                    valorManual: v.valor.toString(),
+                                    usarValorManual: true
+                                  });
+                                  setMostrarEditarVenda(true);
+                                }}
+                                className="text-blue-600 hover:bg-blue-50 p-1 rounded"
+                                title="Editar venda"
+                              >
+                                <Edit size={14} />
+                              </button>
+                              <button onClick={() => {
+                                if (confirm('Eliminar esta venda?')) {
+                                  setVendas(vendas.filter(x => x.id !== v.id));
+                                  showNotification('Venda eliminada!', 'success');
+                                }
+                              }}
+                                className="text-red-600 hover:bg-red-50 p-1 rounded"
+                                title="Eliminar venda"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -10663,6 +10949,140 @@ const RestauranteGestor = () => {
                             className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-semibold"
                           >
                             Adicionar Venda
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Modal Editar Venda */}
+                {mostrarEditarVenda && (
+                  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-lg font-bold">✏️ Editar Venda</h3>
+                        <button
+                          onClick={() => {
+                            setMostrarEditarVenda(false);
+                            setVendaEditando(null);
+                          }}
+                          className="text-gray-400 hover:text-gray-600"
+                        >
+                          <X size={20} />
+                        </button>
+                      </div>
+                      
+                      <div className="space-y-4">
+                        {/* Nome do Produto Original */}
+                        <div className="bg-gray-50 border rounded-lg p-3">
+                          <p className="text-xs text-gray-600 mb-1">Produto importado:</p>
+                          <p className="font-bold text-gray-800">{novaVenda.produto}</p>
+                        </div>
+                        
+                        {/* Emparelhar com Produto */}
+                        <div>
+                          <label className="block text-sm font-semibold mb-2">
+                            🔗 Emparelhar com Produto:
+                          </label>
+                          <select
+                            value={novaVenda.produtoId}
+                            onChange={(e) => {
+                              const prodId = e.target.value;
+                              const prod = produtos.find(p => p.id === prodId);
+                              setNovaVenda({
+                                ...novaVenda, 
+                                produtoId: prodId,
+                                valorManual: prod ? prod.precoVenda.toString() : novaVenda.valorManual
+                              });
+                            }}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                          >
+                            <option value="">-- Sem emparelhamento --</option>
+                            {produtos.map(p => (
+                              <option key={p.id} value={p.id}>
+                                {p.nome} (€{p.precoVenda})
+                              </option>
+                            ))}
+                          </select>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {novaVenda.produtoId 
+                              ? '✅ Produto emparelhado - aparecerá nas métricas' 
+                              : '⚠️ Sem emparelhamento - não afeta métricas de produto'}
+                          </p>
+                        </div>
+                        
+                        {/* Data */}
+                        <div>
+                          <label className="block text-sm font-semibold mb-2">Data:</label>
+                          <input
+                            type="date"
+                            value={novaVenda.data}
+                            onChange={(e) => setNovaVenda({...novaVenda, data: e.target.value})}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                          />
+                        </div>
+                        
+                        {/* Quantidade */}
+                        <div>
+                          <label className="block text-sm font-semibold mb-2">Quantidade:</label>
+                          <input
+                            type="number"
+                            min="1"
+                            value={novaVenda.quantidade}
+                            onChange={(e) => setNovaVenda({...novaVenda, quantidade: parseInt(e.target.value)})}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                          />
+                        </div>
+                        
+                        {/* Valor */}
+                        <div>
+                          <label className="block text-sm font-semibold mb-2">Valor (€):</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={novaVenda.valorManual}
+                            onChange={(e) => setNovaVenda({...novaVenda, valorManual: e.target.value})}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                          />
+                        </div>
+                        
+                        {/* Botões */}
+                        <div className="flex gap-2 pt-4">
+                          <button
+                            onClick={() => {
+                              setMostrarEditarVenda(false);
+                              setVendaEditando(null);
+                            }}
+                            className="flex-1 px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition"
+                          >
+                            Cancelar
+                          </button>
+                          <button
+                            onClick={() => {
+                              const vendaAtualizada = {
+                                ...vendas.find(v => v.id === vendaEditando),
+                                data: novaVenda.data,
+                                produtoId: novaVenda.produtoId || null,
+                                produto: novaVenda.produtoId 
+                                  ? produtos.find(p => p.id === novaVenda.produtoId)?.nome || novaVenda.produto
+                                  : novaVenda.produto,
+                                quantidade: novaVenda.quantidade,
+                                valor: parseFloat(novaVenda.valorManual)
+                              };
+                              
+                              setVendas(vendas.map(v => 
+                                v.id === vendaEditando ? vendaAtualizada : v
+                              ));
+                              
+                              setMostrarEditarVenda(false);
+                              setVendaEditando(null);
+                              showNotification('✅ Venda atualizada!', 'success');
+                            }}
+                            className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-semibold"
+                          >
+                            💾 Guardar
                           </button>
                         </div>
                       </div>
@@ -11621,6 +12041,7 @@ const RestauranteGestor = () => {
           linhas={linhasOCR}
           ingredientes={ingredientes}
           metadata={metadataOCR}
+          fornecedores={fornecedores}
           onConfirmar={handleConfirmarOCR}
           onCancelar={() => setMostrarModalOCR(false)}
         />
