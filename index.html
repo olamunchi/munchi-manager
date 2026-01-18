@@ -5232,10 +5232,14 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
               console.log('📋 Fatura processada:', dadosFatura);
 
               // 4. Parsear linhas de produtos
+              console.log('📝 Texto para parsing (primeiras 2000 chars):', textoExtraido.substring(0, 2000));
               const template = buscarTemplateOCR(dadosFatura.fornecedor.nif);
               const linhas = template ? parseComTemplate(textoExtraido, template) : parseLinhasProdutos(textoExtraido);
               
               console.log(`📦 ${linhas.length} linhas de produtos identificadas`);
+              if (linhas.length > 0) {
+                console.log('📋 Primeiras 3 linhas:', linhas.slice(0, 3));
+              }
 
               // 5. Converter PDF para base64 (para guardar na fatura)
               const reader = new FileReader();
@@ -11704,76 +11708,77 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
                     </h3>
                   </div>
                   
-                  {/* Botão Ler PDF/Imagem Automaticamente */}
-                  <div className="mb-4 p-3 bg-purple-50 border border-purple-200 rounded-lg">
+                  {/* Botão OCR Unificado com Escolha de Método */}
+                  <div className="mb-4 p-3 bg-gradient-to-r from-purple-50 to-green-50 border-2 border-purple-300 rounded-lg">
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       📄 Ler Fatura Automaticamente (OCR)
                     </label>
-                    <input
-                      type="file"
-                      accept=".pdf,image/*"
-                      onChange={handleLerPDFAutomatico}
-                      className="hidden"
-                      id="pdf-ocr-input"
-                      disabled={processandoOCR}
-                    />
-                    <label
-                      htmlFor="pdf-ocr-input"
-                      className={`block ${
-                        processandoOCR 
-                          ? 'bg-gray-400 cursor-not-allowed' 
-                          : 'bg-purple-600 hover:bg-purple-700 cursor-pointer'
-                      } text-white px-4 py-3 rounded-lg font-semibold text-center transition`}
-                    >
-                      {processandoOCR ? (
-                        <span className="flex items-center justify-center gap-2">
-                          <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
-                          </svg>
-                          {progressoOCR || 'Processando...'}
-                        </span>
+                    
+                    {/* Grid de Botões */}
+                    <div className="grid grid-cols-2 gap-2">
+                      {/* Botão Tesseract (Local) */}
+                      <div>
+                        <input
+                          type="file"
+                          accept=".pdf,image/*"
+                          onChange={handleLerPDFAutomatico}
+                          className="hidden"
+                          id="pdf-ocr-input"
+                          disabled={processandoOCR}
+                        />
+                        <label
+                          htmlFor="pdf-ocr-input"
+                          className={`block ${
+                            processandoOCR 
+                              ? 'bg-gray-400 cursor-not-allowed' 
+                              : 'bg-purple-600 hover:bg-purple-700 cursor-pointer'
+                          } text-white px-3 py-2 rounded-lg font-semibold text-center transition text-sm`}
+                        >
+                          📸 OCR Local
+                        </label>
+                        <p className="text-xs text-gray-500 mt-1 text-center">Rápido</p>
+                      </div>
+                      
+                      {/* Botão Google Drive OCR */}
+                      {driveAccessToken ? (
+                        <div>
+                          <button
+                            onClick={handleImportarDriveComOCR}
+                            disabled={processandoOCR}
+                            className={`w-full ${
+                              processandoOCR 
+                                ? 'bg-gray-400 cursor-not-allowed' 
+                                : 'bg-green-600 hover:bg-green-700 cursor-pointer'
+                            } text-white px-3 py-2 rounded-lg font-semibold text-center transition text-sm`}
+                          >
+                            ⚡ Google OCR
+                          </button>
+                          <p className="text-xs text-gray-500 mt-1 text-center">Melhor qualidade</p>
+                        </div>
                       ) : (
-                        '📸 Ler Fatura (PDF ou Foto)'
+                        <div>
+                          <button
+                            onClick={() => setActiveTab('definicoes')}
+                            className="w-full bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-2 rounded-lg font-semibold text-center transition text-sm"
+                          >
+                            🔌 Conectar Drive
+                          </button>
+                          <p className="text-xs text-gray-500 mt-1 text-center">Para Google OCR</p>
+                        </div>
                       )}
-                    </label>
-                    <p className="text-xs text-gray-500 mt-2 text-center">
-                      ✨ Carregue PDF ou foto da fatura - extrai produtos, preços e guarda documento
-                    </p>
-                  </div>
-                  
-                  {/* Botão Google Drive OCR */}
-                  {driveAccessToken && (
-                    <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        🚀 Ler Fatura com Google OCR (Melhor Qualidade)
-                      </label>
-                      <button
-                        onClick={handleImportarDriveComOCR}
-                        disabled={processandoOCR}
-                        className={`w-full ${
-                          processandoOCR 
-                            ? 'bg-gray-400 cursor-not-allowed' 
-                            : 'bg-green-600 hover:bg-green-700 cursor-pointer'
-                        } text-white px-4 py-3 rounded-lg font-semibold text-center transition`}
-                      >
-                        {processandoOCR ? (
-                          <span className="flex items-center justify-center gap-2">
-                            <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
-                            </svg>
-                            {progressoOCR || 'Processando...'}
-                          </span>
-                        ) : (
-                          '📄 Importar PDF com Google OCR'
-                        )}
-                      </button>
-                      <p className="text-xs text-gray-500 mt-2 text-center">
-                        ⚡ Usa OCR do Google Drive - qualidade superior!
-                      </p>
                     </div>
-                  )}
+                    
+                    {/* Status */}
+                    {processandoOCR && (
+                      <div className="mt-2 flex items-center justify-center gap-2 text-sm text-gray-600">
+                        <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                        </svg>
+                        <span>{progressoOCR || 'Processando...'}</span>
+                      </div>
+                    )}
+                  </div>
                   
                   {/* Formulário Fatura */}
                   <>
