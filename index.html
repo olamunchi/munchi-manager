@@ -15,6 +15,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.0.4/dist/tesseract.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/fuzzball@2.1.2/dist/fuzzball.umd.min.js"></script>
+  <script src="https://apis.google.com/js/api.js"></script>
   
   <script>
     // Configurar PDF.js worker
@@ -4886,7 +4887,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
   // === GOOGLE IDENTITY SERVICES ===
   const GOOGLE_DRIVE_CONFIG = {
     CLIENT_ID: '344967437318-oe9hr1t5m9bcs7qvdm0t5dr9f0delaom.apps.googleusercontent.com',
-    SCOPES: 'https://www.googleapis.com/auth/drive.file',
+    SCOPES: 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/documents.readonly',
     FILE_NAME: 'munchi-data.json'
   };
 
@@ -5037,6 +5038,142 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
     } finally {
       setDriveSyncing(false);
     }
+  };
+
+  // === GOOGLE DRIVE OCR ===
+  /**
+   * Converte PDF para Google Doc usando OCR do Google
+   * Retorna texto extraído com alta qualidade
+   */
+  const convertPDFToGoogleDocOCR = async (pdfFile, token = driveAccessToken) => {
+    if (!token) {
+      throw new Error('Token Google Drive não disponível');
+    }
+
+    try {
+      console.log('📤 Uploading PDF para Google Drive...');
+      
+      // 1. Upload PDF para Google Drive
+      const metadata = {
+        name: `ocr_temp_${Date.now()}.pdf`,
+        mimeType: 'application/pdf'
+      };
+
+      const form = new FormData();
+      form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+      form.append('file', pdfFile);
+
+      const uploadResponse = await fetch(
+        'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',
+        {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` },
+          body: form
+        }
+      );
+
+      if (!uploadResponse.ok) {
+        throw new Error('Falha ao fazer upload do PDF');
+      }
+
+      const uploadResult = await uploadResponse.json();
+      const pdfFileId = uploadResult.id;
+      console.log('✅ PDF uploaded:', pdfFileId);
+
+      // 2. Exportar PDF como Google Doc (Google faz OCR automaticamente)
+      console.log('🔄 Convertendo para Google Doc (OCR)...');
+      
+      const exportResponse = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${pdfFileId}/export?mimeType=text/plain`,
+        {
+          headers: { 'Authorization': `Bearer ${token}` }
+        }
+      );
+
+      if (!exportResponse.ok) {
+        throw new Error('Falha ao converter PDF');
+      }
+
+      const textContent = await exportResponse.text();
+      console.log('✅ Texto extraído (primeiros 500 chars):', textContent.substring(0, 500));
+
+      // 3. Limpar ficheiro temporário do Drive
+      await fetch(
+        `https://www.googleapis.com/drive/v3/files/${pdfFileId}`,
+        {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` }
+        }
+      );
+      console.log('🗑️ Ficheiro temporário removido');
+
+      return textContent;
+    } catch (error) {
+      console.error('❌ Erro no OCR Google Drive:', error);
+      throw error;
+    }
+  };
+
+  /**
+   * Handler para importar fatura do Google Drive com OCR
+   */
+  const handleImportarDriveComOCR = async () => {
+    if (!driveAccessToken) {
+      showNotification('⚠️ Faça login no Google Drive primeiro', 'error');
+      return;
+    }
+
+    // Criar input file temporário
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.pdf';
+    
+    input.onchange = async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      try {
+        setProcessandoOCR(true);
+        setProgressoOCR('Enviando para Google Drive...');
+
+        // 1. Converter PDF usando Google OCR
+        const textoExtraido = await convertPDFToGoogleDocOCR(file, driveAccessToken);
+        
+        if (!textoExtraido || textoExtraido.length < 50) {
+          throw new Error('Texto extraído está vazio ou muito curto');
+        }
+
+        setProgressoOCR('Processando fatura...');
+
+        // 2. Processar texto limpo do Google
+        const dadosFatura = processarTextoFatura(textoExtraido);
+        console.log('📋 Fatura processada:', dadosFatura);
+
+        // 3. Criar URL do PDF original para visualização
+        const pdfBlob = new Blob([await file.arrayBuffer()], { type: 'application/pdf' });
+        const pdfUrl = URL.createObjectURL(pdfBlob);
+
+        // 4. Mostrar modal de confirmação
+        setModalConfirmacaoFatura({
+          mostrar: true,
+          dados: {
+            ...dadosFatura,
+            pdfUrl: pdfUrl,
+            metodoOCR: 'Google Drive OCR' // Indicar método usado
+          }
+        });
+
+        showNotification('✅ OCR concluído com Google Drive!', 'success');
+      } catch (error) {
+        console.error('❌ Erro no OCR Google Drive:', error);
+        showNotification(`❌ Erro: ${error.message}. Tente com OCR local.`, 'error');
+      } finally {
+        setProcessandoOCR(false);
+        setProgressoOCR('');
+      }
+    };
+
+    input.click();
   };
 
   const loadFromDrive = async (token = driveAccessToken) => {
@@ -7608,6 +7745,113 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
       .trim();
   };
   
+  /**
+   * Corrige erros típicos de OCR (caracteres confundidos)
+   * Aplica ANTES do fuzzy matching
+   */
+  const corrigirErrosOCR = (texto) => {
+    if (!texto) return '';
+    
+    let corrigido = texto;
+    
+    // Mapeamento de erros comuns OCR
+    const correcoes = {
+      // Números confundidos com letras
+      '0': ['O', 'o'],  // 0 confundido com O
+      'O': ['0'],       // O confundido com 0
+      '1': ['I', 'l'],  // 1 confundido com I ou l
+      'I': ['1'],       // I confundido com 1
+      '5': ['S'],       // 5 confundido com S
+      'S': ['5'],       // S confundido com 5
+      '8': ['B'],       // 8 confundido com B
+      'B': ['8'],       // B confundido com 8
+      
+      // Letras trocadas
+      'VATAS': ['NATAS'],           // V → N (caso específico)
+      'ANENDOTH': ['AMENDOIM'],     // Erro comum
+      'ANENDOIM': ['AMENDOIM'],
+      'ANENDOIN': ['AMENDOIM'],
+      'ANENDOM': ['AMENDOIM'],
+      'QUEUO': ['QUEIJO'],
+      'QUEJO': ['QUEIJO'],
+      'LARANJA': ['LARANJA'],       // Manter correto
+      'LARAN1A': ['LARANJA'],       // 1 → J
+      'LARANUA': ['LARANJA'],       // U → J
+      
+      // Cervejas (correções específicas)
+      'CERV': ['CERVEJA'],          // Abreviação comum
+      'CERVE1A': ['CERVEJA'],       // 1 → J
+      'CERVE]A': ['CERVEJA'],       // ] → J
+      'C/ALC': ['COM ALCOOL'],      // Expandir abreviação
+      'S/ALC': ['SEM ALCOOL'],
+      'BOCK': ['BOCK'],             // Manter
+      'B0CK': ['BOCK'],             // 0 → O
+      'SUPER': ['SUPER'],           // Manter
+      'SUP3R': ['SUPER'],           // 3 → E
+    };
+    
+    // Aplicar correções de palavras completas primeiro
+    for (const [errado, corretos] of Object.entries(correcoes)) {
+      if (errado.length > 2) { // Palavras (não letras individuais)
+        for (const correto of corretos) {
+          const regex = new RegExp(`\\b${errado}\\b`, 'gi');
+          corrigido = corrigido.replace(regex, correto);
+        }
+      }
+    }
+    
+    // Padrões específicos
+    corrigido = corrigido
+      // Remover códigos misturados (IT0235:0 → remover)
+      .replace(/\b[A-Z]{2}\d{4}:\d\b/g, '')
+      // Remover códigos estranhos (NoHEP, etc)
+      .replace(/\bNo[A-Z]{2,}\b/g, '')
+      // Limpar pontuação problemática
+      .replace(/[;:]+/g, ' ')
+      // "0708" no contexto de ovos → OVOS
+      .replace(/\b0708\b/g, 'OVOS')
+      .replace(/\b07O8\b/gi, 'OVOS')
+      // Limpar espaços
+      .replace(/\s+/g, ' ')
+      .trim();
+    
+    return corrigido;
+  };
+  
+  /**
+   * Limpa lixo comum do OCR ANTES de processar
+   * Remove caracteres repetidos, espaços extras, padrões sem sentido
+   * IMPORTANTE: Só limpar padrões específicos, não remover linhas de produtos!
+   */
+  const cleanOCRText = (text) => {
+    if (!text) return '';
+    
+    let cleaned = text;
+    
+    // 1. Remover ATCUD (não é produto)
+    cleaned = cleaned.replace(/ATCUD:[A-Z0-9-]+/gi, '');
+    
+    // 2. Remover "* CARRO No." que aparece em Recheio
+    cleaned = cleaned.replace(/\*\s*CARRO\s+No\.\s*\d*/gi, '');
+    
+    // 3. Remover frases padrão OCR ruins (footer)
+    cleaned = cleaned.replace(/Produto proveniente de.*$/gm, '');
+    cleaned = cleaned.replace(/No\. de registo.*$/gm, '');
+    cleaned = cleaned.replace(/Valido como recibo.*$/gm, '');
+    
+    // 4. Limpar caracteres repetidos sem sentido (ão ão ão → ão)
+    // MAS só se forem palavras CURTAS repetidas 3+ vezes
+    cleaned = cleaned.replace(/(\b\w{1,2}\b)(\s+\1){3,}/gi, '$1');
+    
+    // 5. Limpar espaços múltiplos
+    cleaned = cleaned.replace(/\s{3,}/g, ' ');  // 3+ espaços → 1 espaço
+    
+    // 6. Remover linhas vazias múltiplas (mais de 2)
+    cleaned = cleaned.replace(/\n\s*\n\s*\n/g, '\n\n');
+    
+    return cleaned.trim();
+  };
+  
   // Extração nativa
   const extractNativeText = async (pdfBuffer) => {
     try {
@@ -7792,10 +8036,11 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
     
     // Linha DEVE ter pelo menos: quantidade + unidade OU preço
     // Se não tiver nenhum dos dois, provavelmente não é produto
-    const temQuantidade = /\d+[.,]?\d*\s*(kg|g|l|ml|un|unid)/i.test(linha);
+    const temQuantidade = /\d+[.,]?\d*\s*(kg|g|l|ml|cl|un|unid)/i.test(linha);
     const temPreco = /\d+[.,]\d{2}\s*€?/i.test(linha);
+    const temFormatoRecheio = /\d+\s+\d+\s+\d+[.,]\d{3}/i.test(linha);  // "1 6 6,000"
     
-    if (!temQuantidade && !temPreco) {
+    if (!temQuantidade && !temPreco && !temFormatoRecheio) {
       return true; // Ignorar se não tiver nem quantidade nem preço
     }
     
@@ -7806,36 +8051,68 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
   const extractQuantidadeUnidade = (texto) => {
     // Patterns mais específicos para quantidade + unidade
     const patterns = [
+      // Formato Recheio: "1 1 1,000" ou "2 1 2,000"
+      /(\d+)\s+(\d+)\s+(\d+[.,]\d{3})/g,  // Ex: "1 1 1,000" → quantidade=1000
+      
+      // Formato normal
       /(\d+[.,]?\d*)\s*(kg|quilos?|kilos?)/gi,
       /(\d+[.,]?\d*)\s*(g|gramas?)/gi,
       /(\d+[.,]?\d*)\s*l\b/gi,  // l isolado (litros)
       /(\d+[.,]?\d*)\s*(ml|mililitros?)/gi,
+      /(\d+[.,]?\d*)\s*(cl|centilitros?)/gi,  // Centilitros (cerveja, etc)
       /(\d+[.,]?\d*)\s*(un|unid|unidade|pc|pç|peça|cx|caixa|emb|embalagem|dz|duzia|dúzia)/gi,
+      
+      // Números decimais com vírgula (ex: "1,000" ou "2,240")
+      /(\d+[.,]\d{3})\b/g,  // 3 dígitos após vírgula/ponto
     ];
     
     for (const pattern of patterns) {
       const match = texto.match(pattern);
       if (match && match[0]) {
         const full = match[0];
-        // Extrair número
+        
+        // Se é formato Recheio "1 1 1,000", pegar o último número
+        const recheioMatch = full.match(/(\d+)\s+(\d+)\s+(\d+[.,]\d{3})/);
+        if (recheioMatch) {
+          const qtd = parseFloat(recheioMatch[3].replace(',', '.'));
+          // Determinar unidade pelo contexto (ver se tem kg, g, ml, etc na linha)
+          let unidade = 'un';  // Default
+          if (/kg/i.test(texto)) unidade = 'kg';
+          else if (/\bg\b/i.test(texto)) unidade = 'g';
+          else if (/ml/i.test(texto)) unidade = 'ml';
+          else if (/\bl\b/i.test(texto)) unidade = 'L';
+          
+          return { quantidade: qtd, unidade, match: full };
+        }
+        
+        // Extrair número normal
         const numStr = full.match(/\d+[.,]?\d*/);
         if (numStr) {
           const qtd = parseFloat(numStr[0].replace(',', '.'));
           // Extrair unidade
           let unidade = full.replace(/[\d.,\s]/g, '').toLowerCase().trim();
           
+          // Se não tem unidade explícita mas número > 10, provavelmente é gramas
+          if (!unidade && qtd > 10 && qtd < 10000) {
+            unidade = 'g';
+          }
+          
           // Normalizar unidades
           const map = {
             'quilos': 'kg', 'quilo': 'kg', 'kilos': 'kg', 'kilo': 'kg',
             'gramas': 'g', 'grama': 'g',
-            'litros': 'l', 'litro': 'l',
+            'litros': 'L', 'litro': 'L',
             'mililitros': 'ml', 'mililitro': 'ml',
+            'centilitros': 'cl', 'centilitro': 'cl',
             'unid': 'un', 'unidade': 'un', 'pc': 'un', 'pç': 'un', 'peça': 'un',
-            'caixa': 'un', 'emb': 'un', 'embalagem': 'un',  // Converter para 'un'
-            'duzia': 'un', 'dúzia': 'un'  // Converter para 'un'
+            'caixa': 'un', 'emb': 'un', 'embalagem': 'un',
+            'duzia': 'un', 'dúzia': 'un'
           };
           
           unidade = map[unidade] || unidade;
+          
+          // Se ficou sem unidade, usar 'un'
+          if (!unidade) unidade = 'un';
           
           return { quantidade: qtd, unidade, match: full };
         }
@@ -7858,15 +8135,44 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
   
   // Parse linha
   const parseLinha = (linha) => {
-    const qtdUnidade = extractQuantidadeUnidade(linha);
-    const preco = extractPreco(linha);
-    let nomeProduto = linha;
+    // 1. CORRIGIR erros de OCR PRIMEIRO
+    let linhaCorrigida = corrigirErrosOCR(linha);
+    
+    // 2. LIMPAR linha
+    let linhaLimpa = linhaCorrigida.trim();
+    
+    // 3. RECHEIO ESPECÍFICO: Remover código de produto no INÍCIO (6 dígitos + ponto)
+    // Ex: "125019.1 AROMA VAHINE..." → "AROMA VAHINE..."
+    linhaLimpa = linhaLimpa.replace(/^\d{6}\.\d+\s+/, '');
+    
+    // 4. Extrair quantidade e preço
+    const qtdUnidade = extractQuantidadeUnidade(linhaLimpa);
+    const preco = extractPreco(linhaLimpa);
+    
+    // 5. Extrair nome do produto (remove quantidade e preço)
+    let nomeProduto = linhaLimpa;
     if (qtdUnidade.match) nomeProduto = nomeProduto.replace(qtdUnidade.match, '');
     if (preco.match) nomeProduto = nomeProduto.replace(preco.match, '');
-    nomeProduto = nomeProduto.replace(/\s+/g, ' ').trim();
-    if (!nomeProduto) nomeProduto = linha;
+    
+    // 6. Limpeza final do nome
+    nomeProduto = nomeProduto
+      .replace(/\s+/g, ' ')  // Espaços múltiplos
+      .replace(/^\d+\s*/, '')  // Números no início
+      .replace(/[*]+/g, '')  // Asteriscos
+      .replace(/\s+[Ajl]\s*$/, '')  // Remove A, j, l no final (sufixos Recheio)
+      .replace(/\s+(TN|PA)\s*$/, '')  // Remove TN, PA no final
+      .replace(/\s+\d+$/, '')  // Remove números isolados no final
+      .trim();
+    
+    // 7. Se nome ficou vazio ou muito curto, usar linha original limpa
+    if (!nomeProduto || nomeProduto.length < 3) {
+      nomeProduto = linhaLimpa;
+    }
+    
     return {
-      textoOriginal: linha,
+      textoOriginal: linha,  // Guardar original para debug
+      textoCorrigido: linhaCorrigida,  // Após correção OCR
+      textoLimpo: linhaLimpa,  // Após limpeza
       nomeProduto,
       quantidade: qtdUnidade.quantidade,
       unidade: qtdUnidade.unidade,
@@ -7879,15 +8185,42 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
   // Parse produtos
   const parseLinhasProdutos = (texto) => {
     console.log('🔍 Parsing...');
+    console.log('📄 Texto ORIGINAL (primeiras 1000 chars):', texto.substring(0, 1000));
     setProgressoOCR('Identificando produtos...');
-    const linhas = texto.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    
+    // 1. LIMPAR texto completo ANTES de split
+    const textoLimpo = cleanOCRText(texto);
+    console.log('📝 Texto após limpeza (primeiras 1000 chars):', textoLimpo.substring(0, 1000));
+    
+    // 2. Split em linhas
+    const linhas = textoLimpo.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    console.log(`📊 Total de linhas após split: ${linhas.length}`);
+    
     const linhasProdutos = [];
+    let linhasIgnoradas = 0;
+    let linhasSemNome = 0;
+    
     for (const linha of linhas) {
-      if (shouldIgnoreLine(linha)) continue;
+      if (shouldIgnoreLine(linha)) {
+        linhasIgnoradas++;
+        continue;
+      }
       const parsed = parseLinha(linha);
-      if (parsed && parsed.nomeProduto) linhasProdutos.push(parsed);
+      if (parsed && parsed.nomeProduto) {
+        linhasProdutos.push(parsed);
+      } else {
+        linhasSemNome++;
+      }
     }
-    console.log(`✅ ${linhasProdutos.length} produtos`);
+    
+    console.log(`✅ ${linhasProdutos.length} produtos identificados`);
+    console.log(`⏭️ ${linhasIgnoradas} linhas ignoradas (headers, totais, etc)`);
+    console.log(`❌ ${linhasSemNome} linhas sem nome de produto`);
+    
+    if (linhasProdutos.length === 0) {
+      console.error('⚠️ NENHUM produto encontrado! Verificar limpeza e parsing.');
+    }
+    
     return linhasProdutos;
   };
   
@@ -7938,21 +8271,80 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
   
   // Matching
   const findBestMatch = (nomeProduto, ingredientes) => {
-    const produtoNorm = normalizeForMatching(nomeProduto);
+    // 1. Limpar texto OCR ANTES de normalizar
+    const produtoLimpo = cleanOCRText(nomeProduto);
+    const produtoNorm = normalizeForMatching(produtoLimpo);
+    
+    // Se após limpeza ficou vazio, retornar null
+    if (!produtoNorm || produtoNorm.length < 3) {
+      return null;
+    }
+    
     let bestMatch = null;
     let bestScore = 0;
+    
+    // Dividir produto em palavras para matching individual
+    const palavrasProduto = produtoNorm.split(' ').filter(p => p.length > 2);
+    
     for (const ing of ingredientes) {
       const ingNorm = normalizeForMatching(ing.nome);
+      const palavrasIng = ingNorm.split(' ').filter(p => p.length > 2);
+      
+      // 1. Score base com fuzzball (texto completo)
       let score = fuzz.ratio(produtoNorm, ingNorm);
-      if (produtoNorm.includes(ingNorm) || ingNorm.includes(produtoNorm)) {
-        score = Math.min(100, score + 10);
+      
+      // 2. BONUS: Match de palavras individuais (NOVO!)
+      let maxPalavraScore = 0;
+      for (const pProd of palavrasProduto) {
+        for (const pIng of palavrasIng) {
+          const palavraScore = fuzz.ratio(pProd, pIng);
+          if (palavraScore > maxPalavraScore) {
+            maxPalavraScore = palavraScore;
+          }
+        }
       }
+      
+      // Se alguma palavra tem match forte (>70%), dar bonus grande
+      if (maxPalavraScore >= 70) {
+        score = Math.min(100, score + 25);
+      } else if (maxPalavraScore >= 60) {
+        score = Math.min(100, score + 15);
+      }
+      
+      // 3. BONUS: Se um contém o outro (parcial match)
+      if (produtoNorm.includes(ingNorm) || ingNorm.includes(produtoNorm)) {
+        score = Math.min(100, score + 15);
+      }
+      
+      // 4. BONUS: Se as primeiras 4 letras são iguais
+      if (produtoNorm.length >= 4 && ingNorm.length >= 4) {
+        if (produtoNorm.substring(0, 4) === ingNorm.substring(0, 4)) {
+          score = Math.min(100, score + 10);
+        }
+      }
+      
+      // 5. BONUS: Palavras-chave exatas comuns
+      const palavrasComuns = palavrasProduto.filter(p => 
+        p.length > 3 && palavrasIng.some(i => i === p)
+      ).length;
+      if (palavrasComuns > 0) {
+        score = Math.min(100, score + (palavrasComuns * 8));
+      }
+      
       if (score > bestScore) {
         bestScore = score;
-        bestMatch = { id: ing.id, nome: ing.nome, confianca: Math.round(score) };
+        bestMatch = { 
+          id: ing.id, 
+          nome: ing.nome, 
+          confianca: Math.round(score),
+          textoOCR: produtoLimpo,
+          maxPalavraScore: Math.round(maxPalavraScore)  // Debug
+        };
       }
     }
-    return bestScore >= 60 ? bestMatch : null;
+    
+    // Threshold: 50% em vez de 55% (mais permissivo após correção OCR)
+    return bestScore >= 50 ? bestMatch : null;
   };
   
   const matchIngredientes = (linhas, ingredientes) => {
@@ -11216,6 +11608,39 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
                       ✨ Carregue PDF ou foto da fatura - extrai produtos, preços e guarda documento
                     </p>
                   </div>
+                  
+                  {/* Botão Google Drive OCR */}
+                  {driveAccessToken && (
+                    <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        🚀 Ler Fatura com Google OCR (Melhor Qualidade)
+                      </label>
+                      <button
+                        onClick={handleImportarDriveComOCR}
+                        disabled={processandoOCR}
+                        className={`w-full ${
+                          processandoOCR 
+                            ? 'bg-gray-400 cursor-not-allowed' 
+                            : 'bg-green-600 hover:bg-green-700 cursor-pointer'
+                        } text-white px-4 py-3 rounded-lg font-semibold text-center transition`}
+                      >
+                        {processandoOCR ? (
+                          <span className="flex items-center justify-center gap-2">
+                            <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                            </svg>
+                            {progressoOCR || 'Processando...'}
+                          </span>
+                        ) : (
+                          '📄 Importar PDF com Google OCR'
+                        )}
+                      </button>
+                      <p className="text-xs text-gray-500 mt-2 text-center">
+                        ⚡ Usa OCR do Google Drive - qualidade superior!
+                      </p>
+                    </div>
+                  )}
                   
                   {/* Formulário Fatura */}
                   <>
