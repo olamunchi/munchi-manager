@@ -5115,11 +5115,11 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
       const docFileId = docResult.id;
       console.log('✅ Google Doc criado:', docFileId);
 
-      // 3. Exportar Google Doc como texto
+      // 3. Exportar Google Doc como texto HTML (para preservar quebras de linha)
       console.log('📥 Extraindo texto do Google Doc...');
       
       const exportResponse = await fetch(
-        `https://www.googleapis.com/drive/v3/files/${docFileId}/export?mimeType=text/plain`,
+        `https://www.googleapis.com/drive/v3/files/${docFileId}/export?mimeType=text/html`,
         {
           headers: { 'Authorization': `Bearer ${token}` }
         }
@@ -5129,8 +5129,14 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
         throw new Error('Falha ao exportar texto');
       }
 
-      const textContent = await exportResponse.text();
-      console.log('✅ Texto extraído (primeiros 500 chars):', textContent.substring(0, 500));
+      const htmlContent = await exportResponse.text();
+      
+      // Converter HTML para texto mantendo quebras de linha
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(htmlContent, 'text/html');
+      const textContent = doc.body.innerText || doc.body.textContent;
+      
+      console.log('✅ Texto extraído (primeiras 500 chars):', textContent.substring(0, 500));
 
       // 4. Limpar ficheiros temporários do Drive
       await fetch(
