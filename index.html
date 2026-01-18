@@ -5131,12 +5131,26 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
 
       const htmlContent = await exportResponse.text();
       
-      // Converter HTML para texto mantendo quebras de linha
+      // Converter HTML para texto preservando quebras de linha
       const parser = new DOMParser();
       const doc = parser.parseFromString(htmlContent, 'text/html');
-      const textContent = doc.body.innerText || doc.body.textContent;
+      
+      // Extrair texto de cada parágrafo/div/span separadamente
+      const elements = doc.querySelectorAll('p, div, span, td, li');
+      const lines = [];
+      
+      elements.forEach(el => {
+        const text = el.textContent?.trim();
+        if (text && text.length > 0) {
+          lines.push(text);
+        }
+      });
+      
+      // Juntar com quebras de linha
+      const textContent = lines.join('\n');
       
       console.log('✅ Texto extraído (primeiras 500 chars):', textContent.substring(0, 500));
+      console.log('📊 Total de linhas extraídas:', lines.length);
 
       // 4. Limpar ficheiros temporários do Drive
       await fetch(
