@@ -3062,6 +3062,12 @@ const RestauranteGestor = () => {
     // Fechar modal
     setModalConfirmacaoFatura({ mostrar: false, dados: null });
     
+    // Se foi OCR (Google ou Tesseract), abrir modal de ingredientes
+    if (linhasOCR && linhasOCR.length >= 0 && metadataOCR) {
+      console.log('🔄 Abrindo modal de ingredientes...');
+      setMostrarModalOCR(true);
+    }
+    
     showNotification(`Fatura ${dadosConfirmados.tipo} confirmada!`, 'success');
   };
 
@@ -5225,20 +5231,66 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
               const dadosFatura = processarTextoFatura(textoExtraido);
               console.log('📋 Fatura processada:', dadosFatura);
 
-              // 4. Criar URL do PDF para visualização
+              // 4. Parsear linhas de produtos
+              const template = buscarTemplateOCR(dadosFatura.fornecedor.nif);
+              const linhas = template ? parseComTemplate(textoExtraido, template) : parseLinhasProdutos(textoExtraido);
+              
+              console.log(`📦 ${linhas.length} linhas de produtos identificadas`);
+
+              // 5. Converter PDF para base64 (para guardar na fatura)
+              const reader = new FileReader();
+              const base64Promise = new Promise((resolve) => {
+                reader.onloadend = () => {
+                  const base64 = reader.result.split(',')[1];
+                  resolve(base64);
+                };
+                reader.readAsDataURL(pdfBlob);
+              });
+              
+              const pdfBase64 = await base64Promise;
+
+              // 6. Criar metadata completa
+              const metadata = {
+                numeroFatura: dadosFatura.numero,
+                data: dadosFatura.data,
+                nif: dadosFatura.fornecedor.nif,
+                fornecedor: dadosFatura.fornecedor.nome,
+                total: dadosFatura.totais.total,
+                pdfBase64: pdfBase64,
+                pdfNome: fileName,
+                textoCompleto: textoExtraido,
+                precosComIVA: dadosFatura.precosComIVA,
+                metodoOCR: 'Google Drive OCR'
+              };
+
+              // 7. Criar URL do PDF para visualização
               const pdfUrl = URL.createObjectURL(pdfBlob);
 
-              // 5. Mostrar modal de confirmação
+              // 8. Mostrar modal de confirmação de fatura PRIMEIRO
               setModalConfirmacaoFatura({
                 mostrar: true,
                 dados: {
                   ...dadosFatura,
                   pdfUrl: pdfUrl,
-                  metodoOCR: 'Google Drive OCR' // Indicar método usado
+                  metodoOCR: 'Google Drive OCR'
                 }
               });
 
-              showNotification('✅ OCR concluído com Google Drive!', 'success');
+              // 9. Fazer matching dos ingredientes
+              const linhasComMatch = linhas.length > 0 
+                ? matchIngredientes(linhas, ingredientes)
+                : [];
+              
+              // 10. Preparar modal de ingredientes (abre após confirmar fatura)
+              setLinhasOCR(linhasComMatch);
+              setMetadataOCR(metadata);
+              // NÃO abrir ainda - vai abrir quando confirmar fatura
+
+              if (linhas.length === 0) {
+                showNotification('✅ Fatura processada! Nenhum produto detectado.', 'warning');
+              } else {
+                showNotification(`✅ OCR concluído! ${linhas.length} produtos identificados.`, 'success');
+              }
             } catch (error) {
               console.error('❌ Erro no OCR Google Drive:', error);
               showNotification(`❌ Erro: ${error.message}. Tente com OCR local.`, 'error');
