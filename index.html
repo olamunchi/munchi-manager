@@ -5131,34 +5131,38 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
 
       const htmlContent = await exportResponse.text();
       
-      // Converter HTML para texto preservando quebras de linha
+      // Converter HTML para texto preservando estrutura de tabela
       const parser = new DOMParser();
       const doc = parser.parseFromString(htmlContent, 'text/html');
       
-      // Extrair apenas elementos de BLOCO (p, div, tr, li) - ignorar spans inline
-      const blockElements = doc.querySelectorAll('p, div, tr, li, h1, h2, h3, h4, h5, h6');
+      // Procurar linhas de tabela (melhor para faturas estruturadas)
+      const tableRows = doc.querySelectorAll('tr, p');
       const lines = [];
-      const seenLines = new Set(); // Para evitar duplicatas
+      const seenLines = new Set();
       
-      blockElements.forEach(el => {
-        // Pegar o texto direto do elemento (não recursivo em spans filhos)
+      tableRows.forEach(el => {
         let text = '';
         
-        // Se tem filhos, juntar o texto deles
-        if (el.children.length > 0) {
-          text = Array.from(el.children)
-            .map(child => child.textContent?.trim())
+        // Se é uma TR (linha de tabela), juntar células
+        if (el.tagName === 'TR') {
+          const cells = el.querySelectorAll('td, th');
+          text = Array.from(cells)
+            .map(cell => cell.textContent?.trim())
             .filter(t => t && t.length > 0)
             .join(' ');
-        }
-        
-        // Se não tem filhos ou ficou vazio, usar o textContent direto
-        if (!text || text.length === 0) {
+        } else {
+          // Se é parágrafo, pegar texto direto
           text = el.textContent?.trim();
         }
         
-        // Adicionar se não for duplicado e tiver conteúdo
-        if (text && text.length > 0 && !seenLines.has(text)) {
+        // Filtros de qualidade:
+        // 1. Não pode estar vazio
+        // 2. Não pode ser só números/espaços/vírgulas (ex: "1,000" "13,95")
+        // 3. Não pode ser duplicado
+        if (text && 
+            text.length > 5 && 
+            !/^[\d\s,\.]+$/.test(text) && // Ignora linhas só com números
+            !seenLines.has(text)) {
           seenLines.add(text);
           lines.push(text);
         }
