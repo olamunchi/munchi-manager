@@ -464,13 +464,10 @@ const ComprasAnalysis = ({ despesas, faturas = [], ingredientes, fornecedores })
     // Adicionar despesas antigas (se existirem)
     despesas.forEach(d => {
       if (d.ingredienteId && d.quantidade && d.quantidade > 0) {
-        // ✅ Extrair nome do fornecedor (suportar objeto ou string)
-        const fornecedorNome = typeof d.fornecedor === 'string' ? d.fornecedor : (d.fornecedor?.nome || '');
-        
         compras.push({
           ingredienteId: d.ingredienteId,
           quantidade: d.quantidade,
-          fornecedor: fornecedorNome,
+          fornecedor: d.fornecedor,
           precoUnitario: d.valor / d.quantidade,
           data: d.data
         });
@@ -481,16 +478,10 @@ const ComprasAnalysis = ({ despesas, faturas = [], ingredientes, fornecedores })
     faturas.forEach(f => {
       if (f.itens && Array.isArray(f.itens)) {
         f.itens.forEach(item => {
-          // ✅ Extrair nome do fornecedor (suportar objeto ou string)
-          let fornecedorNome = f.fornecedorNome || '';
-          if (!fornecedorNome && f.fornecedor) {
-            fornecedorNome = typeof f.fornecedor === 'string' ? f.fornecedor : f.fornecedor.nome;
-          }
-          
           compras.push({
             ingredienteId: item.ingredienteId || item.ingrediente,
             quantidade: item.quantidade,
-            fornecedor: fornecedorNome,
+            fornecedor: f.fornecedor || f.fornecedorNome,
             precoUnitario: item.precoUnitario,
             data: f.data
           });
@@ -726,7 +717,7 @@ const ComprasAnalysis = ({ despesas, faturas = [], ingredientes, fornecedores })
                     </div>
                     {melhorCompra.fornecedor && (
                       <p className="text-xs text-gray-600 mt-1">
-                        💡 Melhor: <span className="font-semibold">{typeof melhorCompra.fornecedor === 'string' ? melhorCompra.fornecedor : melhorCompra.fornecedor?.nome || 'N/A'}</span> - €{melhorCompra.precoUnitario.toFixed(2)}/{ing.unidade}
+                        💡 Melhor: <span className="font-semibold">{melhorCompra.fornecedor}</span> - €{melhorCompra.precoUnitario.toFixed(2)}/{ing.unidade}
                       </p>
                     )}
                   </div>
@@ -754,7 +745,7 @@ const ComprasAnalysis = ({ despesas, faturas = [], ingredientes, fornecedores })
                                     {isMelhor && '🏆'}
                                     {isPior && '⚠️'}
                                     {new Date(compra.data).toLocaleDateString('pt-PT')}
-                                    {compra.fornecedor && ` • ${typeof compra.fornecedor === 'string' ? compra.fornecedor : compra.fornecedor.nome}`}
+                                    {compra.fornecedor && ` • ${compra.fornecedor}`}
                                   </span>
                                   <span className="font-semibold">
                                     {compra.quantidade}{ing.unidade} × €{compra.precoUnitario.toFixed(2)} = €{(compra.quantidade * compra.precoUnitario).toFixed(2)}
@@ -1616,25 +1607,41 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
               {/* Fornecedor */}
               <div>
                 <label className="text-xs font-semibold text-gray-600 block mb-1">🏢 Fornecedor</label>
-                <select
-                  value={fornecedorManual || (metadata.nif ? fornecedores.find(f => f.nif === metadata.nif)?.id || '' : '')}
-                  onChange={(e) => {
-                    if (e.target.value === 'novo') {
-                      setMostrarModalNovoFornecedor(true);
-                    } else {
-                      setFornecedorManual(e.target.value);
-                    }
-                  }}
-                  className="w-full px-2 py-1 border rounded text-sm"
-                >
-                  <option value="">Escolher...</option>
-                  {fornecedoresLocais.map(f => (
-                    <option key={f.id} value={f.id}>
-                      {f.nome} {f.nif ? `(${f.nif})` : ''}
-                    </option>
-                  ))}
-                  <option value="novo" className="font-bold">➕ Criar Novo</option>
-                </select>
+                {(() => {
+                  const fornecedorDetectado = metadata.nif 
+                    ? fornecedores.find(f => f.nif === metadata.nif)
+                    : null;
+                  
+                  if (fornecedorDetectado) {
+                    return (
+                      <div className="px-2 py-1 bg-white border border-blue-300 rounded text-sm">
+                        <span className="font-bold text-blue-700">{fornecedorDetectado.nome}</span>
+                      </div>
+                    );
+                  } else {
+                    return (
+                      <select
+                        value={fornecedorManual}
+                        onChange={(e) => {
+                          if (e.target.value === 'novo') {
+                            setMostrarModalNovoFornecedor(true);
+                          } else {
+                            setFornecedorManual(e.target.value);
+                          }
+                        }}
+                        className="w-full px-2 py-1 border rounded text-sm"
+                      >
+                        <option value="">Escolher...</option>
+                        {fornecedoresLocais.map(f => (
+                          <option key={f.id} value={f.id}>
+                            {f.nome}
+                          </option>
+                        ))}
+                        <option value="novo" className="font-bold">➕ Criar Novo</option>
+                      </select>
+                    );
+                  }
+                })()}
               </div>
               
               {/* Badge Tipo */}
@@ -2126,19 +2133,13 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
 /**
  * Modal para confirmar tipo de fatura detectado
  */
-const ModalConfirmacaoFatura = ({ dadosFatura, onConfirmar, onCancelar, fornecedores = [] }) => {
+const ModalConfirmacaoFatura = ({ dadosFatura, onConfirmar, onCancelar }) => {
   const [tipoSelecionado, setTipoSelecionado] = React.useState(dadosFatura.tipo);
-  const [fornecedorSelecionadoId, setFornecedorSelecionadoId] = React.useState('');
   
   const handleConfirmar = () => {
-    const fornecedorObj = fornecedores.find(f => f.id === fornecedorSelecionadoId);
     onConfirmar({
       ...dadosFatura,
-      tipo: tipoSelecionado,
-      fornecedor: fornecedorObj ? {
-        nome: fornecedorObj.nome,
-        nif: fornecedorObj.nif
-      } : dadosFatura.fornecedor
+      tipo: tipoSelecionado
     });
   };
   
@@ -2168,31 +2169,15 @@ const ModalConfirmacaoFatura = ({ dadosFatura, onConfirmar, onCancelar, forneced
               <strong>Número:</strong> {dadosFatura.numero}
             </p>
           )}
-          
-          {/* Dropdown Fornecedor */}
-          <div className="mt-3">
-            <label className="text-sm font-semibold text-gray-700 block mb-1">Fornecedor:</label>
-            <select
-              value={fornecedorSelecionadoId}
-              onChange={(e) => setFornecedorSelecionadoId(e.target.value)}
-              className="w-full px-3 py-2 border rounded-lg"
-            >
-              <option value="">Selecionar...</option>
-              {fornecedores.map(f => (
-                <option key={f.id} value={f.id}>
-                  {f.nome} {f.nif ? `(NIF: ${f.nif})` : ''}
-                </option>
-              ))}
-            </select>
-            {fornecedorSelecionadoId && (() => {
-              const forn = fornecedores.find(f => f.id === fornecedorSelecionadoId);
-              return forn?.nif && (
-                <p className="text-xs text-green-600 mt-1">✓ NIF: {forn.nif}</p>
-              );
-            })()}
-          </div>
-          
-          <p className="text-sm text-gray-700 mt-3">
+          <p className="text-sm text-gray-700 mt-1">
+            <strong>Fornecedor:</strong> {dadosFatura.fornecedor.nome}
+          </p>
+          {dadosFatura.fornecedor.nif && (
+            <p className="text-sm text-gray-700 mt-1">
+              <strong>NIF:</strong> {dadosFatura.fornecedor.nif}
+            </p>
+          )}
+          <p className="text-sm text-gray-700 mt-1">
             <strong>Data:</strong> {dadosFatura.data}
           </p>
           {dadosFatura.totais.total > 0 && (
@@ -2713,60 +2698,6 @@ const RestauranteGestor = () => {
   const [gestaoSubTab, setGestaoSubTab] = useState('ingredientes');
   const [produtos, setProdutos] = useState([]);
   const [ingredientes, setIngredientes] = useState([]);
-  const [autoFixExecutado, setAutoFixExecutado] = React.useState(false);
-  
-  // ✅ AUTO-FIX: Corrigir ingredientes antigos com unidades erradas (g→kg, ml→L)
-  React.useEffect(() => {
-    if (ingredientes.length === 0 || autoFixExecutado) return;
-    
-    let precisaCorrigir = false;
-    const ingredientesCorrigidos = ingredientes.map(ing => {
-      let corrigido = {...ing};
-      
-      // Corrigir unidade undefined/vazia
-      if (!ing.unidade) {
-        console.log(`🔧 ${ing.nome}: unidade vazia, assumindo kg`);
-        corrigido.unidade = 'kg';
-        precisaCorrigir = true;
-      }
-      
-      // Se unidade é g e custo muito pequeno (< €1), converter para kg
-      if (corrigido.unidade === 'g' && corrigido.custoUnitario < 1) {
-        console.log(`🔧 Corrigindo ${ing.nome}: €${ing.custoUnitario}/g → €${(ing.custoUnitario * 1000).toFixed(2)}/kg`);
-        corrigido.unidade = 'kg';
-        corrigido.custoUnitario = ing.custoUnitario * 1000;
-        corrigido.custoSemIva = ing.custoSemIva ? ing.custoSemIva * 1000 : ing.custoUnitario * 1000 / 1.06;
-        precisaCorrigir = true;
-      }
-      
-      // Se unidade é ml e custo muito pequeno (< €1), converter para L
-      if (corrigido.unidade === 'ml' && corrigido.custoUnitario < 1) {
-        console.log(`🔧 Corrigindo ${ing.nome}: €${ing.custoUnitario}/ml → €${(ing.custoUnitario * 1000).toFixed(2)}/L`);
-        corrigido.unidade = 'L';
-        corrigido.custoUnitario = ing.custoUnitario * 1000;
-        corrigido.custoSemIva = ing.custoSemIva ? ing.custoSemIva * 1000 : ing.custoUnitario * 1000 / 1.06;
-        precisaCorrigir = true;
-      }
-      
-      // Se unidade é kg/L MAS custo muito pequeno (< €0.10), multiplicar por 1000
-      // (significa que estava em g/ml mas já foi convertida unidade)
-      if ((corrigido.unidade === 'kg' || corrigido.unidade === 'L') && corrigido.custoUnitario < 0.10) {
-        console.log(`🔧 Corrigindo ${ing.nome}: €${ing.custoUnitario}/${corrigido.unidade} → €${(ing.custoUnitario * 1000).toFixed(2)}/${corrigido.unidade} (custo muito baixo)`);
-        corrigido.custoUnitario = ing.custoUnitario * 1000;
-        corrigido.custoSemIva = ing.custoSemIva ? ing.custoSemIva * 1000 : ing.custoUnitario * 1000 / 1.06;
-        precisaCorrigir = true;
-      }
-      
-      return corrigido;
-    });
-    
-    if (precisaCorrigir) {
-      console.log('✅ Ingredientes corrigidos automaticamente!');
-      setIngredientes(ingredientesCorrigidos);
-      setAutoFixExecutado(true);
-    }
-  }, [ingredientes, autoFixExecutado]);
-  
   const [vendas, setVendas] = useState([]);
   const [despesas, setDespesas] = useState([]);
   const [fornecedores, setFornecedores] = useState([]);
@@ -2779,7 +2710,6 @@ const RestauranteGestor = () => {
   // Estados para venda manual
   const [mostrarVendaManual, setMostrarVendaManual] = useState(false);
   const [vendaEditando, setVendaEditando] = useState(null); // ID da venda sendo editada
-  const [filtroVendas, setFiltroVendas] = useState('todas'); // 'todas' ou 'sem-emparelhamento'
   const [mostrarEditarVenda, setMostrarEditarVenda] = useState(false);
   const [novaVenda, setNovaVenda] = useState({
     data: new Date().toISOString().split('T')[0],
@@ -2907,126 +2837,67 @@ const RestauranteGestor = () => {
   const [fonteImportacao, setFonteImportacao] = useState('moloni');
   
   // Importar vendas CSV
-  const importarVendasUniversal = async (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
-    
-    const ext = file.name.split('.').pop().toLowerCase();
-    
-    if (ext === 'csv') {
-      importarVendasCSV(event);
-    } else if (ext === 'xlsx' || ext === 'xls') {
-      await processarZobaze(event);
-    } else {
-      showNotification('Formato não suportado. Use CSV ou XLSX', 'error');
-    }
-  };
-
   const importarVendasCSV = (event) => {
     const file = event.target.files[0];
     if (!file) return;
-    
-    console.log(`📥 Importando: ${file.name}`);
     
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
         const texto = e.target.result;
-        const linhas = texto.split('\n').filter(l => l.trim());
+        const linhas = texto.split('\n');
         const vendasImportadas = [];
         
-        const separador = texto.includes(';') ? ';' : ',';
-        console.log(`Separador: '${separador}' | Linhas: ${linhas.length}`);
-        
-        for (let i = 0; i < linhas.length; i++) {
+        for (let i = 1; i < linhas.length; i++) {
           const linha = linhas[i].trim();
           if (!linha) continue;
           
-          const campos = linha.split(separador).map(c => c.replace(/"/g, '').trim());
+          const campos = linha.split(',').map(c => c.replace(/"/g, '').trim());
+          if (campos.length < 3) continue;
           
-          // Moloni: 9 colunas (Data;Artigo;URL;EAN;Stock;PreçoMédio;Qtd;Total;Acumulado)
-          // Simples: 3 colunas (Data,Produto,Valor)
+          const [data, nomeProduto, valorStr] = campos;
+          const valor = parseFloat(valorStr);
           
-          let data, nomeProduto, quantidade, valor;
-          
-          if (campos.length >= 9) {
-            // Formato Moloni
-            data = campos[0];
-            nomeProduto = campos[1];
-            quantidade = parseFloat(campos[6].replace(',', '.'));
-            valor = parseFloat(campos[7].replace(',', '.').replace('€', '').replace('\x80', ''));
-          } else if (campos.length >= 3) {
-            // Formato simples
-            data = campos[0];
-            nomeProduto = campos[1];
-            quantidade = 1;
-            valor = parseFloat(campos[2].replace(',', '.').replace('€', ''));
-          } else {
-            continue;
-          }
-          
-          // Converter data DD-MM-YYYY para YYYY-MM-DD
-          if (data.match(/\d{2}-\d{2}-\d{4}/)) {
-            const [d, m, y] = data.split('-');
-            data = `${y}-${m}-${d}`;
-          }
-          
-          if (!data || !nomeProduto || isNaN(valor) || valor <= 0) continue;
-          if (!data.match(/\d{4}-\d{2}-\d{2}/)) continue;
+          if (!data || !nomeProduto || isNaN(valor)) continue;
           
           const nomeCorrigido = mapearNomeProduto(nomeProduto);
-          
-          // Normalizar para comparação (remover acentos + tamanhos)
-          const normalizar = (str) => {
-            return str
-              .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // Remove acentos
-              .replace(/\d+\s*(ml|cl|l|g|kg|cm|un)/gi, '') // Remove tamanhos
-              .toLowerCase()
-              .trim();
-          };
-          const nomeNorm = normalizar(nomeCorrigido);
-          
-          // Match exato primeiro
-          let produto = produtos.find(p => p.nome === nomeCorrigido);
-          
-          // Fuzzy match com normalização
-          if (!produto) {
-            produto = produtos.find(p => {
-              const pNorm = normalizar(p.nome);
-              return pNorm.includes(nomeNorm) || nomeNorm.includes(pNorm);
-            });
-          }
+          const produto = produtos.find(p => p.nome === nomeCorrigido);
           
           vendasImportadas.push({
             id: Date.now() + Math.random(),
             data: data,
             produto: nomeCorrigido,
             produtoId: produto?.id || null,
-            quantidade: quantidade || 1,
+            quantidade: 1,
             valor: valor,
             iva: produto?.iva || 6,
-            origem: fonteImportacao
+            origem: fonteImportacao // ✅ 'moloni' ou 'zobaze'
           });
         }
         
-        console.log(`✅ ${vendasImportadas.length} vendas processadas`);
-        
         if (vendasImportadas.length > 0) {
-          setVendas([...vendas, ...vendasImportadas]);
+          const novasVendas = [...vendas, ...vendasImportadas];
+          setVendas(novasVendas);
           setMostrarImportacao(false);
           
-          const ok = vendasImportadas.filter(v => v.produtoId).length;
-          showNotification(`${vendasImportadas.length} vendas ${fonteImportacao.toUpperCase()} | ${ok} emparelhadas`, 'success');
+          const comEmparelhamento = vendasImportadas.filter(v => v.produtoId).length;
+          const semEmparelhamento = vendasImportadas.length - comEmparelhamento;
+          
+          showNotification(
+            `✅ ${vendasImportadas.length} vendas importadas!\n` +
+            `✓ ${comEmparelhamento} emparelhadas\n` +
+            `⚠ ${semEmparelhamento} sem emparelhamento\n` +
+            `Fonte: ${fonteImportacao}`,
+            'success'
+          );
         } else {
-          showNotification('Nenhuma venda válida encontrada', 'error');
+          alert('❌ Nenhuma venda válida encontrada.');
         }
-        event.target.value = '';
       } catch (error) {
-        console.error('Erro:', error);
-        showNotification('Erro: ' + error.message, 'error');
+        alert('❌ Erro: ' + error.message);
       }
     };
-    reader.readAsText(file, 'ISO-8859-1'); // ✅ Charset para acentos PT
+    reader.readAsText(file);
   };
   const [novaFatura, setNovaFatura] = useState({
     numero: '',
@@ -3127,7 +2998,6 @@ const RestauranteGestor = () => {
   
   const [fornecedoresExpanded, setFornecedoresExpanded] = useState(false);
   const [deliveryAppsExpanded, setDeliveryAppsExpanded] = useState(false);
-  const [mostrarDesempenhoProduto, setMostrarDesempenhoProduto] = useState(false);
   const [editandoFornecedor, setEditandoFornecedor] = useState(false);
   const [fornecedorEditandoId, setFornecedorEditandoId] = useState(null);
   const [dadosFornecedor, setDadosFornecedor] = useState({
@@ -5348,21 +5218,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
     if (novoIngrediente.precoTotal && novoIngrediente.quantidadeEmbalagem) {
       const precoTotal = parseFloat(novoIngrediente.precoTotal);
       const qtdEmbalagem = parseFloat(novoIngrediente.quantidadeEmbalagem);
-      
-      // ✅ CONVERSÃO: Se unidade é g/ml, converter para kg/L
-      if (novoIngrediente.unidade === 'g') {
-        // Ex: €2.29 / 450g = €0.0051/g → €5.09/kg
-        custoComIva = (precoTotal / qtdEmbalagem) * 1000;
-        console.log(`🔍 INGREDIENTE g→kg: ${precoTotal}€ / ${qtdEmbalagem}g × 1000 = ${custoComIva.toFixed(2)}€/kg`);
-      } else if (novoIngrediente.unidade === 'ml') {
-        // Ex: €3.00 / 500ml = €0.006/ml → €6.00/L
-        custoComIva = (precoTotal / qtdEmbalagem) * 1000;
-        console.log(`🔍 INGREDIENTE ml→L: ${precoTotal}€ / ${qtdEmbalagem}ml × 1000 = ${custoComIva.toFixed(2)}€/L`);
-      } else {
-        // kg, L, un → direto
-        custoComIva = precoTotal / qtdEmbalagem;
-        console.log(`🔍 INGREDIENTE ${novoIngrediente.unidade}: ${precoTotal}€ / ${qtdEmbalagem} = ${custoComIva.toFixed(2)}€/${novoIngrediente.unidade}`);
-      }
+      custoComIva = precoTotal / qtdEmbalagem; // Ex: €21.29 / 12 unidades = €1.77/un
     } else if (novoIngrediente.custoUnitario) {
       custoComIva = parseFloat(novoIngrediente.custoUnitario);
     } else {
@@ -5376,14 +5232,10 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
     
     // CONVERSÃO: Custo é SEMPRE por kg/L, mas quantidade pode estar em g/ml
     let quantidadeEmUnidadeBase = quantidade;
-    let unidadeBase = novoIngrediente.unidade;
-    
     if (novoIngrediente.unidade === 'g') {
       quantidadeEmUnidadeBase = quantidade / 1000; // 500g → 0.5kg
-      unidadeBase = 'kg'; // ✅ Guardar sempre em kg
     } else if (novoIngrediente.unidade === 'ml') {
       quantidadeEmUnidadeBase = quantidade / 1000; // 500ml → 0.5L
-      unidadeBase = 'L'; // ✅ Guardar sempre em L
     }
     // kg, L, un → não converte (já está em unidade base)
     
@@ -5392,7 +5244,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
     const novoIng = { 
       id: Date.now(), 
       nome: novoIngrediente.nome,
-      unidade: unidadeBase, // ✅ Sempre kg/L/un
+      unidade: novoIngrediente.unidade,
       custoUnitario: custoComIva, // sempre em kg/L
       custoSemIva: custoSemIva,
       iva: iva,
@@ -5406,8 +5258,8 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
     setItemFatura({
       ...itemFatura,
       ingredienteId: novoIng.id,
-      quantidade: quantidadeEmUnidadeBase.toString(), // ✅ quantidade convertida (0.45)
-      unidade: unidadeBase, // ✅ unidade base (kg)
+      quantidade: quantidade.toString(), // quantidade original (500g)
+      unidade: novoIng.unidade, // unidade original (g)
       precoTotal: precoTotal.toFixed(2), // preço convertido
       iva: novoIng.iva.toString()
     });
@@ -5967,7 +5819,6 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
           ? { 
               ...ing, 
               custoUnitario: precoNovo,
-              unidade: priceAlertData.unidadeBase, // ✅ Atualizar unidade para kg/L
               historicoPrecos: [
                 ...(ing.historicoPrecos || []),
                 { data: novaFatura.data, preco: precoNovo }
@@ -5993,11 +5844,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
       // Se for edição de ingrediente, NÃO atualiza custo (já está sendo atualizado)
       // Atualizar custo do ingrediente (para faturas)
       const updatedIngredientes = (ingredientes || []).map(i => 
-        i.id == ingrediente.id ? { 
-          ...i, 
-          custoUnitario: precoNovo,
-          unidade: priceAlertData.unidadeBase // ✅ Atualizar unidade para kg/L
-        } : i
+        i.id == ingrediente.id ? { ...i, custoUnitario: precoNovo } : i
       );
       setIngredientes(updatedIngredientes);
     
@@ -6039,25 +5886,21 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
     const quantidade = parseFloat(itemFatura.quantidade);
     const precoTotal = parseFloat(itemFatura.precoTotal);
     const unidadeCompra = itemFatura.unidade;
-    let unidadeBase = ingrediente.unidade;
+    const unidadeBase = ingrediente.unidade;
     const iva = parseFloat(itemFatura.iva || '13');
-    
-    // ✅ FORÇAR unidade base para kg/L (corrigir ingredientes antigos com g/ml)
-    if (unidadeBase === 'g') unidadeBase = 'kg';
-    if (unidadeBase === 'ml') unidadeBase = 'L';
     
     // CONVERTER para unidade base
     let quantidadeBase = quantidade;
-    if (unidadeCompra === 'g') {
-      quantidadeBase = quantidade / 1000; // g → kg
-    } else if (unidadeCompra === 'ml') {
-      quantidadeBase = quantidade / 1000; // ml → L
-    } else if (unidadeCompra === 'kg') {
-      quantidadeBase = quantidade; // já kg
-    } else if (unidadeCompra === 'L') {
-      quantidadeBase = quantidade; // já L
-    } else if (unidadeCompra === 'un') {
-      quantidadeBase = quantidade; // unidades
+    if (unidadeCompra === 'g' && unidadeBase === 'kg') {
+      quantidadeBase = quantidade / 1000;
+    } else if (unidadeCompra === 'ml' && unidadeBase === 'L') {
+      quantidadeBase = quantidade / 1000;
+    } else if (unidadeCompra === 'kg' && unidadeBase === 'g') {
+      quantidadeBase = quantidade * 1000;
+    } else if (unidadeCompra === 'L' && unidadeBase === 'ml') {
+      quantidadeBase = quantidade * 1000;
+    } else if (unidadeCompra === unidadeBase) {
+      quantidadeBase = quantidade;
     }
     
     // CALCULAR preço por unidade base
@@ -6209,7 +6052,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
     
     const precoTotal = parseFloat(itemFatura.precoTotal);
     // SALÁRIOS NÃO TÊM IVA!
-    const iva = (novaFatura.categoria === 'salarios' || novaFatura.categoria === 'renda') ? 0 : parseFloat(itemFatura.iva || '23');
+    const iva = novaFatura.categoria === 'salarios' ? 0 : parseFloat(itemFatura.iva || '23');
     const subtotalSemIva = iva > 0 ? precoTotal / (1 + iva / 100) : precoTotal;
     
     const novoItem = {
@@ -6340,11 +6183,9 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
     let fornecedorNome = '';
     let fornecedorNif = '';
     
-    if (faturaParaGuardar.categoria !== 'compras') {
-      // Despesas não-compras: não têm fornecedor com NIF
-      fornecedorNome = faturaParaGuardar.categoria === 'salarios' ? 'Equipa' : 
-                       faturaParaGuardar.categoria === 'renda' ? 'Senhorio' :
-                       'Prestador de Serviços';
+    if (faturaParaGuardar.categoria === 'salarios') {
+      // Salários não têm fornecedor
+      fornecedorNome = 'Equipa';
       fornecedorNif = '';
     } else if (faturaParaGuardar.fornecedorId) {
       // Outras categorias: buscar fornecedor
@@ -6385,29 +6226,9 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
     
     console.log('💾 Guardando fatura com tipo:', novaFaturaCompleta.tipo);
     console.log('💾 Total da fatura:', novaFaturaCompleta.total);
-    console.log('💾 Categoria:', novaFaturaCompleta.categoria);
     
-    // DECISÃO: Compras vão para faturas, outras categorias vão para despesas manuais
-    if (novaFaturaCompleta.categoria === 'compras') {
-      setFaturas([...faturas, novaFaturaCompleta]);
-      showNotification('Fatura de compras guardada!', 'success');
-    } else {
-      // Criar despesa manual a partir da fatura
-      const despesaManual = {
-        id: Date.now(),
-        descricao: novaFaturaCompleta.itens[0]?.descricao || `Despesa ${novaFaturaCompleta.categoria}`,
-        valor: novaFaturaCompleta.total,
-        data: novaFaturaCompleta.data,
-        categoria: novaFaturaCompleta.categoria,
-        iva: novaFaturaCompleta.itens[0]?.iva || 0,
-        recorrente: novaFaturaCompleta.recorrente,
-        diaRecorrencia: novaFaturaCompleta.diaRecorrencia,
-        num_funcionarios: novaFaturaCompleta.itens[0]?.num_funcionarios,
-        frequencia_pagamento: novaFaturaCompleta.itens[0]?.frequencia_pagamento || 'mensal'
-      };
-      setDespesas([...despesas, despesaManual]);
-      showNotification(`${novaFaturaCompleta.categoria.charAt(0).toUpperCase() + novaFaturaCompleta.categoria.slice(1)} guardada!`, 'success');
-    }
+    setFaturas([...faturas, novaFaturaCompleta]);
+    
     // Resetar formulário
     setNovaFatura({
       numero: '',
@@ -6428,11 +6249,12 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
     setCriandoIngrediente(false);
     
     setEditandoFatura(false);
+    showNotification('Fatura guardada!', 'success');
   };
   
   const salvarFaturaRapida = () => {
-    // Validação: fornecedor é obrigatório SÓ para compras
-    if (novaFatura.categoria === 'compras' && !novaFatura.fornecedorId) {
+    // Validação: fornecedor é obrigatório EXCETO para salários
+    if (novaFatura.categoria !== 'salarios' && !novaFatura.fornecedorId) {
       showNotification('Selecione um fornecedor!', 'error');
       return;
     }
@@ -6648,7 +6470,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
     
     const precoTotal = parseFloat(itemFatura.precoTotal);
     // SALÁRIOS NÃO TÊM IVA!
-    const iva = (novaFatura.categoria === 'salarios' || novaFatura.categoria === 'renda') ? 0 : parseFloat(itemFatura.iva);
+    const iva = novaFatura.categoria === 'salarios' ? 0 : parseFloat(itemFatura.iva);
     const subtotalSemIva = iva > 0 ? precoTotal / (1 + iva / 100) : precoTotal;
     const totalIva = precoTotal - subtotalSemIva;
     
@@ -7155,41 +6977,17 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
           
           // Criar vendas individuais para cada produto (formato atual do sistema)
           vendaData.produtos.forEach(prod => {
-            const nomeCorrigido = mapearNomeProduto(prod.nome);
-            
-            // Normalizar para comparação (remover acentos + tamanhos)
-            const normalizar = (str) => {
-              return str
-                .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-                .replace(/\d+\s*(ml|cl|l|g|kg|cm|un)/gi, '')
-                .toLowerCase()
-                .trim();
-            };
-            const nomeNorm = normalizar(nomeCorrigido);
-            
-            // Tentar match exato primeiro
-            let produto = produtos.find(p => p.nome === nomeCorrigido);
-            
-            // Se não encontrar, tentar match parcial com normalização
-            if (!produto) {
-              produto = produtos.find(p => {
-                const pNorm = normalizar(p.nome);
-                return pNorm.includes(nomeNorm) || nomeNorm.includes(pNorm);
-              });
-            }
-            
             vendasImportadas.push({
               id: Date.now() + Math.random(),
               data: dataISO,
-              produto: nomeCorrigido,
-              produtoId: produto?.id || null,
+              produto: prod.nome,
               quantidade: prod.quantidade,
               valor: prod.quantidade * prod.precoUnitario,
-              total: prod.quantidade * prod.precoUnitario,
-              iva: produto?.iva || 6,
-              tipo: 'manual',
-              origem: 'zobaze',
-              fonte: 'zobaze'
+              total: prod.quantidade * prod.precoUnitario, // ✅ ADICIONAR CAMPO TOTAL
+              iva: 6,
+              tipo: 'manual', // Marca como manual
+              origem: 'zobaze', // ✅ PARA FILTRO DE MÉTRICAS
+              fonte: 'zobaze' // Para tracking opcional
             });
           });
         } catch (err) {
@@ -7199,11 +6997,10 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
       
       if (vendasImportadas.length > 0) {
         setVendas([...vendas, ...vendasImportadas]);
-        setMostrarImportacao(false); // ✅ Fechar modal
-        showNotification(`${vendasImportadas.length} vendas Zobaze importadas!`, 'success');
-        e.target.value = '';
+        showNotification(`✅ ${vendasImportadas.length} vendas Zobaze importadas!`, 'success');
+        e.target.value = ''; // Reset input
       } else {
-        showNotification('Nenhuma venda válida encontrada', 'error');
+        showNotification('❌ Nenhuma venda válida encontrada', 'error');
       }
       
     } catch (err) {
@@ -7641,10 +7438,9 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
   // IVA das faturas do período
   const ivaFaturasPeriodo = filteredFaturas.reduce((s, f) => s + (f.totalIva || 0), 0);
   
-  // IVA das despesas manuais COM IVA DEDUTÍVEL (exclui renda e salários)
-  const categoriasComIVA = ['compras', 'eletricidade', 'agua', 'gas', 'internet', 'marketing', 'consumiveis', 'manutencao', 'outros'];
+  // IVA das despesas manuais categoria compras do período
   const ivaDespesasPeriodo = filteredDespesas
-    .filter(d => categoriasComIVA.includes(d.categoria))
+    .filter(d => d.categoria === 'compras')
     .reduce((s, d) => {
       const ivaPerc = d.iva || 23;
       const valorSemIva = d.valor / (1 + ivaPerc / 100);
@@ -7671,9 +7467,6 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
     return s + (d.valor * multiplicador);
   }, 0);
   const laborCostPercentage = totV > 0 ? (totalSalarios / totV) * 100 : 0;
-  
-  console.log(`💼 LABOR COST: €${totalSalarios.toFixed(2)} (${laborCostPercentage.toFixed(1)}%)`);
-  console.log(`   Despesas categoria salarios: ${todasDespesas.filter(d => d.categoria === 'salarios').length}`);
 
   // New metrics calculations - ✅ USAR todasDespesas
   const totalFoodCost = todasDespesas.filter(d => d.categoria === 'compras' || d.origem === 'fatura').reduce((s, d) => s + d.valor, 0);
@@ -7681,34 +7474,20 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
   const primeCostPercentage = foodCostPercentage + laborCostPercentage;
   const primeCostTotal = totalFoodCost + totalSalarios;
   
-  // Break-even calculation SIMPLIFICADO - Quanto preciso faturar para cobrir TUDO
-  const totalDespesasMensais = totD; // Total de todas as despesas do período
+  // Break-even calculation: Fixed costs / (1 - (Variable costs / Revenue)) - ✅ USAR todasDespesas
+  const fixedCosts = todasDespesas.filter(d => ['renda', 'eletricidade', 'agua', 'gas', 'internet', 'salarios'].includes(d.categoria)).reduce((s, d) => s + d.valor, 0);
+  const variableCosts = todasDespesas.filter(d => ['compras', 'consumiveis'].includes(d.categoria) || d.origem === 'fatura').reduce((s, d) => s + d.valor, 0);
+  const contributionMarginRatio = totV > 0 ? (totV - variableCosts) / totV : 0;
+  const breakEvenPoint = contributionMarginRatio > 0 ? fixedCosts / contributionMarginRatio : 0;
   
-  // Calcular dias do período baseado no filtro ativo
-  let diasPeriodo = 26; // Default: 26 dias úteis
-  if (dateFilter === 'week') diasPeriodo = 7;
-  else if (dateFilter === 'month') diasPeriodo = 26; // Dias úteis
-  else if (dateFilter === 'custom' && customStartDate && customEndDate) {
-    const start = new Date(customStartDate);
-    const end = new Date(customEndDate);
-    diasPeriodo = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) || 26;
-  }
-  
-  const despesasPorDia = totalDespesasMensais / diasPeriodo;
-  
-  // Break-even = despesas por dia / margem média
-  // Exemplo: Se gasto €100/dia e tenho 50% margem, preciso faturar €200/dia
-  const margemMedia = totV > 0 ? ((totV - totalFoodCost) / totV) : 0.5; // Default 50% se não houver vendas
-  const breakEvenDiario = margemMedia > 0 ? despesasPorDia / margemMedia : despesasPorDia * 2;
-  const breakEvenMensal = breakEvenDiario * 26; // 26 dias úteis
-  
-  console.log(`🎯 BREAK-EVEN (quanto faturar para ter porta aberta):`);
-  console.log(`   Total Despesas Período: €${totalDespesasMensais.toFixed(2)}`);
-  console.log(`   Dias no período: ${diasPeriodo}`);
-  console.log(`   Despesas por dia: €${despesasPorDia.toFixed(2)}`);
-  console.log(`   Margem média: ${(margemMedia * 100).toFixed(1)}%`);
-  console.log(`   ⭐ Break-even DIÁRIO: €${breakEvenDiario.toFixed(2)}`);
-  console.log(`   ⭐ Break-even MENSAL: €${breakEvenMensal.toFixed(2)}`);
+  // Break-even DIÁRIO (26 dias úteis)
+  const diasUteis = 26;
+  const fixedCostsDiarios = fixedCosts / diasUteis;
+  const ticketMedio = filteredVendas.length > 0 ? totV / filteredVendas.length : 0;
+  const foodCostPorVenda = filteredVendas.length > 0 ? totalFoodCost / filteredVendas.length : 0;
+  const margemPorVenda = ticketMedio - foodCostPorVenda;
+  const vendasNecessariasPorDia = margemPorVenda > 0 ? fixedCostsDiarios / margemPorVenda : 0;
+  const breakEvenDiario = vendasNecessariasPorDia * ticketMedio;
   
   // Efficiency per employee (count unique employees considering frequency) - ✅ USAR todasDespesas
   const numEmployees = todasDespesas
@@ -7722,8 +7501,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
   console.log(`   Food Cost: €${totalFoodCost.toFixed(2)} (${foodCostPercentage.toFixed(1)}%)`);
   console.log(`   Labor Cost: €${totalSalarios.toFixed(2)} (${laborCostPercentage.toFixed(1)}%)`);
   console.log(`   Prime Cost: €${primeCostTotal.toFixed(2)} (${primeCostPercentage.toFixed(1)}%)`);
-  console.log(`   Break-even Mensal: €${breakEvenMensal.toFixed(2)}`);
-  console.log(`   Break-even Diário: €${breakEvenDiario.toFixed(2)}`);
+  console.log(`   Break-even: €${breakEvenPoint.toFixed(2)}`);
 
 
   const vPorProd = {};
@@ -8800,17 +8578,69 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
             
             {/* GitHub Sync Status - Header */}
             <div className="flex items-center gap-3">
-              {/* Google Drive Quick Connect */}
-              <button
-                onClick={() => setActiveTab('configuracoes')}
-                className="bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white px-4 py-2 rounded-lg font-semibold transition flex items-center gap-2 text-sm"
-                title="Conectar ao Google Drive"
-              >
-                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M7.71 3.5L1.15 15l3.42 6h6.86l6.56-11.5-3.42-6H7.71zM8.5 6h7l2.57 4.5H10.93L8.5 6zm-4.04 9l2.57-4.5h6.86L11.32 15H4.46z"/>
-                </svg>
-                <span className="hidden sm:inline">Drive</span>
-              </button>
+              {GitHubSync.isConfigured() ? (
+                <>
+                  <div className="text-right hidden sm:block">
+                    <div className="flex items-center gap-1 text-xs text-green-200">
+                      <CloudCheck className="w-3 h-3" />
+                      <span>Conectado</span>
+                    </div>
+                    <div className="text-xs text-blue-100">
+                      {(() => {
+                        const lastSync = GitHubSync.getLastSync();
+                        if (!lastSync) return 'Nunca';
+                        const now = new Date();
+                        const seconds = Math.floor((now - lastSync) / 1000);
+                        if (seconds < 60) return 'Agora';
+                        const minutes = Math.floor(seconds / 60);
+                        if (minutes < 60) return `Há ${minutes}m`;
+                        const hours = Math.floor(minutes / 60);
+                        return `Há ${hours}h`;
+                      })()}
+                    </div>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      setIsSyncing(true);
+                      const token = GitHubSync.getToken();
+                      const allData = {
+                        produtos,
+                        ingredientes,
+                        vendas,
+                        despesas,
+                        faturas,
+                        fornecedores,
+                        deliveryApps,
+                        embalagens,
+                        dadosEmpresa,
+                        version: '2.0'
+                      };
+                      const result = await GitHubSync.saveToGist(allData, token);
+                      if (result.success) {
+                        showNotification('✅ Backup sincronizado!', 'success');
+                      } else {
+                        showNotification(`❌ Erro: ${result.error}`, 'error');
+                      }
+                      setIsSyncing(false);
+                    }}
+                    disabled={isSyncing}
+                    className="bg-white/20 hover:bg-white/30 disabled:bg-white/10 backdrop-blur-sm text-white px-4 py-2 rounded-lg font-semibold transition flex items-center gap-2 text-sm"
+                    title="Sincronizar backup agora"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
+                    <span className="hidden sm:inline">{isSyncing ? 'A sincronizar...' : 'Sync'}</span>
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={() => setActiveTab('definicoes')}
+                  className="bg-yellow-500/90 hover:bg-yellow-600 backdrop-blur-sm text-white px-4 py-2 rounded-lg font-semibold transition flex items-center gap-2 text-sm"
+                  title="Configurar backup"
+                >
+                  <AlertCircle className="w-4 h-4" />
+                  <span className="hidden sm:inline">Configurar Backup</span>
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -9252,10 +9082,10 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
                       </Tooltip>
                     </p>
                     <p className="text-3xl font-bold text-green-900 mb-1">
-                      {breakEvenMensal > 0 ? `€${breakEvenMensal.toFixed(0)}` : 'N/A'}
+                      {breakEvenPoint > 0 ? `€${breakEvenPoint.toFixed(0)}` : 'N/A'}
                     </p>
                     <p className="text-xs text-green-700 mb-2">
-                      {breakEvenMensal > 0 ? 'Mensal - Faturação mínima' : 'Adicione despesas'}
+                      {breakEvenPoint > 0 ? 'Mensal - Faturação necessária' : 'Adicione despesas fixas'}
                     </p>
                     
                     <div className="bg-white rounded p-2 text-xs space-y-1 mb-2">
@@ -9266,34 +9096,38 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
                       <div className="flex justify-between">
                         <span className="text-gray-600">Margem segurança:</span>
                         <span className={`font-bold ${
-                          totV >= breakEvenMensal ? 'text-green-600' : 'text-red-600'
+                          totV >= breakEvenPoint ? 'text-green-600' : 'text-red-600'
                         }`}>
-                          €{(totV - breakEvenMensal).toFixed(2)}
+                          €{(totV - breakEvenPoint).toFixed(2)}
                         </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-600">Status:</span>
                         <span className={`font-bold ${
-                          totV >= breakEvenMensal * 1.2 ? 'text-green-600' : 
-                          totV >= breakEvenMensal ? 'text-yellow-600' : 'text-red-600'
+                          totV >= breakEvenPoint * 1.2 ? 'text-green-600' : 
+                          totV >= breakEvenPoint ? 'text-yellow-600' : 'text-red-600'
                         }`}>
-                          {totV >= breakEvenMensal * 1.2 ? '✅ Excelente' : 
-                           totV >= breakEvenMensal ? '⚠️ No limite' : '🚨 Abaixo'}
+                          {totV >= breakEvenPoint * 1.2 ? '✅ Excelente' : 
+                           totV >= breakEvenPoint ? '⚠️ No limite' : '🚨 Abaixo'}
                         </span>
                       </div>
                     </div>
                     
                     {/* Break-Even Diário */}
                     <div className="bg-green-100 border border-green-300 rounded p-2 text-xs">
-                      <p className="font-bold text-green-900 mb-1">📅 Break-Even Diário:</p>
+                      <p className="font-bold text-green-900 mb-1">📅 Break-Even Diário ({diasUteis} dias):</p>
                       <div className="space-y-0.5">
                         <div className="flex justify-between">
-                          <span className="text-green-700">Mínimo/dia:</span>
+                          <span className="text-green-700">Faturação/dia:</span>
                           <span className="font-bold text-green-900">€{breakEvenDiario.toFixed(2)}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-green-700">Mínimo/mês:</span>
-                          <span className="font-bold text-green-900">€{breakEvenMensal.toFixed(2)}</span>
+                          <span className="text-green-700">Vendas necessárias:</span>
+                          <span className="font-bold text-green-900">{Math.ceil(vendasNecessariasPorDia)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-green-700">Margem/venda:</span>
+                          <span className="font-bold text-green-900">€{margemPorVenda.toFixed(2)}</span>
                         </div>
                       </div>
                     </div>
@@ -9343,10 +9177,8 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
                       </Tooltip>
                     </p>
                     {(() => {
-                      // Calcular custos fixos (tudo exceto food cost)
-                      const custosFixos = totD - totalFoodCost;
                       // Calcular lucro disponível
-                      const lucroDisponivel = lucroReal - custosFixos;
+                      const lucroDisponivel = lucroReal - fixedCosts;
                       
                       // Função para calcular custo real de um ordenado
                       const calcularCustoOrdenado = (salarioBase) => {
@@ -9409,7 +9241,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
                             Disponível: €{lucroDisponivel.toFixed(0)}
                           </p>
                           <p className="text-xs text-yellow-700 mb-3">
-                            Lucro - Custos Fixos = {lucroReal.toFixed(0)} - {custosFixos.toFixed(0)}
+                            Lucro - Custos Fixos = {lucroReal.toFixed(0)} - {fixedCosts.toFixed(0)}
                           </p>
                           
                           <div className="bg-white rounded p-2 text-xs space-y-2">
@@ -9698,6 +9530,186 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
 
               {/* ============================================ */}
               {/* SECTION: MÉTRICAS POR PRODUTO (GERAL) */}
+              {/* ============================================ */}
+
+              <div className="bg-white rounded-lg shadow p-4 mb-3">
+                <h2 className="text-xl font-bold mb-3 flex items-center gap-2">
+                  📊 Desempenho por Produto
+                </h2>
+                
+                {/* Filtros de Categoria */}
+                <div className="mb-4 p-3 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-200">
+                  <p className="text-xs font-semibold text-gray-700 mb-2">Filtrar por categoria:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { id: 'todos', label: '📊 Todos', color: 'gray' },
+                      { id: 'cafes', label: '☕ Cafés', color: 'amber' },
+                      { id: 'bebidas', label: '🥤 Bebidas', color: 'blue' },
+                      { id: 'pratos', label: '🍳 Pratos', color: 'orange' },
+                      { id: 'sobremesas', label: '🍰 Sobremesas', color: 'pink' },
+                      { id: 'takeaway', label: '📦 Take Away', color: 'green' }
+                    ].map(cat => (
+                      <button
+                        key={cat.id}
+                        onClick={() => setCategoriaFiltroDesempenho(cat.id)}
+                        className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all shadow-sm ${
+                          categoriaFiltroDesempenho === cat.id
+                            ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg scale-105'
+                            : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-300'
+                        }`}
+                      >
+                        {cat.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                
+                <p className="text-xs text-gray-600 mb-3">
+                  Ranking de vendas, lucro e margens
+                  {categoriaFiltroDesempenho !== 'todos' && (
+                    <span className="font-bold text-blue-600"> - {categoriaFiltroDesempenho}</span>
+                  )}
+                </p>
+                
+                {(() => {
+                  // Calcular vendas por produto
+                  const vendasPorProduto = {};
+                  
+                  filteredVendas.forEach(v => {
+                    if (!vendasPorProduto[v.produto]) {
+                      vendasPorProduto[v.produto] = {
+                        nome: v.produto,
+                        quantidade: 0,
+                        faturacao: 0,
+                        lucro: 0
+                      };
+                    }
+                    
+                    // Arredondar TUDO para evitar erros de ponto flutuante
+                    vendasPorProduto[v.produto].quantidade = Math.round((vendasPorProduto[v.produto].quantidade + v.quantidade) * 100) / 100;
+                    vendasPorProduto[v.produto].faturacao = Math.round((vendasPorProduto[v.produto].faturacao + v.valor) * 100) / 100;
+                    vendasPorProduto[v.produto].lucro = Math.round((vendasPorProduto[v.produto].lucro + calcLucroVenda(v).lucro) * 100) / 100;
+                  });
+                  
+                  const produtosArray = Object.values(vendasPorProduto)
+                    .sort((a, b) => b.faturacao - a.faturacao);
+                  
+                  // Aplicar filtro de categoria
+                  let produtosFiltrados = produtosArray;
+                  if (categoriaFiltroDesempenho !== 'todos') {
+                    produtosFiltrados = produtosArray.filter(pVenda => {
+                      const produto = produtos.find(p => p.nome === pVenda.nome);
+                      return produto && produto.categoria === categoriaFiltroDesempenho;
+                    });
+                  }
+                  
+                  if (produtosFiltrados.length === 0) {
+                    return (
+                      <div className="text-center py-8 bg-gray-50 rounded-lg">
+                        <p className="text-gray-600">
+                          📦 Sem vendas de produtos da categoria "{categoriaFiltroDesempenho}" no período selecionado
+                        </p>
+                      </div>
+                    );
+                  }
+                  
+                  return (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="bg-gradient-to-r from-blue-100 to-indigo-100 border-b-2 border-blue-300">
+                            <th className="text-left p-2 font-bold text-blue-900">#</th>
+                            <th className="text-left p-2 font-bold text-blue-900">Produto</th>
+                            <th className="text-right p-2 font-bold text-blue-900">Qtd Vendida</th>
+                            <th className="text-right p-2 font-bold text-blue-900">Faturação</th>
+                            <th className="text-right p-2 font-bold text-blue-900">Lucro</th>
+                            <th className="text-right p-2 font-bold text-blue-900">Margem %</th>
+                            <th className="text-right p-2 font-bold text-blue-900">Ticket Médio</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {produtosFiltrados.map((p, idx) => {
+                            const margemPerc = p.faturacao > 0 ? (p.lucro / p.faturacao) * 100 : 0;
+                            const ticketMedio = p.quantidade > 0 ? p.faturacao / p.quantidade : 0;
+                            
+                            // Verificar se produto tem receita
+                            const produto = produtos.find(pr => pr.nome === p.nome);
+                            const temReceita = produto && produto.receita && produto.receita.length > 0;
+                            
+                            // DEBUG apenas para primeiro produto
+                            if (idx === 0) {
+                              console.log('🔍 DEBUG Desempenho:');
+                              console.log('  Total produtos:', produtos.length);
+                              console.log('  Produto #1:', p.nome);
+                              console.log('  Encontrado?', !!produto);
+                              if (produto) {
+                                console.log('  Receita:', produto.receita?.length || 0, 'ingredientes');
+                                console.log('  Campos:', Object.keys(produto));
+                              }
+                            }
+                            
+                            return (
+                              <tr key={p.nome} className="border-b hover:bg-blue-50 transition">
+                                <td className="p-2 font-bold text-blue-600">#{idx + 1}</td>
+                                <td className="p-2 font-semibold">
+                                  {p.nome}
+                                  {!temReceita && (
+                                    <span className="ml-2 text-xs text-orange-600 font-bold" title="Produto sem receita - margem não calculada">
+                                      ⚠️
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="p-2 text-right font-semibold">{p.quantidade}</td>
+                                <td className="p-2 text-right font-semibold text-green-700">€{p.faturacao.toFixed(2)}</td>
+                                <td className="p-2 text-right font-semibold text-blue-700">€{p.lucro.toFixed(2)}</td>
+                                <td className={`p-2 text-right font-bold ${
+                                  !temReceita ? 'text-red-600' :
+                                  margemPerc > 60 ? 'text-green-600' :
+                                  margemPerc > 40 ? 'text-blue-600' : 'text-orange-600'
+                                }`}>
+                                  {!temReceita && '⚠️ '}
+                                  {margemPerc.toFixed(1)}%
+                                </td>
+                                <td className="p-2 text-right text-gray-700">€{ticketMedio.toFixed(2)}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                        <tfoot>
+                          <tr className="bg-gradient-to-r from-gray-100 to-gray-200 border-t-2 border-gray-400 font-bold">
+                            <td className="p-2" colspan="2">TOTAL</td>
+                            <td className="p-2 text-right text-blue-900">
+                              {produtosFiltrados.reduce((s, p) => s + p.quantidade, 0)}
+                            </td>
+                            <td className="p-2 text-right text-green-700">
+                              €{produtosFiltrados.reduce((s, p) => s + p.faturacao, 0).toFixed(2)}
+                            </td>
+                            <td className="p-2 text-right text-blue-700">
+                              €{produtosFiltrados.reduce((s, p) => s + p.lucro, 0).toFixed(2)}
+                            </td>
+                            <td className="p-2 text-right text-gray-700">
+                              {(() => {
+                                const totalFat = produtosFiltrados.reduce((s, p) => s + p.faturacao, 0);
+                                const totalLucro = produtosFiltrados.reduce((s, p) => s + p.lucro, 0);
+                                return totalFat > 0 ? ((totalLucro / totalFat) * 100).toFixed(1) : '0.0';
+                              })()}%
+                            </td>
+                            <td className="p-2 text-right text-gray-700">
+                              €{(() => {
+                                const totalQtd = produtosFiltrados.reduce((s, p) => s + p.quantidade, 0);
+                                const totalFat = produtosFiltrados.reduce((s, p) => s + p.faturacao, 0);
+                                return totalQtd > 0 ? (totalFat / totalQtd).toFixed(2) : '0.00';
+                              })()}
+                            </td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* ============================================ */}
               {/* SECTION: MÉTRICAS POR CATEGORIA */}
               {/* ============================================ */}
               <div className="bg-white rounded-lg shadow p-4 mb-3">
@@ -9941,200 +9953,8 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
                 </div>
               </div>
               
-              {/* ============================================ */}
-              {/* SECTION: DESEMPENHO POR PRODUTO */}
-              {/* ============================================ */}
-              <div className="bg-white rounded-lg shadow p-4 mb-3">
-                <div 
-                  className="flex items-center justify-between cursor-pointer mb-3"
-                  onClick={() => setMostrarDesempenhoProduto(!mostrarDesempenhoProduto)}
-                >
-                  <h2 className="text-xl font-bold flex items-center gap-2">
-                    📊 Desempenho por Produto
-                  </h2>
-                  <button className="text-blue-600 hover:text-blue-800 font-semibold text-sm">
-                    {mostrarDesempenhoProduto ? '▼ Ocultar' : '▶ Mostrar'}
-                  </button>
-                </div>
-                
-                {mostrarDesempenhoProduto && (
-                  <>
-                {/* Filtros de Categoria */}
-                <div className="mb-4 p-3 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-200">
-                  <p className="text-xs font-semibold text-gray-700 mb-2">Filtrar por categoria:</p>
-                  <div className="flex flex-wrap gap-2">
-                    {[
-                      { id: 'todos', label: '📊 Todos', color: 'gray' },
-                      { id: 'cafes', label: '☕ Cafés', color: 'amber' },
-                      { id: 'bebidas', label: '🥤 Bebidas', color: 'blue' },
-                      { id: 'pratos', label: '🍳 Pratos', color: 'orange' },
-                      { id: 'sobremesas', label: '🍰 Sobremesas', color: 'pink' },
-                      { id: 'takeaway', label: '📦 Take Away', color: 'green' }
-                    ].map(cat => (
-                      <button
-                        key={cat.id}
-                        onClick={() => setCategoriaFiltroDesempenho(cat.id)}
-                        className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all shadow-sm ${
-                          categoriaFiltroDesempenho === cat.id
-                            ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg scale-105'
-                            : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-300'
-                        }`}
-                      >
-                        {cat.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                
-                <p className="text-xs text-gray-600 mb-3">
-                  Ranking de vendas, lucro e margens
-                  {categoriaFiltroDesempenho !== 'todos' && (
-                    <span className="font-bold text-blue-600"> - {categoriaFiltroDesempenho}</span>
-                  )}
-                </p>
-                
-                {(() => {
-                  // Calcular vendas por produto
-                  const vendasPorProduto = {};
-                  
-                  filteredVendas.forEach(v => {
-                    if (!vendasPorProduto[v.produto]) {
-                      vendasPorProduto[v.produto] = {
-                        nome: v.produto,
-                        quantidade: 0,
-                        faturacao: 0,
-                        lucro: 0
-                      };
-                    }
-                    
-                    // Arredondar TUDO para evitar erros de ponto flutuante
-                    vendasPorProduto[v.produto].quantidade = Math.round((vendasPorProduto[v.produto].quantidade + v.quantidade) * 100) / 100;
-                    vendasPorProduto[v.produto].faturacao = Math.round((vendasPorProduto[v.produto].faturacao + v.valor) * 100) / 100;
-                    vendasPorProduto[v.produto].lucro = Math.round((vendasPorProduto[v.produto].lucro + calcLucroVenda(v).lucro) * 100) / 100;
-                  });
-                  
-                  const produtosArray = Object.values(vendasPorProduto)
-                    .sort((a, b) => b.faturacao - a.faturacao);
-                  
-                  // Aplicar filtro de categoria
-                  let produtosFiltrados = produtosArray;
-                  if (categoriaFiltroDesempenho !== 'todos') {
-                    produtosFiltrados = produtosArray.filter(pVenda => {
-                      const produto = produtos.find(p => p.nome === pVenda.nome);
-                      return produto && produto.categoria === categoriaFiltroDesempenho;
-                    });
-                  }
-                  
-                  if (produtosFiltrados.length === 0) {
-                    return (
-                      <div className="text-center py-8 bg-gray-50 rounded-lg">
-                        <p className="text-gray-600">
-                          📦 Sem vendas de produtos da categoria "{categoriaFiltroDesempenho}" no período selecionado
-                        </p>
-                      </div>
-                    );
-                  }
-                  
-                  return (
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="bg-gradient-to-r from-blue-100 to-indigo-100 border-b-2 border-blue-300">
-                            <th className="text-left p-2 font-bold text-blue-900">#</th>
-                            <th className="text-left p-2 font-bold text-blue-900">Produto</th>
-                            <th className="text-right p-2 font-bold text-blue-900">Qtd Vendida</th>
-                            <th className="text-right p-2 font-bold text-blue-900">Faturação</th>
-                            <th className="text-right p-2 font-bold text-blue-900">Lucro</th>
-                            <th className="text-right p-2 font-bold text-blue-900">Margem %</th>
-                            <th className="text-right p-2 font-bold text-blue-900">Ticket Médio</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {produtosFiltrados.map((p, idx) => {
-                            const margemPerc = p.faturacao > 0 ? (p.lucro / p.faturacao) * 100 : 0;
-                            const ticketMedio = p.quantidade > 0 ? p.faturacao / p.quantidade : 0;
-                            
-                            // Verificar se produto tem receita
-                            const produto = produtos.find(pr => pr.nome === p.nome);
-                            const temReceita = produto && produto.receita && produto.receita.length > 0;
-                            
-                            // DEBUG apenas para primeiro produto
-                            if (idx === 0) {
-                              console.log('🔍 DEBUG Desempenho:');
-                              console.log('  Total produtos:', produtos.length);
-                              console.log('  Produto #1:', p.nome);
-                              console.log('  Encontrado?', !!produto);
-                              if (produto) {
-                                console.log('  Receita:', produto.receita?.length || 0, 'ingredientes');
-                                console.log('  Campos:', Object.keys(produto));
-                              }
-                            }
-                            
-                            return (
-                              <tr key={p.nome} className="border-b hover:bg-blue-50 transition">
-                                <td className="p-2 font-bold text-blue-600">#{idx + 1}</td>
-                                <td className="p-2 font-semibold">
-                                  {p.nome}
-                                  {!temReceita && (
-                                    <span className="ml-2 text-xs text-orange-600 font-bold" title="Produto sem receita - margem não calculada">
-                                      ⚠️
-                                    </span>
-                                  )}
-                                </td>
-                                <td className="p-2 text-right font-semibold">{p.quantidade}</td>
-                                <td className="p-2 text-right font-semibold text-green-700">€{p.faturacao.toFixed(2)}</td>
-                                <td className="p-2 text-right font-semibold text-blue-700">€{p.lucro.toFixed(2)}</td>
-                                <td className={`p-2 text-right font-bold ${
-                                  !temReceita ? 'text-red-600' :
-                                  margemPerc > 60 ? 'text-green-600' :
-                                  margemPerc > 40 ? 'text-blue-600' : 'text-orange-600'
-                                }`}>
-                                  {!temReceita && '⚠️ '}
-                                  {margemPerc.toFixed(1)}%
-                                </td>
-                                <td className="p-2 text-right text-gray-700">€{ticketMedio.toFixed(2)}</td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                        <tfoot>
-                          <tr className="bg-gradient-to-r from-gray-100 to-gray-200 border-t-2 border-gray-400 font-bold">
-                            <td className="p-2" colspan="2">TOTAL</td>
-                            <td className="p-2 text-right text-blue-900">
-                              {produtosFiltrados.reduce((s, p) => s + p.quantidade, 0)}
-                            </td>
-                            <td className="p-2 text-right text-green-700">
-                              €{produtosFiltrados.reduce((s, p) => s + p.faturacao, 0).toFixed(2)}
-                            </td>
-                            <td className="p-2 text-right text-blue-700">
-                              €{produtosFiltrados.reduce((s, p) => s + p.lucro, 0).toFixed(2)}
-                            </td>
-                            <td className="p-2 text-right text-gray-700">
-                              {(() => {
-                                const totalFat = produtosFiltrados.reduce((s, p) => s + p.faturacao, 0);
-                                const totalLucro = produtosFiltrados.reduce((s, p) => s + p.lucro, 0);
-                                return totalFat > 0 ? ((totalLucro / totalFat) * 100).toFixed(1) : '0.0';
-                              })()}%
-                            </td>
-                            <td className="p-2 text-right text-gray-700">
-                              €{(() => {
-                                const totalQtd = produtosFiltrados.reduce((s, p) => s + p.quantidade, 0);
-                                const totalFat = produtosFiltrados.reduce((s, p) => s + p.faturacao, 0);
-                                return totalQtd > 0 ? (totalFat / totalQtd).toFixed(2) : '0.00';
-                              })()}
-                            </td>
-                          </tr>
-                        </tfoot>
-                      </table>
-                    </div>
-                  );
-                })()}
-                </>
-                )}
-              </div>
-              </>
+            </>
             )}
-            
             {dashboardSubTab === 'compras' && (
               <ComprasAnalysis 
                 despesas={despesas}
@@ -10143,7 +9963,6 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
                 fornecedores={fornecedores}
               />
             )}
-            
             {dashboardSubTab === 'delivery' && deliveryApps.some(app => app.ativo) && (
               <>
               <div className="bg-white rounded-lg shadow p-4">
@@ -10838,38 +10657,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
 
             {gestaoSubTab === 'ingredientes' && (
               <div className="bg-white rounded-lg shadow p-3">
-                <div className="flex items-center justify-between mb-3">
-                  <h2 className="text-lg font-bold">Ingredientes</h2>
-                  <button
-                    onClick={() => {
-                      const corrigidos = ingredientes.map(ing => {
-                        let c = {...ing};
-                        if (!c.unidade) c.unidade = 'kg';
-                        if (c.unidade === 'g' && c.custoUnitario < 1) {
-                          c.unidade = 'kg';
-                          c.custoUnitario *= 1000;
-                          c.custoSemIva = c.custoSemIva ? c.custoSemIva * 1000 : c.custoUnitario / 1.06;
-                        }
-                        if (c.unidade === 'ml' && c.custoUnitario < 1) {
-                          c.unidade = 'L';
-                          c.custoUnitario *= 1000;
-                          c.custoSemIva = c.custoSemIva ? c.custoSemIva * 1000 : c.custoUnitario / 1.06;
-                        }
-                        if ((c.unidade === 'kg' || c.unidade === 'L') && c.custoUnitario < 0.10) {
-                          c.custoUnitario *= 1000;
-                          c.custoSemIva = c.custoSemIva ? c.custoSemIva * 1000 : c.custoUnitario / 1.06;
-                        }
-                        return c;
-                      });
-                      setIngredientes(corrigidos);
-                      showNotification('✅ Preços corrigidos automaticamente!', 'success');
-                    }}
-                    className="bg-orange-500 hover:bg-orange-600 text-white px-3 py-1 rounded text-xs font-semibold"
-                    title="Corrige ingredientes com preços muito baixos (g→kg, ml→L)"
-                  >
-                    🔧 Corrigir Preços
-                  </button>
-                </div>
+                <h2 className="text-lg font-bold mb-3">Ingredientes</h2>
                 
                 <div className={`rounded p-3 mb-3 border ${editandoIngrediente ? 'bg-yellow-50 border-yellow-300' : 'bg-blue-50 border-blue-200'}`}>
                   <h3 className="font-semibold text-xs mb-2">{editandoIngrediente ? 'Editar Ingrediente' : 'Adicionar Ingrediente'}</h3>
@@ -11453,36 +11241,6 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
                   
                   {/* Formulário Fatura */}
                   <>
-                      {/* CATEGORIA DESPESA - NOVO */}
-                      <div className="mb-4 p-3 bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-blue-300 rounded-lg">
-                        <label className="block text-sm font-semibold text-gray-800 mb-2">
-                          📊 Categoria da Despesa *
-                        </label>
-                        <select
-                          value={novaFatura.categoria}
-                          onChange={(e) => setNovaFatura({...novaFatura, categoria: e.target.value})}
-                          className="w-full px-3 py-2 border-2 border-blue-300 rounded-lg text-sm font-semibold focus:ring-2 focus:ring-blue-500"
-                        >
-                          <option value="compras">🛒 Compras (Ingredientes)</option>
-                          <option value="renda">🏠 Renda</option>
-                          <option value="salarios">👥 Salários</option>
-                          <option value="eletricidade">⚡ Eletricidade</option>
-                          <option value="agua">💧 Água</option>
-                          <option value="gas">🔥 Gás</option>
-                          <option value="internet">📡 Internet/Telefone</option>
-                          <option value="marketing">📢 Marketing</option>
-                          <option value="consumiveis">🧻 Consumíveis</option>
-                          <option value="manutencao">🔧 Manutenção</option>
-                          <option value="outros">📦 Outros</option>
-                        </select>
-                        <p className="text-xs text-gray-600 mt-2">
-                          {novaFatura.categoria === 'compras' && '💡 Ingredientes para produtos (Food Cost)'}
-                          {novaFatura.categoria === 'salarios' && '💡 Custos com pessoal (Labor Cost)'}
-                          {novaFatura.categoria === 'renda' && '💡 Custo fixo mensal (Break-even)'}
-                          {!['compras', 'salarios', 'renda'].includes(novaFatura.categoria) && '💡 Despesa operacional (Break-even)'}
-                        </p>
-                      </div>
-
                       {/* Linha 1: Número, Data, Fornecedor */}
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
                         <div>
@@ -11510,8 +11268,8 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
                           />
                         </div>
                         
-                        {/* Campo Fornecedor - SÓ para Compras */}
-                        {novaFatura.categoria === 'compras' && (
+                        {/* Campo Fornecedor - NÃO aparece para Salários */}
+                        {novaFatura.categoria !== 'salarios' && (
                           <div>
                             <label className="block text-xs font-medium text-gray-700 mb-1">
                               Fornecedor *
@@ -11532,9 +11290,32 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
                         )}
                       </div>
                       
-                      {/* Linha 2: Recorrência */}
-                      <div className="grid grid-cols-1 gap-3 mb-3">
+                      {/* Linha 2: Categoria e Recorrência */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
                         <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">
+                            Categoria *
+                          </label>
+                          <select
+                            value={novaFatura.categoria}
+                            onChange={(e) => setNovaFatura({...novaFatura, categoria: e.target.value})}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                          >
+                            <option value="compras">🛒 Compras (Ingredientes)</option>
+                            <option value="renda">🏠 Renda</option>
+                            <option value="eletricidade">💡 Eletricidade</option>
+                            <option value="agua">💧 Água</option>
+                            <option value="gas">🔥 Gás</option>
+                            <option value="internet">🌐 Internet/Telefone</option>
+                            <option value="salarios">👥 Salários</option>
+                            <option value="marketing">📢 Marketing</option>
+                            <option value="consumiveis">🧻 Consumíveis</option>
+                            <option value="manutencao">🔧 Manutenção</option>
+                            <option value="outros">📦 Outros</option>
+                          </select>
+                        </div>
+                        
+                        <div className="md:col-span-2">
                           <label className="block text-xs font-medium text-gray-700 mb-1">
                             Despesa Recorrente
                           </label>
@@ -11807,7 +11588,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
                                       </div>
                                       
                                       <div>
-                                        <label className="block text-xs font-medium text-gray-700 mb-1">Tipo (organização) *</label>
+                                        <label className="block text-xs font-medium text-gray-700 mb-1">Categoria *</label>
                                         <select
                                           value={novoIngrediente.categoria}
                                           onChange={(e) => setNovoIngrediente({...novoIngrediente, categoria: e.target.value})}
@@ -12373,40 +12154,6 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
                   </button>
                 </div>
 
-                {/* Filtro Vendas */}
-                <div className="flex items-center justify-between mb-3 p-3 bg-gray-50 rounded">
-                  <div className="flex items-center gap-4">
-                    <label className="flex items-center gap-2 text-sm cursor-pointer">
-                      <input
-                        type="radio"
-                        name="filtroVendas"
-                        checked={filtroVendas === 'todas'}
-                        onChange={() => setFiltroVendas('todas')}
-                        className="h-4 w-4"
-                      />
-                      <span>Todas (últimas 100)</span>
-                    </label>
-                    <label className="flex items-center gap-2 text-sm cursor-pointer">
-                      <input
-                        type="radio"
-                        name="filtroVendas"
-                        checked={filtroVendas === 'sem-emparelhamento'}
-                        onChange={() => setFiltroVendas('sem-emparelhamento')}
-                        className="h-4 w-4"
-                      />
-                      <span className="text-orange-600 font-semibold">
-                        ⚠️ Sem Emparelhamento ({vendas.filter(v => !v.produtoId).length})
-                      </span>
-                    </label>
-                  </div>
-                  <div className="text-xs text-gray-600">
-                    {filtroVendas === 'todas' 
-                      ? `Mostrando 100 de ${vendas.length}`
-                      : `${vendas.filter(v => !v.produtoId).length} sem emparelhamento`
-                    }
-                  </div>
-                </div>
-
                 {/* Sales Table */}
                 <div className="overflow-x-auto rounded border">
                   <table className="w-full text-xs">
@@ -12421,13 +12168,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
                       </tr>
                     </thead>
                     <tbody>
-                      {(() => {
-                        const ordenadas = vendas.sort((a, b) => new Date(b.data) - new Date(a.data));
-                        const mostrar = filtroVendas === 'sem-emparelhamento'
-                          ? ordenadas.filter(v => !v.produtoId)
-                          : ordenadas.slice(0, 100);
-                        return mostrar;
-                      })().map((v, idx) => (
+                      {vendas.sort((a, b) => new Date(b.data) - new Date(a.data)).slice(0, 100).map((v, idx) => (
                         <tr key={v.id} className={`border-t hover:bg-gray-50 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
                           <td className="px-2 py-2">{new Date(v.data).toLocaleDateString('pt-PT')}</td>
                           <td className="px-2 py-2 font-medium">
@@ -12501,6 +12242,12 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
                     </tbody>
                   </table>
                 </div>
+                
+                {(vendas || []).length > 100 && (
+                  <p className="text-center text-xs text-gray-500 mt-2">
+                    A mostrar as 100 vendas mais recentes de {(vendas || []).length} totais
+                  </p>
+                )}
                 
                 {!(vendas || []).length && (
                   <div className="text-center py-12">
@@ -13851,7 +13598,6 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
           dadosFatura={modalConfirmacaoFatura.dados}
           onConfirmar={handleConfirmarFatura}
           onCancelar={handleCancelarFatura}
-          fornecedores={fornecedores}
         />
       )}
       {/* ==================== FIM MODAL V2.0 ==================== */}
@@ -13897,11 +13643,11 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
             <div className="mb-4">
               <label className="bg-purple-600 text-white rounded px-4 py-2 text-sm hover:bg-purple-700 cursor-pointer inline-flex items-center gap-2 font-semibold shadow hover:shadow-lg transition w-full justify-center">
                 <Upload size={16} />
-                Escolher Arquivo
+                Escolher Arquivo CSV
                 <input
                   type="file"
-                  accept=".csv,.xlsx"
-                  onChange={importarVendasUniversal}
+                  accept=".csv"
+                  onChange={importarVendasCSV}
                   className="hidden"
                 />
               </label>
