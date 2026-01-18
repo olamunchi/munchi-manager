@@ -5135,13 +5135,31 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
       const parser = new DOMParser();
       const doc = parser.parseFromString(htmlContent, 'text/html');
       
-      // Extrair texto de cada parágrafo/div/span separadamente
-      const elements = doc.querySelectorAll('p, div, span, td, li');
+      // Extrair apenas elementos de BLOCO (p, div, tr, li) - ignorar spans inline
+      const blockElements = doc.querySelectorAll('p, div, tr, li, h1, h2, h3, h4, h5, h6');
       const lines = [];
+      const seenLines = new Set(); // Para evitar duplicatas
       
-      elements.forEach(el => {
-        const text = el.textContent?.trim();
-        if (text && text.length > 0) {
+      blockElements.forEach(el => {
+        // Pegar o texto direto do elemento (não recursivo em spans filhos)
+        let text = '';
+        
+        // Se tem filhos, juntar o texto deles
+        if (el.children.length > 0) {
+          text = Array.from(el.children)
+            .map(child => child.textContent?.trim())
+            .filter(t => t && t.length > 0)
+            .join(' ');
+        }
+        
+        // Se não tem filhos ou ficou vazio, usar o textContent direto
+        if (!text || text.length === 0) {
+          text = el.textContent?.trim();
+        }
+        
+        // Adicionar se não for duplicado e tiver conteúdo
+        if (text && text.length > 0 && !seenLines.has(text)) {
+          seenLines.add(text);
           lines.push(text);
         }
       });
