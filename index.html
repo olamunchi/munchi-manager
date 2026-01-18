@@ -4887,6 +4887,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
   // === GOOGLE IDENTITY SERVICES ===
   const GOOGLE_DRIVE_CONFIG = {
     CLIENT_ID: '344967437318-oe9hr1t5m9bcs7qvdm0t5dr9f0delaom.apps.googleusercontent.com',
+    API_KEY: 'AIzaSyDXuVGre3T1Mv-J9K1JMqU-9Z_L-0-mH3o', // API Key pública para Picker
     SCOPES: 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/documents.readonly',
     FILE_NAME: 'munchi-data.json'
   };
@@ -5116,6 +5117,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
 
   /**
    * Handler para importar fatura do Google Drive com OCR
+   * Usa Google Picker para escolher ficheiro do Drive
    */
   const handleImportarDriveComOCR = async () => {
     if (!driveAccessToken) {
@@ -5123,57 +5125,96 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
       return;
     }
 
-    // Criar input file temporário
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.pdf';
-    
-    input.onchange = async (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
+    // Verificar se Google Picker está carregado
+    if (!window.gapi) {
+      showNotification('⚠️ Google API ainda não carregou. Aguarde...', 'error');
+      return;
+    }
 
-      try {
-        setProcessandoOCR(true);
-        setProgressoOCR('Enviando para Google Drive...');
+    try {
+      // Carregar Google Picker API
+      await new Promise((resolve) => {
+        window.gapi.load('picker', resolve);
+      });
 
-        // 1. Converter PDF usando Google OCR
-        const textoExtraido = await convertPDFToGoogleDocOCR(file, driveAccessToken);
-        
-        if (!textoExtraido || textoExtraido.length < 50) {
-          throw new Error('Texto extraído está vazio ou muito curto');
-        }
+      // Criar Google Picker para escolher PDF do Drive
+      const picker = new window.google.picker.PickerBuilder()
+        .addView(
+          new window.google.picker.DocsView(window.google.picker.ViewId.DOCS)
+            .setMimeTypes('application/pdf')
+        )
+        .setOAuthToken(driveAccessToken)
+        .setDeveloperKey(GOOGLE_DRIVE_CONFIG.API_KEY)
+        .setCallback(async (data) => {
+          if (data.action === window.google.picker.Action.PICKED) {
+            const file = data.docs[0];
+            const fileId = file.id;
+            const fileName = file.name;
 
-        setProgressoOCR('Processando fatura...');
+            try {
+              setProcessandoOCR(true);
+              setProgressoOCR('Baixando PDF do Drive...');
 
-        // 2. Processar texto limpo do Google
-        const dadosFatura = processarTextoFatura(textoExtraido);
-        console.log('📋 Fatura processada:', dadosFatura);
+              // 1. Baixar PDF do Drive
+              const downloadResponse = await fetch(
+                `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
+                {
+                  headers: { 'Authorization': `Bearer ${driveAccessToken}` }
+                }
+              );
 
-        // 3. Criar URL do PDF original para visualização
-        const pdfBlob = new Blob([await file.arrayBuffer()], { type: 'application/pdf' });
-        const pdfUrl = URL.createObjectURL(pdfBlob);
+              if (!downloadResponse.ok) {
+                throw new Error('Falha ao baixar PDF do Drive');
+              }
 
-        // 4. Mostrar modal de confirmação
-        setModalConfirmacaoFatura({
-          mostrar: true,
-          dados: {
-            ...dadosFatura,
-            pdfUrl: pdfUrl,
-            metodoOCR: 'Google Drive OCR' // Indicar método usado
+              const pdfBlob = await downloadResponse.blob();
+              const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
+
+              setProgressoOCR('Convertendo com Google OCR...');
+
+              // 2. Converter PDF usando Google OCR
+              const textoExtraido = await convertPDFToGoogleDocOCR(pdfFile, driveAccessToken);
+              
+              if (!textoExtraido || textoExtraido.length < 50) {
+                throw new Error('Texto extraído está vazio ou muito curto');
+              }
+
+              setProgressoOCR('Processando fatura...');
+
+              // 3. Processar texto limpo do Google
+              const dadosFatura = processarTextoFatura(textoExtraido);
+              console.log('📋 Fatura processada:', dadosFatura);
+
+              // 4. Criar URL do PDF para visualização
+              const pdfUrl = URL.createObjectURL(pdfBlob);
+
+              // 5. Mostrar modal de confirmação
+              setModalConfirmacaoFatura({
+                mostrar: true,
+                dados: {
+                  ...dadosFatura,
+                  pdfUrl: pdfUrl,
+                  metodoOCR: 'Google Drive OCR' // Indicar método usado
+                }
+              });
+
+              showNotification('✅ OCR concluído com Google Drive!', 'success');
+            } catch (error) {
+              console.error('❌ Erro no OCR Google Drive:', error);
+              showNotification(`❌ Erro: ${error.message}. Tente com OCR local.`, 'error');
+            } finally {
+              setProcessandoOCR(false);
+              setProgressoOCR('');
+            }
           }
-        });
+        })
+        .build();
 
-        showNotification('✅ OCR concluído com Google Drive!', 'success');
-      } catch (error) {
-        console.error('❌ Erro no OCR Google Drive:', error);
-        showNotification(`❌ Erro: ${error.message}. Tente com OCR local.`, 'error');
-      } finally {
-        setProcessandoOCR(false);
-        setProgressoOCR('');
-      }
-    };
-
-    input.click();
+      picker.setVisible(true);
+    } catch (error) {
+      console.error('❌ Erro ao abrir Google Picker:', error);
+      showNotification('❌ Erro ao abrir seletor do Drive', 'error');
+    }
   };
 
   const loadFromDrive = async (token = driveAccessToken) => {
