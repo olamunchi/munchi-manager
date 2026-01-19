@@ -1837,6 +1837,36 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
                         className="w-full px-2 py-1 text-sm border rounded text-right"
                         placeholder="--"
                       />
+                      {/* ✨ PREVIEW DO PREÇO UNITÁRIO CALCULADO */}
+                      {linha.preco && linha.quantidade && linha.ingredienteConfirmado && (() => {
+                        const ing = ingredientesLocais.find(i => i.id === linha.ingredienteConfirmado);
+                        if (!ing) return null;
+                        
+                        const precoTotal = parseFloat(linha.preco);
+                        const quantidade = parseFloat(linha.quantidade);
+                        const unidadeCompra = linha.unidade || ing.unidade;
+                        const unidadeBase = ing.unidade;
+                        
+                        // Converter quantidade para unidade base
+                        let quantidadeBase = quantidade;
+                        if (unidadeCompra === 'g' && unidadeBase === 'kg') {
+                          quantidadeBase = quantidade / 1000;
+                        } else if (unidadeCompra === 'ml' && unidadeBase === 'L') {
+                          quantidadeBase = quantidade / 1000;
+                        } else if (unidadeCompra === 'kg' && unidadeBase === 'g') {
+                          quantidadeBase = quantidade * 1000;
+                        } else if (unidadeCompra === 'L' && unidadeBase === 'ml') {
+                          quantidadeBase = quantidade * 1000;
+                        }
+                        
+                        const precoUnitario = precoTotal / quantidadeBase;
+                        
+                        return (
+                          <div className="text-xs mt-1 text-green-600 font-semibold">
+                            = €{precoUnitario.toFixed(2)}/{unidadeBase}
+                          </div>
+                        );
+                      })()}
                     </td>
                     <td className="border p-2 text-center">
                       <button
@@ -2136,11 +2166,51 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
  */
 const ModalConfirmacaoFatura = ({ dadosFatura, onConfirmar, onCancelar, fornecedores = [] }) => {
   const [tipoSelecionado, setTipoSelecionado] = React.useState(dadosFatura.tipo);
-  const [fornecedorSelecionado, setFornecedorSelecionado] = React.useState(
-    dadosFatura.fornecedor?.nif ? 
-      fornecedores.find(f => f.nif === dadosFatura.fornecedor.nif) : 
-      null
-  );
+  
+  // ✅ MATCH INTELIGENTE: NOME primeiro (mais confiável), depois NIF
+  const [fornecedorSelecionado, setFornecedorSelecionado] = React.useState(() => {
+    console.log('🔍 Tentando match fornecedor:', dadosFatura.fornecedor);
+    
+    // 1. PRIORIDADE: Match por NOME (mais confiável que OCR de NIF)
+    if (dadosFatura.fornecedor?.nome) {
+      const nomeDetectado = dadosFatura.fornecedor.nome.toLowerCase();
+      
+      const porNome = fornecedores.find(f => {
+        if (!f.nome) return false;
+        const nomeCadastrado = f.nome.toLowerCase();
+        
+        // Extrair palavras significativas (3+ chars)
+        const palavrasDetectadas = nomeDetectado.split(/\s+/).filter(p => p.length >= 3);
+        const palavrasCadastradas = nomeCadastrado.split(/\s+/).filter(p => p.length >= 3);
+        
+        // Match se pelo menos 1 palavra em comum
+        const temMatch = palavrasDetectadas.some(pd => 
+          palavrasCadastradas.some(pc => pc.includes(pd) || pd.includes(pc))
+        );
+        
+        if (temMatch) {
+          console.log(`✅ Match por NOME: "${dadosFatura.fornecedor.nome}" → "${f.nome}"`);
+        }
+        
+        return temMatch;
+      });
+      
+      if (porNome) return porNome;
+    }
+    
+    // 2. FALLBACK: Match por NIF (só se nome não funcionou)
+    if (dadosFatura.fornecedor?.nif) {
+      const porNif = fornecedores.find(f => f.nif === dadosFatura.fornecedor.nif);
+      if (porNif) {
+        console.log(`✅ Match por NIF: ${dadosFatura.fornecedor.nif} → "${porNif.nome}"`);
+        return porNif;
+      }
+    }
+    
+    console.log('❌ Nenhum match encontrado');
+    return null;
+  });
+  
   const [numeroFatura, setNumeroFatura] = React.useState(dadosFatura.numero || '');
   
   const handleConfirmar = () => {
@@ -2685,14 +2755,18 @@ const INVOICE_TYPES = {
       /Fatura[_\s\/-]Recibo/i,
       /\d{2}\/Fatura\/Recibo/,
       /FR\s+\d{4}\/\d+/,
-      /04\/Fatura/
+      /04\/Fatura/,
+      /\bFR\b/i,  // ✅ NOVO: Detectar "FR" sozinho
+      /Fatura.*Recibo/i,  // ✅ NOVO: Fatura...Recibo (com texto no meio)
+      /Recibo.*Fatura/i   // ✅ NOVO: Recibo...Fatura
     ],
     numberPatterns: [
       /Fatura[_\s-]Recibo.*?(\d{4}[-_]\d{2}[-_]\d{2})/,
       /04\/Fatura\/Recibo\s+(\d{4}[-_]\d{2}[-_]\d{2})/,
       /(FR\s*\d{4}\/\d+)/,
       /(FT\s*\d{4}\/\d+)/,
-      /PP\s+(\d+)/
+      /PP\s+(\d+)/,
+      /FR\s*[:-]?\s*(\d+)/i  // ✅ NOVO: FR: 123 ou FR 123
     ]
   },
   FS: {
@@ -2703,7 +2777,10 @@ const INVOICE_TYPES = {
       /FS\s+[MN]\/\d+/i, // FS M/68601
       /FS\s+\d{4}\/\d+/,
       /Recibo\s+N[.º°]\s*\d+/,
-      /Simplificada/i
+      /Simplificada/i,
+      /\bFS\b/i,  // ✅ NOVO: Detectar "FS" sozinho
+      /Fatura.*Simplificada/i,  // ✅ NOVO: Fatura...Simplificada
+      /Simplif/i  // ✅ NOVO: OCR pode cortar palavra
     ],
     numberPatterns: [
       /Simplificada\s+FS\s+([MN]\/\d+)/i, // FS M/68601
@@ -2711,7 +2788,8 @@ const INVOICE_TYPES = {
       /Simplificada\s+N[.º°]\s*(FS\s*\d{4}\/\d+)/i,
       /(FS\s*\d{4}\/\d+)/,
       /Recibo\s+N[.º°]\s*(\d+)/,
-      /Simplificada\s+(\d+)/
+      /Simplificada\s+(\d+)/,
+      /FS\s*[:-]?\s*(\d+)/i  // ✅ NOVO: FS: 123 ou FS 123
     ]
   }
 };
@@ -2987,6 +3065,7 @@ const RestauranteGestor = () => {
   const [criandoIngrediente, setCriandoIngrediente] = useState(false); // Modo criação inline
   const [showDropdownIngrediente, setShowDropdownIngrediente] = useState(false); // Controla dropdown
   const [expandedFatura, setExpandedFatura] = useState(null);
+  const [searchFatura, setSearchFatura] = useState(''); // ✅ SEARCH BOX FATURAS
   const [editandoFatura, setEditandoFatura] = useState(false);
   const [faturaEditando, setFaturaEditando] = useState(null);
   const [modoFormulario, setModoFormulario] = useState('completo'); // 'completo' ou 'rapido'
@@ -3878,25 +3957,6 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
   };
   
   // 🚫 Extrair palavras-chave de uma linha para blacklist
-  const extrairPalavrasChave = (linha) => {
-    // Remove números, símbolos, unidades comuns
-    const texto = linha
-      .toLowerCase()
-      .replace(/[0-9€%\-\+\.,:\(\)]/g, ' ') // Remove números e símbolos
-      .replace(/\s+/g, ' ')
-      .trim();
-    
-    // Palavras que NÃO devem ir para blacklist (são normais em produtos)
-    const palavrasComuns = ['kg', 'g', 'l', 'ml', 'un', 'cx', 'caixa', 'pack', 'unid', 'unidade', 'lts'];
-    
-    const palavras = texto
-      .split(/\s+/)
-      .filter(p => p.length > 2) // Mínimo 3 caracteres
-      .filter(p => !palavrasComuns.includes(p))
-      .slice(0, 3); // Máximo 3 palavras-chave por linha
-    
-    return palavras;
-  };
   
   // 🚫 Adicionar linha à blacklist do template
   const adicionarABlacklist = (nifFornecedor, linha) => {
@@ -3905,15 +3965,6 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
     if (!nifFornecedor) {
       console.log('❌ NIF não fornecido');
       showNotification('❌ NIF não detectado! Impossível adicionar à blacklist.', 'error');
-      return;
-    }
-    
-    const palavras = extrairPalavrasChave(linha);
-    console.log('🔍 Palavras extraídas:', palavras);
-    
-    if (palavras.length === 0) {
-      console.log('❌ Nenhuma palavra-chave extraída');
-      showNotification('❌ Nenhuma palavra-chave extraída desta linha.', 'error');
       return;
     }
     
@@ -3937,7 +3988,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
     const index = templatesOCR.findIndex(t => t.nifFornecedor === nifFornecedor);
     const blacklistAtual = template.blacklist || [];
     
-    // ✅ GUARDAR LINHA COMPLETA normalizada em lowercase
+    // ✅ GUARDAR LINHA COMPLETA normalizada em lowercase (resolve CAPS)
     const linhaNormalizada = linha.toLowerCase().trim();
     
     // Verificar se já existe
@@ -7096,8 +7147,14 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
       fornecedorId: fatura.fornecedorId,
       itens: fatura.itens,
       notas: fatura.notas,
+      categoria: fatura.categoria || 'compras', // ✅ PRESERVAR CATEGORIA
+      tipoDocumento: fatura.tipoDocumento || 'fatura', // ✅ PRESERVAR TIPO DOCUMENTO
+      tipo: fatura.tipo || 'FT', // ✅ PRESERVAR TIPO (FT/FR/FS)
+      recorrente: fatura.recorrente || false, // ✅ PRESERVAR RECORRÊNCIA
+      diaRecorrencia: fatura.diaRecorrencia || 1, // ✅ PRESERVAR DIA RECORRÊNCIA
       documentoPDF: fatura.documentoPDF || null, // ✅ PRESERVAR PDF
-      nomeDocumento: fatura.nomeDocumento || '' // ✅ PRESERVAR NOME
+      nomeDocumento: fatura.nomeDocumento || '', // ✅ PRESERVAR NOME
+      totais: fatura.totais || null // ✅ PRESERVAR TOTAIS ESTRUTURADOS
     });
     setEditandoFatura(true);
     setFaturaEditando(fatura.id);
@@ -7191,7 +7248,10 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
     const fornecedorNome = typeof fornecedor === 'string' ? fornecedor : (fornecedor?.nome || '');
     const fornecedorNif = typeof fornecedor === 'string' ? '' : (fornecedor?.nif || '');
     
+    const faturaOriginal = faturas.find(f => f.id === idParaAtualizar);
+    
     const faturaAtualizada = {
+      ...faturaOriginal, // ✅ PRESERVAR TUDO DA FATURA ORIGINAL
       id: idParaAtualizar,
       numero: faturaParaAtualizar.numero,
       data: faturaParaAtualizar.data,
@@ -7202,8 +7262,8 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
       notas: faturaParaAtualizar.notas,
       subtotal: faturaParaAtualizar.itens.reduce((sum, item) => sum + item.subtotal, 0),
       totalIva: faturaParaAtualizar.itens.reduce((sum, item) => sum + (item.subtotal * item.iva / 100), 0),
-      total: faturaParaAtualizar.itens.reduce((sum, item) => sum + (item.subtotal * (1 + item.iva / 100)), 0),
-      tipo: faturas.find(f => f.id === idParaAtualizar)?.tipo || 'completa' // Preservar tipo original
+      total: faturaParaAtualizar.itens.reduce((sum, item) => sum + (item.subtotal * (1 + item.iva / 100)), 0)
+      // ✅ documentoPDF, nomeDocumento, tipo, paraContabilista já preservados por ...faturaOriginal
     };
     
     setFaturas(faturas.map(f => f.id === idParaAtualizar ? faturaAtualizada : f));
@@ -7834,17 +7894,21 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
   const filteredFaturas = getFilteredData(faturas);
   
   // ✅ CRIAR ARRAY UNIFICADO: despesas manuais + faturas (convertidas para formato de despesa)
-  const faturasComoDespesas = filteredFaturas.map(f => ({
+  // ⚠️ FILTRAR: Só faturas que vão para contabilista (FT e FR, não FS)
+  const faturasParaContabilista = filteredFaturas.filter(f => f.paraContabilista !== false);
+  const faturasComoDespesas = faturasParaContabilista.map(f => ({
     id: f.id,
     data: f.data,
     descricao: `Fatura ${f.numero || f.id}`,
     valor: f.totais?.total || f.total || 0,
     iva: f.totalIva || 0,
     categoria: 'compras',
-    tipo: f.tipo || 'FT', // FT/FR/FS
+    tipo: f.tipo || 'FT', // FT/FR (FS excluído)
     fornecedor: f.fornecedorNome || '',
     origem: 'fatura' // Flag para identificar
   }));
+  
+  console.log(`📋 Faturas filtradas: ${filteredFaturas.length} total → ${faturasParaContabilista.length} para contabilista (excluídas ${filteredFaturas.length - faturasParaContabilista.length} FS)`);
   
   // Combinar despesas manuais + faturas
   const todasDespesas = [...filteredDespesas, ...faturasComoDespesas];
@@ -8582,8 +8646,47 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
     console.log('📝 Texto após limpeza (primeiras 1000 chars):', textoLimpo.substring(0, 1000));
     
     // 2. Split em linhas
-    const linhas = textoLimpo.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-    console.log(`📊 Total de linhas após split: ${linhas.length}`);
+    let linhas = textoLimpo.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    
+    // 🔧 NOVO: Separar produtos juntos na mesma linha
+    const linhasSeparadas = [];
+    for (const linha of linhas) {
+      // Detectar múltiplos códigos de produto (padrão: 6 dígitos + ponto)
+      const codigos = linha.match(/\d{6}\.\d+/g);
+      
+      if (codigos && codigos.length > 1) {
+        console.log(`🔀 Linha com ${codigos.length} produtos juntos detectada`);
+        
+        // Separar por cada código
+        let resto = linha;
+        codigos.forEach((codigo, idx) => {
+          const pos = resto.indexOf(codigo);
+          if (pos === -1) return;
+          
+          // Próximo código (se existir)
+          const proximoCodigo = codigos[idx + 1];
+          
+          if (proximoCodigo) {
+            const proxPos = resto.indexOf(proximoCodigo);
+            const fragmento = resto.substring(pos, proxPos).trim();
+            linhasSeparadas.push(fragmento);
+            console.log(`  → Produto ${idx + 1}: "${fragmento.substring(0, 50)}..."`);
+            resto = resto.substring(proxPos);
+          } else {
+            // Último produto
+            const fragmento = resto.substring(pos).trim();
+            linhasSeparadas.push(fragmento);
+            console.log(`  → Produto ${idx + 1}: "${fragmento.substring(0, 50)}..."`);
+          }
+        });
+      } else {
+        // Linha normal
+        linhasSeparadas.push(linha);
+      }
+    }
+    
+    linhas = linhasSeparadas;
+    console.log(`📊 Total de linhas após separação: ${linhas.length}`);
     
     const linhasProdutos = [];
     let linhasIgnoradas = 0;
@@ -8988,29 +9091,49 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
         const ingrediente = ingredientesAtualizados[index];
         const precoTotal = parseFloat(l.preco);
         const quantidade = parseFloat(l.quantidade);
+        const unidadeCompra = l.unidade || ingrediente.unidade; // Unidade da compra
+        const unidadeBase = ingrediente.unidade; // Unidade base do ingrediente
         const iva = ingrediente.iva || 23;
         
         console.log(`\n📦 Item da fatura: ${l.nomeProduto}`);
         console.log(`   Ingrediente associado: ${ingrediente.nome} (ID: ${ingrediente.id})`);
         console.log(`   IVA do ingrediente: ${iva}%`);
+        console.log(`   Quantidade comprada: ${quantidade} ${unidadeCompra}`);
+        console.log(`   Unidade base do ingrediente: ${unidadeBase}`);
+        
+        // ✅ CONVERTER QUANTIDADE PARA UNIDADE BASE
+        let quantidadeBase = quantidade;
+        if (unidadeCompra === 'g' && unidadeBase === 'kg') {
+          quantidadeBase = quantidade / 1000;
+          console.log(`   🔄 Conversão: ${quantidade}g → ${quantidadeBase}kg`);
+        } else if (unidadeCompra === 'ml' && unidadeBase === 'L') {
+          quantidadeBase = quantidade / 1000;
+          console.log(`   🔄 Conversão: ${quantidade}ml → ${quantidadeBase}L`);
+        } else if (unidadeCompra === 'kg' && unidadeBase === 'g') {
+          quantidadeBase = quantidade * 1000;
+          console.log(`   🔄 Conversão: ${quantidade}kg → ${quantidadeBase}g`);
+        } else if (unidadeCompra === 'L' && unidadeBase === 'ml') {
+          quantidadeBase = quantidade * 1000;
+          console.log(`   🔄 Conversão: ${quantidade}L → ${quantidadeBase}ml`);
+        } else if (unidadeCompra === unidadeBase) {
+          quantidadeBase = quantidade;
+          console.log(`   ✓ Mesma unidade: ${quantidade} ${unidadeBase}`);
+        }
         
         let novoPrecoUnitario;
         
-        // ✅ SEMPRE assumir que preços inseridos INCLUEM IVA
-        // Sistema guarda preços SEM IVA internamente
-        const precoComIVA = precoTotal / quantidade;
-        novoPrecoUnitario = precoComIVA / (1 + iva / 100); // Remover IVA
+        // ✅ Calcular preço por unidade BASE (usando quantidade convertida)
+        const precoComIVA = precoTotal / quantidadeBase; // Dividir pela quantidade BASE
+        novoPrecoUnitario = precoComIVA; // Guardar COM IVA conforme requisitado
         
         const precoAnterior = ingredientesAtualizados[index].custoUnitario || 0;
         
         // Log detalhado do cálculo
         console.log(`\n🔍 CALCULANDO: ${ingredientesAtualizados[index].nome}`);
-        console.log(`   Preço anterior (SEM IVA): €${precoAnterior.toFixed(2)}`);
-        console.log(`   Preço total na fatura (COM IVA): €${precoTotal.toFixed(2)}`);
-        console.log(`   Quantidade: ${quantidade}`);
-        console.log(`   Preço unitário COM IVA: €${precoComIVA.toFixed(3)}`);
-        console.log(`   IVA: ${iva}%`);
-        console.log(`   ✅ Removendo IVA: €${precoComIVA.toFixed(3)} / ${(1 + iva/100).toFixed(2)} = €${novoPrecoUnitario.toFixed(3)} (SEM IVA)`);
+        console.log(`   Preço anterior: €${precoAnterior.toFixed(2)}/${unidadeBase}`);
+        console.log(`   Preço total na fatura: €${precoTotal.toFixed(2)}`);
+        console.log(`   Quantidade (base): ${quantidadeBase} ${unidadeBase}`);
+        console.log(`   ✅ Preço unitário: €${precoTotal.toFixed(2)} / ${quantidadeBase} = €${novoPrecoUnitario.toFixed(3)}/${unidadeBase}`);
         
         // COLETAR mudança se preço mudou
         if (Math.abs(novoPrecoUnitario - precoAnterior) > 0.01) {
@@ -9454,6 +9577,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
                 <button
                   onClick={() => {
                     setActiveTab('definicoes');
+                    setBackupExpanded(true); // ✅ ABRIR DROPDOWN AUTOMATICAMENTE
                     // Scroll para secção Google Drive após tab mudar
                     setTimeout(() => {
                       const driveSection = document.getElementById('google-drive-section');
@@ -9625,8 +9749,175 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
                 <p className="text-orange-100 text-xs">{ivaP >= 0 ? 'Entregar' : 'Crédito'}</p>
               </div>
             </div>
-
-
+                {/* Simulador de IVA Trimestral */}
+                <div className="bg-white rounded-lg shadow p-4">
+                  <h2 className="text-xl font-bold mb-3 flex items-center gap-2">
+                    🧾 Próxima Entrega de IVA
+                  </h2>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Estimativa do IVA a pagar no próximo trimestre (regime trimestral)
+                  </p>
+                  
+                  {(() => {
+                    // Calculate current quarter
+                    const now = new Date();
+                    const currentMonth = now.getMonth() + 1; // 1-12
+                    const currentYear = now.getFullYear();
+                    
+                    // Determine quarter
+                    let quarter, quarterStart, quarterEnd, deadlineMonth, deadlineDay;
+                    if (currentMonth >= 1 && currentMonth <= 3) {
+                      quarter = 1;
+                      quarterStart = new Date(currentYear, 0, 1);
+                      quarterEnd = new Date(currentYear, 2, 31);
+                      deadlineMonth = 5; // May
+                      deadlineDay = 20;
+                    } else if (currentMonth >= 4 && currentMonth <= 6) {
+                      quarter = 2;
+                      quarterStart = new Date(currentYear, 3, 1);
+                      quarterEnd = new Date(currentYear, 5, 30);
+                      deadlineMonth = 8; // August
+                      deadlineDay = 20;
+                    } else if (currentMonth >= 7 && currentMonth <= 9) {
+                      quarter = 3;
+                      quarterStart = new Date(currentYear, 6, 1);
+                      quarterEnd = new Date(currentYear, 8, 30);
+                      deadlineMonth = 11; // November
+                      deadlineDay = 20;
+                    } else {
+                      quarter = 4;
+                      quarterStart = new Date(currentYear, 9, 1);
+                      quarterEnd = new Date(currentYear, 11, 31);
+                      deadlineMonth = 2; // February next year
+                      deadlineDay = 20;
+                    }
+                    
+                    // Calculate deadline
+                    const deadlineYear = quarter === 4 ? currentYear + 1 : currentYear;
+                    const deadline = new Date(deadlineYear, deadlineMonth - 1, deadlineDay);
+                    const daysUntil = Math.ceil((deadline - now) / (1000 * 60 * 60 * 24));
+                    
+                    // Filter sales and expenses for current quarter
+                    const quarterVendas = vendas.filter(v => {
+                      const vDate = new Date(v.data);
+                      return vDate >= quarterStart && vDate <= quarterEnd;
+                    });
+                    
+                    const quarterDespesas = despesas.filter(d => {
+                      const dDate = new Date(d.data);
+                      return dDate >= quarterStart && dDate <= quarterEnd;
+                    });
+                    
+                    // Calculate IVA
+                    const ivaVendas = quarterVendas.reduce((s, v) => {
+                      const prod = v.produtoId 
+                        ? produtos.find(p => p.id === v.produtoId)
+                        : produtos.find(p => p.nome.toLowerCase() === v.produto.toLowerCase());
+                      if (!prod) return s;
+                      const precoSemIva = prod.precoVenda / (1 + prod.iva / 100);
+                      return s + (prod.precoVenda - precoSemIva) * v.quantidade;
+                    }, 0);
+                    
+                    // IVA Compras das faturas
+                    const quarterFaturas = faturas.filter(f => {
+                      const fDate = new Date(f.data);
+                      return fDate >= quarterStart && fDate <= quarterEnd;
+                    });
+                    const ivaComprasFaturas = quarterFaturas.reduce((s, f) => s + (f.totalIva || 0), 0);
+                    
+                    // IVA Compras das despesas
+                    const ivaComprasDespesas = quarterDespesas.reduce((s, d) => {
+                      const valorSemIva = d.valor / (1 + d.iva / 100);
+                      return s + (d.valor - valorSemIva);
+                    }, 0);
+                    
+                    // Total IVA Compras
+                    const ivaCompras = ivaComprasFaturas + ivaComprasDespesas;
+                    
+                    const ivaPagar = ivaVendas - ivaCompras;
+                    
+                    return (
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        <div className="space-y-3">
+                          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                            <p className="text-sm font-semibold text-blue-900 mb-2">
+                              {quarter}º Trimestre {currentYear}
+                            </p>
+                            <div className="space-y-2 text-sm">
+                              <div className="flex justify-between">
+                                <span className="text-gray-700">IVA Vendas:</span>
+                                <span className="font-semibold text-green-700">€{ivaVendas.toFixed(2)}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-gray-700">IVA Compras:</span>
+                                <span className="font-semibold text-blue-700">-€{ivaCompras.toFixed(2)}</span>
+                              </div>
+                              <div className="flex justify-between pt-2 border-t border-blue-300">
+                                <span className="font-bold text-gray-900">A Pagar:</span>
+                                <span className={`text-xl font-bold ${ivaPagar >= 0 ? 'text-orange-600' : 'text-green-600'}`}>
+                                  €{ivaPagar.toFixed(2)}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <div className={`border-2 rounded-lg p-4 ${
+                            daysUntil <= 7 ? 'bg-red-50 border-red-300' :
+                            daysUntil <= 30 ? 'bg-orange-50 border-orange-300' :
+                            'bg-green-50 border-green-300'
+                          }`}>
+                            <p className="text-sm font-semibold mb-2">
+                              📅 Prazo de Entrega
+                            </p>
+                            <p className="text-2xl font-bold">
+                              {deadline.toLocaleDateString('pt-PT', { day: '2-digit', month: 'long', year: 'numeric' })}
+                            </p>
+                            <p className={`text-sm mt-1 font-semibold ${
+                              daysUntil <= 7 ? 'text-red-700' :
+                              daysUntil <= 30 ? 'text-orange-700' :
+                              'text-green-700'
+                            }`}>
+                              {daysUntil > 0 ? `Faltam ${daysUntil} dias` : 'PRAZO EXPIRADO!'}
+                            </p>
+                          </div>
+                        </div>
+                        
+                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                          <p className="text-sm font-semibold text-yellow-900 mb-2">
+                            📋 Calendário IVA Trimestral
+                          </p>
+                          <div className="space-y-2 text-xs text-yellow-800">
+                            <div className="flex justify-between">
+                              <span>1º Trimestre (Jan-Mar):</span>
+                              <span className="font-semibold">20 Maio</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>2º Trimestre (Abr-Jun):</span>
+                              <span className="font-semibold">20 Agosto</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>3º Trimestre (Jul-Set):</span>
+                              <span className="font-semibold">20 Novembro</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>4º Trimestre (Out-Dez):</span>
+                              <span className="font-semibold">20 Fevereiro</span>
+                            </div>
+                          </div>
+                          
+                          <div className="mt-3 pt-3 border-t border-yellow-300 text-xs text-yellow-800">
+                            <p className="font-semibold mb-1">💡 Dicas:</p>
+                            <ul className="space-y-1 ml-4">
+                              <li>• Declaração até dia 20</li>
+                              <li>• Pagamento até dia 25</li>
+                              <li>• Regime para faturação &lt;€650k/ano</li>
+                            </ul>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
 
             {/* Todos os produtos e análises em colunas lado a lado */}
             <div className="grid grid-cols-5 gap-2 overflow-x-auto">
@@ -11283,175 +11574,6 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
                   </div>
                 </div>
 
-                {/* Simulador de IVA Trimestral */}
-                <div className="bg-white rounded-lg shadow p-4">
-                  <h2 className="text-xl font-bold mb-3 flex items-center gap-2">
-                    🧾 Próxima Entrega de IVA
-                  </h2>
-                  <p className="text-sm text-gray-600 mb-4">
-                    Estimativa do IVA a pagar no próximo trimestre (regime trimestral)
-                  </p>
-                  
-                  {(() => {
-                    // Calculate current quarter
-                    const now = new Date();
-                    const currentMonth = now.getMonth() + 1; // 1-12
-                    const currentYear = now.getFullYear();
-                    
-                    // Determine quarter
-                    let quarter, quarterStart, quarterEnd, deadlineMonth, deadlineDay;
-                    if (currentMonth >= 1 && currentMonth <= 3) {
-                      quarter = 1;
-                      quarterStart = new Date(currentYear, 0, 1);
-                      quarterEnd = new Date(currentYear, 2, 31);
-                      deadlineMonth = 5; // May
-                      deadlineDay = 20;
-                    } else if (currentMonth >= 4 && currentMonth <= 6) {
-                      quarter = 2;
-                      quarterStart = new Date(currentYear, 3, 1);
-                      quarterEnd = new Date(currentYear, 5, 30);
-                      deadlineMonth = 8; // August
-                      deadlineDay = 20;
-                    } else if (currentMonth >= 7 && currentMonth <= 9) {
-                      quarter = 3;
-                      quarterStart = new Date(currentYear, 6, 1);
-                      quarterEnd = new Date(currentYear, 8, 30);
-                      deadlineMonth = 11; // November
-                      deadlineDay = 20;
-                    } else {
-                      quarter = 4;
-                      quarterStart = new Date(currentYear, 9, 1);
-                      quarterEnd = new Date(currentYear, 11, 31);
-                      deadlineMonth = 2; // February next year
-                      deadlineDay = 20;
-                    }
-                    
-                    // Calculate deadline
-                    const deadlineYear = quarter === 4 ? currentYear + 1 : currentYear;
-                    const deadline = new Date(deadlineYear, deadlineMonth - 1, deadlineDay);
-                    const daysUntil = Math.ceil((deadline - now) / (1000 * 60 * 60 * 24));
-                    
-                    // Filter sales and expenses for current quarter
-                    const quarterVendas = vendas.filter(v => {
-                      const vDate = new Date(v.data);
-                      return vDate >= quarterStart && vDate <= quarterEnd;
-                    });
-                    
-                    const quarterDespesas = despesas.filter(d => {
-                      const dDate = new Date(d.data);
-                      return dDate >= quarterStart && dDate <= quarterEnd;
-                    });
-                    
-                    // Calculate IVA
-                    const ivaVendas = quarterVendas.reduce((s, v) => {
-                      const prod = v.produtoId 
-                        ? produtos.find(p => p.id === v.produtoId)
-                        : produtos.find(p => p.nome.toLowerCase() === v.produto.toLowerCase());
-                      if (!prod) return s;
-                      const precoSemIva = prod.precoVenda / (1 + prod.iva / 100);
-                      return s + (prod.precoVenda - precoSemIva) * v.quantidade;
-                    }, 0);
-                    
-                    // IVA Compras das faturas
-                    const quarterFaturas = faturas.filter(f => {
-                      const fDate = new Date(f.data);
-                      return fDate >= quarterStart && fDate <= quarterEnd;
-                    });
-                    const ivaComprasFaturas = quarterFaturas.reduce((s, f) => s + (f.totalIva || 0), 0);
-                    
-                    // IVA Compras das despesas
-                    const ivaComprasDespesas = quarterDespesas.reduce((s, d) => {
-                      const valorSemIva = d.valor / (1 + d.iva / 100);
-                      return s + (d.valor - valorSemIva);
-                    }, 0);
-                    
-                    // Total IVA Compras
-                    const ivaCompras = ivaComprasFaturas + ivaComprasDespesas;
-                    
-                    const ivaPagar = ivaVendas - ivaCompras;
-                    
-                    return (
-                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                        <div className="space-y-3">
-                          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                            <p className="text-sm font-semibold text-blue-900 mb-2">
-                              {quarter}º Trimestre {currentYear}
-                            </p>
-                            <div className="space-y-2 text-sm">
-                              <div className="flex justify-between">
-                                <span className="text-gray-700">IVA Vendas:</span>
-                                <span className="font-semibold text-green-700">€{ivaVendas.toFixed(2)}</span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span className="text-gray-700">IVA Compras:</span>
-                                <span className="font-semibold text-blue-700">-€{ivaCompras.toFixed(2)}</span>
-                              </div>
-                              <div className="flex justify-between pt-2 border-t border-blue-300">
-                                <span className="font-bold text-gray-900">A Pagar:</span>
-                                <span className={`text-xl font-bold ${ivaPagar >= 0 ? 'text-orange-600' : 'text-green-600'}`}>
-                                  €{ivaPagar.toFixed(2)}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                          
-                          <div className={`border-2 rounded-lg p-4 ${
-                            daysUntil <= 7 ? 'bg-red-50 border-red-300' :
-                            daysUntil <= 30 ? 'bg-orange-50 border-orange-300' :
-                            'bg-green-50 border-green-300'
-                          }`}>
-                            <p className="text-sm font-semibold mb-2">
-                              📅 Prazo de Entrega
-                            </p>
-                            <p className="text-2xl font-bold">
-                              {deadline.toLocaleDateString('pt-PT', { day: '2-digit', month: 'long', year: 'numeric' })}
-                            </p>
-                            <p className={`text-sm mt-1 font-semibold ${
-                              daysUntil <= 7 ? 'text-red-700' :
-                              daysUntil <= 30 ? 'text-orange-700' :
-                              'text-green-700'
-                            }`}>
-                              {daysUntil > 0 ? `Faltam ${daysUntil} dias` : 'PRAZO EXPIRADO!'}
-                            </p>
-                          </div>
-                        </div>
-                        
-                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                          <p className="text-sm font-semibold text-yellow-900 mb-2">
-                            📋 Calendário IVA Trimestral
-                          </p>
-                          <div className="space-y-2 text-xs text-yellow-800">
-                            <div className="flex justify-between">
-                              <span>1º Trimestre (Jan-Mar):</span>
-                              <span className="font-semibold">20 Maio</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span>2º Trimestre (Abr-Jun):</span>
-                              <span className="font-semibold">20 Agosto</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span>3º Trimestre (Jul-Set):</span>
-                              <span className="font-semibold">20 Novembro</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span>4º Trimestre (Out-Dez):</span>
-                              <span className="font-semibold">20 Fevereiro</span>
-                            </div>
-                          </div>
-                          
-                          <div className="mt-3 pt-3 border-t border-yellow-300 text-xs text-yellow-800">
-                            <p className="font-semibold mb-1">💡 Dicas:</p>
-                            <ul className="space-y-1 ml-4">
-                              <li>• Declaração até dia 20</li>
-                              <li>• Pagamento até dia 25</li>
-                              <li>• Regime para faturação &lt;€650k/ano</li>
-                            </ul>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </div>
               </>
             )}
           </div>
@@ -12754,8 +12876,47 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
                 
                 {/* Lista de Faturas */}
                 <div>
+                  {/* Search Box */}
+                  <div className="mb-3">
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={searchFatura}
+                        onChange={(e) => setSearchFatura(e.target.value)}
+                        placeholder="🔍 Pesquisar faturas (número, fornecedor, NIF...)"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                      />
+                      {searchFatura && (
+                        <button
+                          onClick={() => setSearchFatura('')}
+                          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        >
+                          <X size={18} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  
                   <h3 className="font-semibold text-sm mb-3 flex items-center justify-between">
-                    <span>🛒 Compras Registadas ({(faturas || []).length})</span>
+                    <span>🛒 Compras Registadas ({
+                      (() => {
+                        const total = (faturas || []).length;
+                        if (!searchFatura) return total;
+                        const filtered = (faturas || []).filter(fatura => {
+                          const search = searchFatura.toLowerCase();
+                          return (
+                            (fatura.numero || '').toLowerCase().includes(search) ||
+                            (fatura.fornecedorNome || '').toLowerCase().includes(search) ||
+                            (fatura.fornecedorNif || '').toLowerCase().includes(search) ||
+                            (fatura.tipo || '').toLowerCase().includes(search) ||
+                            (fatura.itens || []).some(item => 
+                              (item.ingredienteNome || '').toLowerCase().includes(search)
+                            )
+                          );
+                        }).length;
+                        return `${filtered} de ${total}`;
+                      })()
+                    })</span>
                     <div className="flex items-center gap-3 text-xs">
                       <span className="flex items-center gap-1 bg-green-100 text-green-700 px-2 py-1 rounded font-semibold">
                         <FilePdf size={14} />
@@ -12774,7 +12935,22 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      {(faturas || []).sort((a, b) => new Date(b.data) - new Date(a.data)).map(fatura => (
+                      {(faturas || [])
+                        .filter(fatura => {
+                          if (!searchFatura) return true;
+                          const search = searchFatura.toLowerCase();
+                          return (
+                            (fatura.numero || '').toLowerCase().includes(search) ||
+                            (fatura.fornecedorNome || '').toLowerCase().includes(search) ||
+                            (fatura.fornecedorNif || '').toLowerCase().includes(search) ||
+                            (fatura.tipo || '').toLowerCase().includes(search) ||
+                            (fatura.itens || []).some(item => 
+                              (item.ingredienteNome || '').toLowerCase().includes(search)
+                            )
+                          );
+                        })
+                        .sort((a, b) => new Date(b.data) - new Date(a.data))
+                        .map(fatura => (
                         <div key={fatura.id} className="border rounded-lg overflow-hidden hover:shadow-md transition">
                           {/* Cabeçalho da Fatura (sempre visível) */}
                           <div 
@@ -12788,16 +12964,46 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
                                     {fatura.tipo === 'rapido' ? '⚡' : '📄'} {fatura.numero || 'Recibo'}
                                   </span>
                                   
-                                  {/* Badge Fatura/Recibo */}
-                                  {fatura.tipoDocumento && (
-                                    <span className={`text-xs px-2 py-1 rounded font-bold ${
-                                      fatura.tipoDocumento === 'fatura'
-                                        ? 'bg-green-100 text-green-700 border border-green-300'
-                                        : 'bg-gray-100 text-gray-700 border border-gray-300'
-                                    }`}>
-                                      {fatura.tipoDocumento === 'fatura' ? '🧾 FATURA' : '📝 RECIBO'}
-                                    </span>
-                                  )}
+                                  {/* Badge Tipo de Documento (FT/FR/FS) */}
+                                  {(() => {
+                                    const tipo = fatura.tipo || 'FT';
+                                    const tipoDoc = fatura.tipoDocumento || 'fatura';
+                                    
+                                    // Determinar cor e texto baseado no tipo
+                                    let bgColor, textColor, borderColor, emoji, label;
+                                    
+                                    if (tipo === 'FR' || tipo.includes('FR')) {
+                                      bgColor = 'bg-blue-100';
+                                      textColor = 'text-blue-700';
+                                      borderColor = 'border-blue-300';
+                                      emoji = '📄';
+                                      label = 'FR - Fatura Recibo';
+                                    } else if (tipo === 'FS' || tipo.includes('FS')) {
+                                      bgColor = 'bg-purple-100';
+                                      textColor = 'text-purple-700';
+                                      borderColor = 'border-purple-300';
+                                      emoji = '🧾';
+                                      label = 'FS - Fatura Simplificada';
+                                    } else if (tipo === 'FT' || tipoDoc === 'fatura') {
+                                      bgColor = 'bg-green-100';
+                                      textColor = 'text-green-700';
+                                      borderColor = 'border-green-300';
+                                      emoji = '🧾';
+                                      label = 'FT - Fatura';
+                                    } else {
+                                      bgColor = 'bg-gray-100';
+                                      textColor = 'text-gray-700';
+                                      borderColor = 'border-gray-300';
+                                      emoji = '📝';
+                                      label = 'Recibo';
+                                    }
+                                    
+                                    return (
+                                      <span className={`text-xs px-2 py-1 rounded font-bold ${bgColor} ${textColor} border ${borderColor}`}>
+                                        {emoji} {label}
+                                      </span>
+                                    );
+                                  })()}
                                   
                                   {/* Indicador de PDF */}
                                   {fatura.documentoPDF ? (
