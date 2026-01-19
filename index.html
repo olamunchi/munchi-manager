@@ -726,43 +726,10 @@ const ComprasAnalysis = ({ despesas, faturas = [], ingredientes, fornecedores })
                   {/* CONTEÚDO EXPANDÍVEL - Só visível quando expandido */}
                   {isExpanded && (
                     <div className="px-2 pb-2 pt-2 border-t border-gray-200 bg-gray-50">
-                      
-                      {/* Histórico Completo de Compras */}
-                      <div className="mb-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded p-2 border border-blue-200">
-                        <p className="text-xs font-bold text-blue-900 mb-2">📅 Histórico Completo de Compras:</p>
-                        <div className="space-y-1">
-                          {ing.compras
-                            .sort((a, b) => new Date(b.data) - new Date(a.data)) // Mais recente primeiro
-                            .map((compra, idx) => {
-                              const isMelhor = compra.precoUnitario === precoMin;
-                              const isPior = compra.precoUnitario === precoMax;
-                              return (
-                                <div key={idx} className={`text-xs flex justify-between items-center p-1.5 rounded ${
-                                  isMelhor ? 'bg-green-100 border border-green-300 font-semibold text-green-900' : 
-                                  isPior ? 'bg-red-50 border border-red-200 text-red-800' : 
-                                  'bg-white border border-gray-200 text-gray-700'
-                                }`}>
-                                  <span className="flex items-center gap-2">
-                                    {isMelhor && '🏆'}
-                                    {isPior && '⚠️'}
-                                    {new Date(compra.data).toLocaleDateString('pt-PT')}
-                                    {compra.fornecedor && ` • ${compra.fornecedor}`}
-                                  </span>
-                                  <span className="font-semibold">
-                                    {compra.quantidade}{ing.unidade} × €{compra.precoUnitario.toFixed(2)} = €{(compra.quantidade * compra.precoUnitario).toFixed(2)}
-                                  </span>
-                                </div>
-                              );
-                            })}
-                        </div>
-                        <div className="mt-2 pt-2 border-t border-blue-200 text-xs text-blue-900">
-                          <strong>Total gasto:</strong> €{ing.compras.reduce((sum, c) => sum + (c.quantidade * c.precoUnitario), 0).toFixed(2)}
-                        </div>
-                      </div>
                   
-                  {/* Histórico de Compras - sempre resumo */}
+                  {/* Histórico de Compras - Últimas 3 */}
                   {ing.compras.length > 1 && (
-                    <div className="mt-2 bg-gray-50 rounded p-2">
+                    <div className="mb-3 bg-gray-50 rounded p-2">
                       <p className="text-xs font-semibold text-gray-700 mb-1">📅 Últimas Compras:</p>
                       <div className="space-y-0.5">
                         {ing.compras
@@ -785,7 +752,6 @@ const ComprasAnalysis = ({ despesas, faturas = [], ingredientes, fornecedores })
                             );
                           })}
                       </div>
-                      {isExpanded && <p className="text-xs text-blue-600 mt-1">👇 Ver detalhes completos abaixo</p>}
                     </div>
                   )}
                   
@@ -4007,11 +3973,29 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
       const similaridade = calcularSimilaridade(textoNorm, vocab.textoNormalizado);
       
       if (similaridade > melhorSimilaridade && similaridade >= 70) {
-        // Calcular confiança baseada em histórico
+        // ✅ NOVA FÓRMULA: Atinge 80% com apenas 2 confirmações
         const confirmacoes = vocab.confirmacoes || 0;
         const correcoes = vocab.correcoes || 0;
-        const fatorHistorico = confirmacoes / (confirmacoes + correcoes + 1);
+        
+        // Fator histórico mais agressivo
+        // 1 confirmação → 70%
+        // 2 confirmações → 85%
+        // 3+ confirmações → 95%
+        let fatorHistorico;
+        if (confirmacoes === 1 && correcoes === 0) {
+          fatorHistorico = 0.70; // 1ª confirmação = 70% do potencial
+        } else if (confirmacoes === 2 && correcoes === 0) {
+          fatorHistorico = 0.90; // 2ª confirmação = 90% (atinge 80%+ facilmente)
+        } else if (confirmacoes >= 3 && correcoes === 0) {
+          fatorHistorico = 0.98; // 3+ confirmações = 98% (quase certeza)
+        } else {
+          // Com correções, penalizar proporcionalmente
+          fatorHistorico = Math.max(0.5, confirmacoes / (confirmacoes + correcoes * 2 + 1));
+        }
+        
         const confianca = (similaridade / 100) * fatorHistorico * 100;
+        
+        console.log(`📊 "${textoNorm}": ${confirmacoes} conf, ${correcoes} corr → ${Math.round(confianca)}% confiança`);
         
         melhorMatch = {
           ingredienteId: vocab.ingredienteId,
