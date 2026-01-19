@@ -5115,11 +5115,11 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
       const docFileId = docResult.id;
       console.log('✅ Google Doc criado:', docFileId);
 
-      // 3. Exportar Google Doc como texto HTML (para preservar quebras de linha)
+      // 3. Exportar Google Doc como texto plain (funcionava antes)
       console.log('📥 Extraindo texto do Google Doc...');
       
       const exportResponse = await fetch(
-        `https://www.googleapis.com/drive/v3/files/${docFileId}/export?mimeType=text/html`,
+        `https://www.googleapis.com/drive/v3/files/${docFileId}/export?mimeType=text/plain`,
         {
           headers: { 'Authorization': `Bearer ${token}` }
         }
@@ -5129,50 +5129,10 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
         throw new Error('Falha ao exportar texto');
       }
 
-      const htmlContent = await exportResponse.text();
-      
-      // Converter HTML para texto preservando estrutura de tabela
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(htmlContent, 'text/html');
-      
-      // Procurar linhas de tabela (melhor para faturas estruturadas)
-      const tableRows = doc.querySelectorAll('tr, p');
-      const lines = [];
-      const seenLines = new Set();
-      
-      tableRows.forEach(el => {
-        let text = '';
-        
-        // Se é uma TR (linha de tabela), juntar células
-        if (el.tagName === 'TR') {
-          const cells = el.querySelectorAll('td, th');
-          text = Array.from(cells)
-            .map(cell => cell.textContent?.trim())
-            .filter(t => t && t.length > 0)
-            .join(' ');
-        } else {
-          // Se é parágrafo, pegar texto direto
-          text = el.textContent?.trim();
-        }
-        
-        // Filtros de qualidade:
-        // 1. Não pode estar vazio
-        // 2. Não pode ser só números/espaços/vírgulas (ex: "1,000" "13,95")
-        // 3. Não pode ser duplicado
-        if (text && 
-            text.length > 5 && 
-            !/^[\d\s,\.]+$/.test(text) && // Ignora linhas só com números
-            !seenLines.has(text)) {
-          seenLines.add(text);
-          lines.push(text);
-        }
-      });
-      
-      // Juntar com quebras de linha
-      const textContent = lines.join('\n');
+      const textContent = await exportResponse.text();
       
       console.log('✅ Texto extraído (primeiras 500 chars):', textContent.substring(0, 500));
-      console.log('📊 Total de linhas extraídas:', lines.length);
+      console.log('📊 Total de caracteres:', textContent.length);
 
       // 4. Limpar ficheiros temporários do Drive
       await fetch(
@@ -9220,7 +9180,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-gray-700">Diferença:</span>
                   <span className={`font-bold ${priceAlertData.precoNovo > priceAlertData.precoAtual ? 'text-red-600' : 'text-green-600'}`}>
-                    {priceAlertData.precoNovo > priceAlertData.precoAtual ? '+' : ''}{priceAlertData.diferencaPerc.toFixed(1)}%
+                    {priceAlertData.precoNovo > priceAlertData.precoAtual ? '+' : ''}{(((priceAlertData.precoNovo - priceAlertData.precoAtual) / priceAlertData.precoAtual) * 100).toFixed(1)}%
                   </span>
                 </div>
               </div>
