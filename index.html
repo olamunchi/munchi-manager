@@ -5276,7 +5276,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
               // 4. Parsear linhas de produtos
               console.log('📝 Texto para parsing (primeiras 2000 chars):', textoExtraido.substring(0, 2000));
               const template = buscarTemplateOCR(dadosFatura.fornecedor.nif);
-              const linhas = template ? parseComTemplate(textoExtraido, template) : parseLinhasProdutos(textoExtraido);
+              const linhas = template ? parseComTemplate(textoExtraido, template) : parseLinhasProdutos(textoExtraido, true);
               
               console.log(`📦 ${linhas.length} linhas de produtos identificadas`);
               if (linhas.length > 0) {
@@ -6095,7 +6095,53 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
   
   const confirmarFaturaSemAtualizar = () => {
     console.log('confirmarFaturaSemAtualizar chamada', priceAlertData);
-    // Guardar sem atualizar custo
+    
+    // CASO ESPECIAL: OCR Price Update Queue
+    if (priceAlertData.tipoOperacao === 'ocrPriceUpdate') {
+      const ctx = window._ocrContext;
+      if (!ctx) {
+        console.error('❌ Contexto OCR perdido!');
+        setShowPriceAlert(false);
+        return;
+      }
+      
+      console.log(`⏭️ Preço de ${priceAlertData.ingrediente.nome} NÃO atualizado (mantém €${priceAlertData.precoAtual.toFixed(2)})`);
+      
+      // Avançar para próxima mudança SEM aplicar a atual
+      ctx.indiceAtual++;
+      
+      if (ctx.indiceAtual < ctx.mudancasPreco.length) {
+        // Ainda há mudanças - mostrar próximo modal
+        const proximaMudanca = ctx.mudancasPreco[ctx.indiceAtual];
+        const proximoIngrediente = ctx.ingredientesAtualizados.find(i => i.id === proximaMudanca.ingredienteId);
+        
+        setPriceAlertData({
+          tipoOperacao: 'ocrPriceUpdate',
+          ingrediente: proximoIngrediente,
+          precoAtual: proximaMudanca.precoAnterior,
+          precoNovo: proximaMudanca.precoNovo,
+          unidadeBase: proximoIngrediente.unidade,
+          produtosAfetados: produtos.filter(p => 
+            p.receita && p.receita.some(r => r.ingredienteId === proximoIngrediente.id)
+          ),
+          totalMudancas: ctx.mudancasPreco.length,
+          mudancaAtual: ctx.indiceAtual + 1
+        });
+        
+        console.log(`📋 Mostrando mudança ${ctx.indiceAtual + 1}/${ctx.mudancasPreco.length}`);
+        return; // Mantém modal aberto para próxima mudança
+      } else {
+        // Todas mudanças processadas - finalizar
+        console.log('✅ Todas as mudanças de preço processadas!');
+        setShowPriceAlert(false);
+        setPriceAlertData(null);
+        finalizarFaturaOCR(ctx.ingredientesAtualizados, ctx.linhasValidadas, ctx.metadata);
+        window._ocrContext = null;
+        return;
+      }
+    }
+    
+    // CASOS NORMAIS (não-OCR) - Guardar sem atualizar custo
     if (priceAlertData.tipoOperacao === 'adicionarItem') {
       // Adicionar item SEM atualizar preço do ingrediente
       const item = priceAlertData.itemParaAdicionar;
@@ -6128,6 +6174,60 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
     console.log('confirmarFaturaEAtualizar chamada', priceAlertData);
     const { ingrediente, precoNovo, produtosAfetados } = priceAlertData;
     
+    // CASO ESPECIAL: OCR Price Update Queue
+    if (priceAlertData.tipoOperacao === 'ocrPriceUpdate') {
+      const ctx = window._ocrContext;
+      if (!ctx) {
+        console.error('❌ Contexto OCR perdido!');
+        setShowPriceAlert(false);
+        return;
+      }
+      
+      // Aplicar mudança atual
+      const mudancaAtual = ctx.mudancasPreco[ctx.indiceAtual];
+      ctx.ingredientesAtualizados[mudancaAtual.ingredienteIndex] = {
+        ...ctx.ingredientesAtualizados[mudancaAtual.ingredienteIndex],
+        custoUnitario: mudancaAtual.precoNovo,
+        precoUnitario: mudancaAtual.precoNovo
+      };
+      
+      console.log(`✅ Preço de ${ingrediente.nome} atualizado: €${mudancaAtual.precoAnterior.toFixed(2)} → €${mudancaAtual.precoNovo.toFixed(2)}`);
+      
+      // Avançar para próxima mudança
+      ctx.indiceAtual++;
+      
+      if (ctx.indiceAtual < ctx.mudancasPreco.length) {
+        // Ainda há mudanças - mostrar próximo modal
+        const proximaMudanca = ctx.mudancasPreco[ctx.indiceAtual];
+        const proximoIngrediente = ctx.ingredientesAtualizados.find(i => i.id === proximaMudanca.ingredienteId);
+        
+        setPriceAlertData({
+          tipoOperacao: 'ocrPriceUpdate',
+          ingrediente: proximoIngrediente,
+          precoAtual: proximaMudanca.precoAnterior,
+          precoNovo: proximaMudanca.precoNovo,
+          unidadeBase: proximoIngrediente.unidade,
+          produtosAfetados: produtos.filter(p => 
+            p.receita && p.receita.some(r => r.ingredienteId === proximoIngrediente.id)
+          ),
+          totalMudancas: ctx.mudancasPreco.length,
+          mudancaAtual: ctx.indiceAtual + 1
+        });
+        
+        console.log(`📋 Mostrando mudança ${ctx.indiceAtual + 1}/${ctx.mudancasPreco.length}`);
+        return; // Mantém modal aberto para próxima mudança
+      } else {
+        // Todas mudanças confirmadas - finalizar
+        console.log('✅ Todas as mudanças de preço confirmadas!');
+        setShowPriceAlert(false);
+        setPriceAlertData(null);
+        finalizarFaturaOCR(ctx.ingredientesAtualizados, ctx.linhasValidadas, ctx.metadata);
+        window._ocrContext = null;
+        return;
+      }
+    }
+    
+    // CASOS NORMAIS (não-OCR)
     if (priceAlertData.tipoOperacao === 'adicionarItem') {
       // Atualizar custo do ingrediente E adicionar item
       setIngredientes(ingredientes.map(ing => 
@@ -8154,7 +8254,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
   };
   
   // Ignorar linhas
-  const shouldIgnoreLine = (linha) => {
+  const shouldIgnoreLine = (linha, skipQuantityCheck = false) => {
     const lower = linha.toLowerCase();
     
     // Patterns mais abrangentes para ignorar
@@ -8213,14 +8313,16 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
       return true;
     }
     
-    // Linha DEVE ter pelo menos: quantidade + unidade OU preço
-    // Se não tiver nenhum dos dois, provavelmente não é produto
-    const temQuantidade = /\d+[.,]?\d*\s*(kg|g|l|ml|cl|un|unid)/i.test(linha);
-    const temPreco = /\d+[.,]\d{2}\s*€?/i.test(linha);
-    const temFormatoRecheio = /\d+\s+\d+\s+\d+[.,]\d{3}/i.test(linha);  // "1 6 6,000"
-    
-    if (!temQuantidade && !temPreco && !temFormatoRecheio) {
-      return true; // Ignorar se não tiver nem quantidade nem preço
+    // APENAS para Tesseract: verificar se tem quantidade/preço
+    // Google OCR já vem limpo, não precisa dessa validação
+    if (!skipQuantityCheck) {
+      const temQuantidade = /\d+[.,]?\d*\s*(kg|g|l|ml|cl|un|unid)/i.test(linha);
+      const temPreco = /\d+[.,]\d{2}\s*€?/i.test(linha);
+      const temFormatoRecheio = /\d+\s+\d+\s+\d+[.,]\d{3}/i.test(linha);  // "1 6 6,000"
+      
+      if (!temQuantidade && !temPreco && !temFormatoRecheio) {
+        return true; // Ignorar se não tiver nem quantidade nem preço
+      }
     }
     
     return false;
@@ -8362,7 +8464,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
   };
   
   // Parse produtos
-  const parseLinhasProdutos = (texto) => {
+  const parseLinhasProdutos = (texto, skipQuantityCheck = false) => {
     console.log('🔍 Parsing...');
     console.log('📄 Texto ORIGINAL (primeiras 1000 chars):', texto.substring(0, 1000));
     setProgressoOCR('Identificando produtos...');
@@ -8380,7 +8482,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
     let linhasSemNome = 0;
     
     for (const linha of linhas) {
-      if (shouldIgnoreLine(linha)) {
+      if (shouldIgnoreLine(linha, skipQuantityCheck)) {
         linhasIgnoradas++;
         continue;
       }
@@ -8744,6 +8846,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
     }
     
     let ingredientesModificados = 0;
+    const mudancasPreco = []; // NOVO: Coletar mudanças em vez de aplicar
     
     // Detectar se preços na fatura são COM ou SEM IVA
     const precosComIVA = metadata.precosComIVA !== undefined ? metadata.precosComIVA : true;
@@ -8782,7 +8885,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
           novoPrecoUnitario = precoSemIVA * (1 + iva / 100);
         }
         
-        const precoAnterior = ingredientesAtualizados[index].custoUnitario || 0; // ✅ custoUnitario
+        const precoAnterior = ingredientesAtualizados[index].custoUnitario || 0;
         
         // Log detalhado do cálculo
         console.log(`\n🔍 CALCULANDO: ${ingredientesAtualizados[index].nome}`);
@@ -8802,14 +8905,19 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
           console.log(`   Resultado: €${precoSemIVA.toFixed(3)} × ${(1 + iva/100).toFixed(2)} = €${novoPrecoUnitario.toFixed(3)} (COM IVA)`);
         }
         
-        // Atualizar se preço mudou
+        // COLETAR mudança se preço mudou
         if (Math.abs(novoPrecoUnitario - precoAnterior) > 0.01) {
-          console.log(`💰 Atualizando ${ingredientesAtualizados[index].nome}: €${precoAnterior.toFixed(2)} → €${novoPrecoUnitario.toFixed(2)} (${precosComIVA ? 'preços COM IVA' : 'preços SEM IVA - adicionado IVA'})`);
-          ingredientesAtualizados[index] = {
-            ...ingredientesAtualizados[index],
-            custoUnitario: novoPrecoUnitario, // ✅ custoUnitario
-            precoUnitario: novoPrecoUnitario  // ✅ MANTER AMBOS para compatibilidade
-          };
+          console.log(`💰 MUDANÇA DETECTADA ${ingrediente.nome}: €${precoAnterior.toFixed(2)} → €${novoPrecoUnitario.toFixed(2)}`);
+          
+          mudancasPreco.push({
+            ingredienteId: ingrediente.id,
+            ingredienteNome: ingrediente.nome,
+            ingredienteIndex: index,
+            precoAnterior,
+            precoNovo: novoPrecoUnitario,
+            precosComIVA
+          });
+          
           ingredientesModificados++;
         } else {
           console.log(`   ⏭️ Preço não mudou significativamente (diferença: €${Math.abs(novoPrecoUnitario - precoAnterior).toFixed(3)})`);
@@ -8817,47 +8925,88 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
       }
     });
     
-    // Atualizar ingredientes se houver mudanças
-    if (ingredientesModificados > 0) {
-      setIngredientes(ingredientesAtualizados);
-      console.log(`✅ ${ingredientesModificados} ingrediente(s) atualizado(s)`);
+    // Se houver mudanças, iniciar fila de modais
+    if (mudancasPreco.length > 0) {
+      console.log(`\n🎯 ${mudancasPreco.length} mudança(s) de preço detectada(s)`);
+      console.log('📋 Iniciando fila de confirmações...');
       
-      // RECALCULAR FOOD COST DOS PRODUTOS
-      const produtosAtualizados = produtos.map(produto => {
-        if (!produto.receita || produto.receita.length === 0) return produto;
-        
-        // Calcular novo custo
-        const novoCusto = produto.receita.reduce((total, item) => {
-          const ing = ingredientesAtualizados.find(i => i.id === item.ingredienteId);
-          if (!ing) return total;
-          
-          const quantidade = parseFloat(item.quantidade) || 0;
-          const precoUnit = parseFloat(ing.precoUnitario) || 0;
-          
-          return total + (quantidade * precoUnit);
-        }, 0);
-        
-        // Calcular nova margem
-        const precoVenda = parseFloat(produto.precoVenda) || 0;
-        const novaMargemLucro = precoVenda > 0 ? ((precoVenda - novoCusto) / precoVenda) * 100 : 0;
-        
-        // Só atualizar se mudou
-        if (Math.abs(novoCusto - (produto.custoReceita || 0)) > 0.01) {
-          console.log(`🍕 Recalculando ${produto.nome}: Custo €${(produto.custoReceita || 0).toFixed(2)} → €${novoCusto.toFixed(2)}, Margem ${(produto.margemLucro || 0).toFixed(1)}% → ${novaMargemLucro.toFixed(1)}%`);
-          
-          return {
-            ...produto,
-            custoReceita: novoCusto,
-            margemLucro: novaMargemLucro
-          };
-        }
-        
-        return produto;
+      // Guardar contexto no window para handlers do modal acessarem
+      window._ocrContext = {
+        ingredientesAtualizados,
+        linhasValidadas,
+        metadata,
+        mudancasPreco,
+        indiceAtual: 0
+      };
+      
+      // Mostrar primeiro modal usando o sistema existente
+      const primeiraMudanca = mudancasPreco[0];
+      const ingrediente = ingredientesAtualizados.find(i => i.id === primeiraMudanca.ingredienteId);
+      
+      setPriceAlertData({
+        tipoOperacao: 'ocrPriceUpdate',
+        ingrediente: ingrediente,
+        precoAtual: primeiraMudanca.precoAnterior,
+        precoNovo: primeiraMudanca.precoNovo,
+        unidadeBase: ingrediente.unidade,
+        produtosAfetados: produtos.filter(p => 
+          p.receita && p.receita.some(r => r.ingredienteId === ingrediente.id)
+        ),
+        totalMudancas: mudancasPreco.length,
+        mudancaAtual: 1
       });
       
-      setProdutos(produtosAtualizados);
-      showNotification(`🔄 ${ingredientesModificados} preço(s) atualizado(s) e food costs recalculados!`, 'success');
+      setShowPriceAlert(true);
+      
+      return; // PARA AQUI - modal vai continuar o processo
     }
+    
+    // Se não houver mudanças, continuar normalmente
+    console.log('✅ Nenhuma mudança de preço detectada');
+    finalizarFaturaOCR(ingredientesAtualizados, linhasValidadas, metadata);
+  };
+  
+  // Função para finalizar fatura após confirmações de preço
+  const finalizarFaturaOCR = (ingredientesAtualizados, linhasValidadas, metadata) => {
+    console.log('📝 Finalizando fatura OCR...');
+    
+    // Atualizar ingredientes
+    setIngredientes(ingredientesAtualizados);
+    
+    // RECALCULAR FOOD COST DOS PRODUTOS
+    const produtosAtualizados = produtos.map(produto => {
+      if (!produto.receita || produto.receita.length === 0) return produto;
+      
+      // Calcular novo custo
+      const novoCusto = produto.receita.reduce((total, item) => {
+        const ing = ingredientesAtualizados.find(i => i.id === item.ingredienteId);
+        if (!ing) return total;
+        
+        const quantidade = parseFloat(item.quantidade) || 0;
+        const precoUnit = parseFloat(ing.precoUnitario) || 0;
+        
+        return total + (quantidade * precoUnit);
+      }, 0);
+      
+      // Calcular nova margem
+      const precoVenda = parseFloat(produto.precoVenda) || 0;
+      const novaMargemLucro = precoVenda > 0 ? ((precoVenda - novoCusto) / precoVenda) * 100 : 0;
+      
+      // Só atualizar se mudou
+      if (Math.abs(novoCusto - (produto.custoReceita || 0)) > 0.01) {
+        console.log(`🍕 Recalculando ${produto.nome}: Custo €${(produto.custoReceita || 0).toFixed(2)} → €${novoCusto.toFixed(2)}, Margem ${(produto.margemLucro || 0).toFixed(1)}% → ${novaMargemLucro.toFixed(1)}%`);
+        
+        return {
+          ...produto,
+          custoReceita: novoCusto,
+          margemLucro: novaMargemLucro
+        };
+      }
+      
+      return produto;
+    });
+    
+    setProdutos(produtosAtualizados);
     
     // Criar itens da fatura COM ESTRUTURA CORRETA
     const novosItens = linhasValidadas
@@ -8889,6 +9038,9 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
     
     console.log('Itens processados:', novosItens);
     console.log('PDF Base64 length:', metadata.pdfBase64 ? metadata.pdfBase64.length : 'NULL');
+    
+    // Extrair NIF do fornecedor para aprendizagem
+    const nifFornecedor = metadata.nif || novaFatura.fornecedorNIF;
     
     // 🧠 FASE 2: APRENDER COM AS CONFIRMAÇÕES DO UTILIZADOR
     if (nifFornecedor) {
@@ -9036,6 +9188,11 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
               <h3 className="font-bold text-lg flex items-center gap-2">
                 <AlertCircle size={20} />
                 Preco Diferente do Registado
+                {priceAlertData.tipoOperacao === 'ocrPriceUpdate' && priceAlertData.totalMudancas > 1 && (
+                  <span className="text-sm font-normal opacity-90">
+                    ({priceAlertData.mudancaAtual}/{priceAlertData.totalMudancas})
+                  </span>
+                )}
               </h3>
               <button
                 onClick={() => {
@@ -9182,7 +9339,16 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
                 </>
               ) : (
                 <button
-                  onClick={() => setActiveTab('definicoes')}
+                  onClick={() => {
+                    setActiveTab('definicoes');
+                    // Scroll para secção Google Drive após tab mudar
+                    setTimeout(() => {
+                      const driveSection = document.getElementById('google-drive-section');
+                      if (driveSection) {
+                        driveSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                      }
+                    }, 100);
+                  }}
                   className="bg-yellow-500/90 hover:bg-yellow-600 backdrop-blur-sm text-white px-4 py-2 rounded-lg font-semibold transition flex items-center gap-2 text-sm"
                   title="Conectar Google Drive"
                 >
@@ -13889,7 +14055,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
                     </div>
 
                     {/* Coluna Direita: Google Drive */}
-                    <div>
+                    <div id="google-drive-section">
                       {!driveAccessToken ? (
                         <div className="bg-blue-50 border-2 border-blue-300 rounded-lg p-4 h-full">
                           <div className="flex items-start gap-3 mb-3">
