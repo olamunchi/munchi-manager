@@ -3082,14 +3082,14 @@ const RestauranteGestor = () => {
     const novaBlacklist = [...blacklist, item];
     setBlacklist(novaBlacklist);
     localStorage.setItem('munchi_blacklist', JSON.stringify(novaBlacklist));
-    showNotification(`"${item}" adicionado à blacklist`, 'success');
+    showNotification(`✅ "${item}" adicionado à blacklist. 💾 Sincroniza com Drive para guardar!`, 'success', 5000);
   };
 
   const handleRemoverBlacklist = (item) => {
     const novaBlacklist = blacklist.filter(i => i !== item);
     setBlacklist(novaBlacklist);
     localStorage.setItem('munchi_blacklist', JSON.stringify(novaBlacklist));
-    showNotification(`"${item}" removido da blacklist`, 'success');
+    showNotification(`✅ "${item}" removido da blacklist. 💾 Sincroniza com Drive para guardar!`, 'success', 5000);
   };
 
   const handleSalvarConfiguracoes = (novasConfiguracoes) => {
