@@ -7095,7 +7095,9 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
       data: fatura.data,
       fornecedorId: fatura.fornecedorId,
       itens: fatura.itens,
-      notas: fatura.notas
+      notas: fatura.notas,
+      documentoPDF: fatura.documentoPDF || null, // ✅ PRESERVAR PDF
+      nomeDocumento: fatura.nomeDocumento || '' // ✅ PRESERVAR NOME
     });
     setEditandoFatura(true);
     setFaturaEditando(fatura.id);
@@ -9184,10 +9186,12 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
     }
     
     // Preencher dados da fatura (preservando PDF!)
+    const tipoFatura = metadata.tipoFatura || 'FT';
     const novaFaturaAtualizada = {
       ...novaFatura,
       numero: metadata.numeroFatura || novaFatura.numero,
-      tipo: metadata.tipoFatura || 'FT', // ✅ TIPO DE FATURA (FT/FR/FS)
+      tipo: tipoFatura, // ✅ TIPO DE FATURA (FT/FR/FS)
+      paraContabilista: tipoFatura !== 'FS', // ✅ FS NÃO vai, FT e FR vão
       tipoDocumento: metadata.tipoDocumento || 'fatura', // ← tipo do documento
       data: metadata.data ? convertDataToISO(metadata.data) : novaFatura.data,
       itens: novosItens,
