@@ -2157,8 +2157,8 @@ const ModalConfirmacaoFatura = ({ dadosFatura, onConfirmar, onCancelar, forneced
   };
   
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 max-w-sm w-full mx-4 shadow-xl">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg p-6 max-w-4xl w-full shadow-xl max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-xl font-bold">Confirmar Tipo de Fatura</h3>
           {dadosFatura.pdfUrl && (
@@ -2173,104 +2173,115 @@ const ModalConfirmacaoFatura = ({ dadosFatura, onConfirmar, onCancelar, forneced
           )}
         </div>
         
-        <div className="mb-4 p-4 bg-blue-50 rounded-lg">
-          <p className="text-sm text-gray-700">
-            <strong>Tipo detectado:</strong> {INVOICE_TYPES[dadosFatura.tipo]?.label || dadosFatura.tipo}
-          </p>
-          {dadosFatura.numero !== 'N/A' && (
-            <p className="text-sm text-gray-700 mt-1">
-              <strong>Número:</strong> {dadosFatura.numero}
-            </p>
-          )}
-          <p className="text-sm text-gray-700 mt-1">
-            <strong>Fornecedor:</strong> {dadosFatura.fornecedor.nome}
-          </p>
-          {dadosFatura.fornecedor.nif && (
-            <p className="text-sm text-gray-700 mt-1">
-              <strong>NIF:</strong> {dadosFatura.fornecedor.nif}
-            </p>
-          )}
-          <p className="text-sm text-gray-700 mt-1">
-            <strong>Data:</strong> {dadosFatura.data}
-          </p>
-          {dadosFatura.totais.total > 0 && (
-            <p className="text-sm text-gray-700 mt-1">
-              <strong>Total:</strong> {dadosFatura.totais.total.toFixed(2)}€
-            </p>
-          )}
-        </div>
-        
-        {/* Dropdown Fornecedor */}
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Fornecedor:
-          </label>
-          <select
-            value={fornecedorSelecionado?.id || ''}
-            onChange={(e) => {
-              const forn = fornecedores.find(f => f.id === e.target.value);
-              setFornecedorSelecionado(forn || null);
-            }}
-            className="w-full p-2 border rounded-lg"
-          >
-            <option value="">Desconhecido</option>
-            {fornecedores.map(f => (
-              <option key={f.id} value={f.id}>
-                {f.nome} {f.nif ? `(NIF: ${f.nif})` : ''}
-              </option>
-            ))}
-          </select>
-        </div>
-        
-        {/* Campo Número Fatura */}
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Número da Fatura:
-          </label>
-          <input
-            type="text"
-            value={numeroFatura}
-            onChange={(e) => setNumeroFatura(e.target.value)}
-            placeholder="Ex: FT 2024/001"
-            className="w-full p-2 border rounded-lg"
-          />
-        </div>
-        
-        <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Selecionar tipo de fatura:
-          </label>
+        {/* Layout em 2 colunas */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           
-          <div className="space-y-2">
-            {Object.entries(INVOICE_TYPES).map(([tipo, config]) => (
-              <label
-                key={tipo}
-                className={`block p-3 border-2 rounded-lg cursor-pointer transition-all ${
-                  tipoSelecionado === tipo
-                    ? 'border-green-500 bg-green-50'
-                    : 'border-gray-200 hover:border-green-300 hover:bg-gray-50'
-                }`}
-              >
-                <div className="flex items-center">
-                  <input
-                    type="radio"
-                    name="tipoFatura"
-                    value={tipo}
-                    checked={tipoSelecionado === tipo}
-                    onChange={(e) => setTipoSelecionado(e.target.value)}
-                    className="mr-3 h-4 w-4 text-green-600"
-                  />
-                  <div>
-                    <div className="font-semibold">{config.label}</div>
-                    <div className="text-sm text-gray-600">{config.description}</div>
-                  </div>
-                </div>
+          {/* COLUNA ESQUERDA: Info detectada */}
+          <div>
+            <div className="mb-4 p-4 bg-blue-50 rounded-lg">
+              <h4 className="font-semibold mb-2">Dados Detectados:</h4>
+              <p className="text-sm text-gray-700">
+                <strong>Tipo:</strong> {INVOICE_TYPES[dadosFatura.tipo]?.label || dadosFatura.tipo}
+              </p>
+              {dadosFatura.numero !== 'N/A' && (
+                <p className="text-sm text-gray-700 mt-1">
+                  <strong>Número:</strong> {dadosFatura.numero}
+                </p>
+              )}
+              <p className="text-sm text-gray-700 mt-1">
+                <strong>Fornecedor:</strong> {dadosFatura.fornecedor.nome}
+              </p>
+              {dadosFatura.fornecedor.nif && (
+                <p className="text-sm text-gray-700 mt-1">
+                  <strong>NIF:</strong> {dadosFatura.fornecedor.nif}
+                </p>
+              )}
+              <p className="text-sm text-gray-700 mt-1">
+                <strong>Data:</strong> {dadosFatura.data}
+              </p>
+              {dadosFatura.totais.total > 0 && (
+                <p className="text-sm text-gray-700 mt-1">
+                  <strong>Total:</strong> {dadosFatura.totais.total.toFixed(2)}€
+                </p>
+              )}
+            </div>
+            
+            {/* Dropdown Fornecedor */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Selecionar Fornecedor:
               </label>
-            ))}
+              <select
+                value={fornecedorSelecionado?.id || ''}
+                onChange={(e) => {
+                  const forn = fornecedores.find(f => f.id === e.target.value);
+                  console.log('📦 Fornecedor selecionado:', forn);
+                  setFornecedorSelecionado(forn || null);
+                }}
+                className="w-full p-2 border rounded-lg"
+              >
+                <option value="">Desconhecido</option>
+                {fornecedores.map(f => (
+                  <option key={f.id} value={f.id}>
+                    {f.nome} {f.nif ? `(NIF: ${f.nif})` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+            
+            {/* Campo Número Fatura */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Número da Fatura:
+              </label>
+              <input
+                type="text"
+                value={numeroFatura}
+                onChange={(e) => setNumeroFatura(e.target.value)}
+                placeholder="Ex: FT 2024/001"
+                className="w-full p-2 border rounded-lg"
+              />
+            </div>
+          </div>
+          
+          {/* COLUNA DIREITA: Seleção de tipo */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Tipo de Fatura:
+            </label>
+            
+            <div className="space-y-2">
+              {Object.entries(INVOICE_TYPES).map(([tipo, config]) => (
+                <label
+                  key={tipo}
+                  className={`block p-3 border-2 rounded-lg cursor-pointer transition-all ${
+                    tipoSelecionado === tipo
+                      ? 'border-green-500 bg-green-50'
+                      : 'border-gray-200 hover:border-green-300 hover:bg-gray-50'
+                  }`}
+                >
+                  <div className="flex items-center">
+                    <input
+                      type="radio"
+                      name="tipoFatura"
+                      value={tipo}
+                      checked={tipoSelecionado === tipo}
+                      onChange={(e) => setTipoSelecionado(e.target.value)}
+                      className="mr-3 h-4 w-4 text-green-600"
+                    />
+                    <div>
+                      <div className="font-semibold">{config.label}</div>
+                      <div className="text-sm text-gray-600">{config.description}</div>
+                    </div>
+                  </div>
+                </label>
+              ))}
+            </div>
           </div>
         </div>
         
-        <div className="flex gap-3">
+        {/* Buttons */}
+        <div className="flex gap-3 mt-6">
           <button
             onClick={handleConfirmar}
             className="flex-1 bg-green-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-green-700 transition-colors"
@@ -5071,6 +5082,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
         fornecedores: fornecedores || [],
         dadosEmpresa: dadosEmpresa || {},
         deliveryApps: deliveryApps || [],
+        blacklist: blacklist || [], // ✅ ADICIONAR BLACKLIST
         lastUpdate: new Date().toISOString()
       };
       let fileId = driveFileId;
@@ -5390,6 +5402,10 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
         if (data.fornecedores) setFornecedores(data.fornecedores);
         if (data.dadosEmpresa) setDadosEmpresa(data.dadosEmpresa);
         if (data.deliveryApps) setDeliveryApps(data.deliveryApps);
+        if (data.blacklist) {
+          setBlacklist(data.blacklist);
+          localStorage.setItem('munchi_blacklist', JSON.stringify(data.blacklist)); // ✅ GUARDAR TAMBÉM NO LOCALSTORAGE
+        }
         setDriveLastSync(new Date(file.modifiedTime));
         showNotification('✅ Dados carregados!', 'success');
       }
