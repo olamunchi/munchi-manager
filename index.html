@@ -8273,20 +8273,23 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
       return true;
     }
     
-    // Linha DEVE ter pelo menos: código de produto OU (quantidade + preço)
-    const temCodigoProduto = /^\d{6}\.\d\s+\w/i.test(linha); // Ex: "735902.0 SUMO..."
-    const temQuantidade = /\d+[.,]?\d*\s*(kg|g|l|ml|cl|un|unid)/i.test(linha);
-    const temPreco = /\d+[.,]\d{2}\s*€?/i.test(linha);
-    const temFormatoRecheio = /\d+\s+\d+\s+\d+[.,]\d{3}/i.test(linha);  // "1 6 6,000"
-    
-    // Se tem código de produto, aceitar (mesmo sem qtd/preço - podem estar na linha seguinte)
-    if (temCodigoProduto) {
-      return false; // NÃO ignorar
-    }
-    
-    // Se não tem código, DEVE ter quantidade/preço
-    if (!temQuantidade && !temPreco && !temFormatoRecheio) {
-      return true; // Ignorar
+    // Para Google OCR: aceitar linhas que PODEM ser produtos
+    // parseLinha vai validar se o nome extraído é válido
+    // Aqui só filtramos lixo óbvio (só números, muito curta)
+    if (skipQuantityCheck) {
+      // Rejeitar se é só números/símbolos
+      if (/^[\d\s,\.€%\-\+]+$/.test(linha)) {
+        return true;
+      }
+    } else {
+      // Tesseract: exigir quantidade/preço
+      const temQuantidade = /\d+[.,]?\d*\s*(kg|g|l|ml|cl|un|unid)/i.test(linha);
+      const temPreco = /\d+[.,]\d{2}\s*€?/i.test(linha);
+      const temFormatoRecheio = /\d+\s+\d+\s+\d+[.,]\d{3}/i.test(linha);
+      
+      if (!temQuantidade && !temPreco && !temFormatoRecheio) {
+        return true;
+      }
     }
     
     return false;
@@ -8409,9 +8412,27 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
       .replace(/\s+\d+$/, '')  // Remove números isolados no final
       .trim();
     
-    // 7. Se nome ficou vazio ou muito curto, usar linha original limpa
+    // 7. Validar se nome é válido
+    // Se ficou vazio, muito curto, ou só números/símbolos, rejeitar
     if (!nomeProduto || nomeProduto.length < 3) {
-      nomeProduto = linhaLimpa;
+      return {
+        textoOriginal: linha,
+        nomeProduto: null, // INVÁLIDO
+        quantidade: qtdUnidade.quantidade,
+        unidade: qtdUnidade.unidade,
+        preco: preco.valor
+      };
+    }
+    
+    // Se é só números ou símbolos, também rejeitar
+    if (/^[\d\s,\.€%\-\+]+$/.test(nomeProduto)) {
+      return {
+        textoOriginal: linha,
+        nomeProduto: null, // INVÁLIDO (ex: "34", "1,000", "4,84 6,0")
+        quantidade: qtdUnidade.quantidade,
+        unidade: qtdUnidade.unidade,
+        preco: preco.valor
+      };
     }
     
     return {
