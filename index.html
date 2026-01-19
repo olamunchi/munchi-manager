@@ -5236,7 +5236,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
               // 4. Parsear linhas de produtos
               console.log('📝 Texto para parsing (primeiras 2000 chars):', textoExtraido.substring(0, 2000));
               const template = buscarTemplateOCR(dadosFatura.fornecedor.nif);
-              const linhas = template ? parseComTemplate(textoExtraido, template) : parseLinhasProdutos(textoExtraido, true);
+              const linhas = template ? parseComTemplate(textoExtraido, template) : parseLinhasProdutos(textoExtraido);
               
               console.log(`📦 ${linhas.length} linhas de produtos identificadas`);
               if (linhas.length > 0) {
@@ -8214,53 +8214,29 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
   };
   
   // Ignorar linhas
-  const shouldIgnoreLine = (linha, skipQuantityCheck = false) => {
+  const shouldIgnoreLine = (linha) => {
     const lower = linha.toLowerCase();
     
-    // Patterns mais abrangentes para ignorar
+    // Filtrar APENAS lixo óbvio
     const ignorePatterns = [
-      // Headers/Footers de fatura
-      /^(fatura|factura|invoice|recibo|receipt)/i,
-      /^(nif|nipc|vat|cif)[\s:]/i,
+      /^(fatura|factura|invoice|recibo|receipt|talao|talão)/i,
+      /^(nif|nipc|vat|contribuinte|tax id)[\s:]/i,
       /^(data|date)[\s:]/i,
-      /^(vencimento|due date)[\s:]/i,
-      
-      // Info empresa/cliente
-      /^(fornecedor|supplier|vendedor|seller|exmo|cliente|client)/i,
-      /(lda|limitada|s\.a\.|unipessoal|ltda)/i,
-      /^(rua|avenida|av\.|praça|largo|estrada)/i,
+      /(lda|limitada|s\.a\.|unipessoal|ltda|sa\s)/i,
+      /^(rua|avenida|av\.|praça|largo|estrada|morada|address)/i,
       /^\d{4}-\d{3}\s/i, // Código postal
-      /(email|e-mail|tel|telefone|phone|fax)[\s:]/i,
-      
-      // Totais e valores agregados
-      /^(total|subtotal|sub-total|iva|vat|tax|imposto)[\s:]/i,
-      /^(desconto|discount)[\s:]/i,
-      
-      // Info pagamento
-      /^(método|metodo|forma|pagamento|payment|transferência)/i,
+      /(email|e-mail|tel|telefone|phone|fax|telef|www\.)[\s:]/i,
+      /^(total|subtotal|sub-total|iva|vat|tax|imposto|desconto)[\s:]/i,
+      /^(método|metodo|forma|pagamento|payment)/i,
       /(iban|nib|swift|bic)[\s:]/i,
       /^(referência|reference|ref)[\s:]/i,
-      /prazo\s+(de\s+)?pagamento/i,
-      
-      // Headers de tabela
-      /^(descrição|description|artigo|produto|item)/i,
-      /^(quantidade|qtd|qty|unidade|un|unit)/i,
-      /^(preço|preco|price|valor|value)/i,
-      
-      // Informação legal
-      /(processado|emitido)\s+por\s+computador/i,
-      /(documento|comprovativo)\s+(válido|valido)/i,
-      /(conservatória|registo|matricula|matrícula)/i,
-      /(capital social|share capital)/i,
-      /sob\s+o\s+número/i,
-      
-      // Linhas só com números/datas
+      /(processado|emitido|certificado)\s+por/i,
+      /(conservatória|registo|matricula|capital social)/i,
+      /^atcud/i,
+      /^pt\d{2}\s*\d{4}/i, // IBAN
       /^\d{9}$/,  // NIF sozinho
       /^\d+\/\d+\/\d+$/, // Data sozinha
-      /^pt\d{2}\s*\d{4}/i, // IBAN
-      
-      // Linhas muito curtas ou vazias
-      /^[\s\-\+\.]+$/, // Só símbolos
+      /^[\s\-\+\.€%]+$/, // Só símbolos
     ];
     
     // Se algum pattern matchar, ignorar
@@ -8268,30 +8244,17 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
       return true;
     }
     
-    // Ignorar linhas muito curtas (< 5 caracteres)
-    if (linha.length < 5) {
+    // Ignorar linhas muito curtas (< 3 caracteres)
+    if (linha.length < 3) {
       return true;
     }
     
-    // Para Google OCR: aceitar linhas que PODEM ser produtos
-    // parseLinha vai validar se o nome extraído é válido
-    // Aqui só filtramos lixo óbvio (só números, muito curta)
-    if (skipQuantityCheck) {
-      // Rejeitar se é só números/símbolos
-      if (/^[\d\s,\.€%\-\+]+$/.test(linha)) {
-        return true;
-      }
-    } else {
-      // Tesseract: exigir quantidade/preço
-      const temQuantidade = /\d+[.,]?\d*\s*(kg|g|l|ml|cl|un|unid)/i.test(linha);
-      const temPreco = /\d+[.,]\d{2}\s*€?/i.test(linha);
-      const temFormatoRecheio = /\d+\s+\d+\s+\d+[.,]\d{3}/i.test(linha);
-      
-      if (!temQuantidade && !temPreco && !temFormatoRecheio) {
-        return true;
-      }
+    // Ignorar se é SÓ números/símbolos (ex: "34", "1,000", "€4.50")
+    if (/^[\d\s,\.€%\-\+]+$/.test(linha)) {
+      return true;
     }
     
+    // ACEITAR todo o resto - fuzzy matching vai filtrar
     return false;
   };
   
@@ -8389,7 +8352,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
     // 2. LIMPAR linha
     let linhaLimpa = linhaCorrigida.trim();
     
-    // 3. RECHEIO ESPECÍFICO: Remover código de produto no INÍCIO (6 dígitos + ponto)
+    // 3. Remover código de produto no INÍCIO se existir (6 dígitos + ponto)
     // Ex: "125019.1 AROMA VAHINE..." → "AROMA VAHINE..."
     linhaLimpa = linhaLimpa.replace(/^\d{6}\.\d+\s+/, '');
     
@@ -8397,7 +8360,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
     const qtdUnidade = extractQuantidadeUnidade(linhaLimpa);
     const preco = extractPreco(linhaLimpa);
     
-    // 5. Extrair nome do produto (remove quantidade e preço)
+    // 5. Extrair nome do produto (remove quantidade e preço do texto)
     let nomeProduto = linhaLimpa;
     if (qtdUnidade.match) nomeProduto = nomeProduto.replace(qtdUnidade.match, '');
     if (preco.match) nomeProduto = nomeProduto.replace(preco.match, '');
@@ -8405,16 +8368,17 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
     // 6. Limpeza final do nome
     nomeProduto = nomeProduto
       .replace(/\s+/g, ' ')  // Espaços múltiplos
-      .replace(/^\d+\s*/, '')  // Números no início
+      .replace(/^[\d\s,\.]+/, '')  // Números/símbolos no início
       .replace(/[*]+/g, '')  // Asteriscos
-      .replace(/\s+[Ajl]\s*$/, '')  // Remove A, j, l no final (sufixos Recheio)
-      .replace(/\s+(TN|PA)\s*$/, '')  // Remove TN, PA no final
-      .replace(/\s+\d+$/, '')  // Remove números isolados no final
+      .replace(/\s+[Ajl]\s*$/, '')  // Remove A, j, l no final
+      .replace(/\s+(TN|PA|UN|UNI|EMB|CX)\s*$/i, '')  // Remove siglas no final
+      .replace(/[\d\s,\.€]+$/, '')  // Remove números/preços no final
       .trim();
     
-    // 7. Validar se nome é válido
-    // Se ficou vazio, muito curto, ou só números/símbolos, rejeitar
-    if (!nomeProduto || nomeProduto.length < 3) {
+    // 7. Validar se nome é válido (mínimo 2 caracteres alfabéticos)
+    const temLetras = /[a-zA-ZÀ-ÿ]{2,}/.test(nomeProduto);
+    
+    if (!nomeProduto || nomeProduto.length < 2 || !temLetras) {
       return {
         textoOriginal: linha,
         nomeProduto: null, // INVÁLIDO
@@ -8424,21 +8388,10 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
       };
     }
     
-    // Se é só números ou símbolos, também rejeitar
-    if (/^[\d\s,\.€%\-\+]+$/.test(nomeProduto)) {
-      return {
-        textoOriginal: linha,
-        nomeProduto: null, // INVÁLIDO (ex: "34", "1,000", "4,84 6,0")
-        quantidade: qtdUnidade.quantidade,
-        unidade: qtdUnidade.unidade,
-        preco: preco.valor
-      };
-    }
-    
     return {
-      textoOriginal: linha,  // Guardar original para debug
-      textoCorrigido: linhaCorrigida,  // Após correção OCR
-      textoLimpo: linhaLimpa,  // Após limpeza
+      textoOriginal: linha,
+      textoCorrigido: linhaCorrigida,
+      textoLimpo: linhaLimpa,
       nomeProduto,
       quantidade: qtdUnidade.quantidade,
       unidade: qtdUnidade.unidade,
@@ -8449,7 +8402,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
   };
   
   // Parse produtos
-  const parseLinhasProdutos = (texto, skipQuantityCheck = false) => {
+  const parseLinhasProdutos = (texto) => {
     console.log('🔍 Parsing...');
     console.log('📄 Texto ORIGINAL (primeiras 1000 chars):', texto.substring(0, 1000));
     setProgressoOCR('Identificando produtos...');
@@ -8467,7 +8420,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
     let linhasSemNome = 0;
     
     for (const linha of linhas) {
-      if (shouldIgnoreLine(linha, skipQuantityCheck)) {
+      if (shouldIgnoreLine(linha)) {
         linhasIgnoradas++;
         continue;
       }
@@ -8792,6 +8745,21 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
               historicoSugestao: { confirmacoes, correcoes }
             };
           }
+        }
+        
+        // Se não encontrou no vocabulário, tentar FUZZY MATCH
+        const fuzzyMatch = findBestMatch(linha.nomeProduto, ingredientes);
+        
+        if (fuzzyMatch && fuzzyMatch.score >= 60) {
+          console.log(`🟡 "${linha.nomeProduto}" → ${fuzzyMatch.ingrediente.nome} (${fuzzyMatch.score}% fuzzy match)`);
+          
+          return {
+            ...linha,
+            ingredienteSugerido: fuzzyMatch.ingrediente.id,
+            confiancaSugestao: fuzzyMatch.score,
+            similaridadeSugestao: fuzzyMatch.score,
+            historicoSugestao: { confirmacoes: 0, correcoes: 0 }
+          };
         }
         
         console.log(`⚪ "${linha.nomeProduto}" → sem sugestão (desconhecido)`);
