@@ -3191,6 +3191,7 @@ const RestauranteGestor = () => {
       tipoFatura: dadosConfirmados.tipo,
       numeroFatura: dadosConfirmados.numero,
       fornecedor: dadosConfirmados.fornecedor.nome,
+      fornecedorId: dadosConfirmados.fornecedor.id, // ✅ FIX: Guardar ID do fornecedor
       nif: dadosConfirmados.fornecedor.nif,
       dataFatura: dadosConfirmados.data,
       atcud: dadosConfirmados.atcud,
@@ -9008,15 +9009,28 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
           if (ingrediente) {
             console.log(`🔵 "${linha.nomeProduto}" → ${ingrediente.nome} (${confianca}% confiança, ${confirmacoes} confirmações)`);
             
-            // Pré-preencher com sugestão
-            return {
-              ...linha,
-              ingredienteConfirmado: ingredienteId,
-              ingredienteSugerido: true, // Flag para UI mostrar que foi sugerido
-              confiancaSugestao: confianca,
-              similaridadeSugestao: similaridade,
-              historicoSugestao: { confirmacoes, correcoes }
-            };
+            // ✅ AUTO-PREENCHER SE CONFIANÇA >= 80%
+            if (confianca >= 80) {
+              console.log(`  → ✅ AUTO-PREENCHIDO (confiança ${confianca}%)`);
+              return {
+                ...linha,
+                ingredienteConfirmado: ingredienteId, // Auto-preencher
+                ingredienteSugerido: ingredienteId,   // ✅ FIX: Guardar ID da sugestão
+                confiancaSugestao: confianca,
+                similaridadeSugestao: similaridade,
+                historicoSugestao: { confirmacoes, correcoes }
+              };
+            } else {
+              // Confiança baixa - só sugerir, não auto-preencher
+              console.log(`  → 💡 SUGERIDO (confiança ${confianca}% < 80%)`);
+              return {
+                ...linha,
+                ingredienteSugerido: ingredienteId, // ✅ FIX: ID do sugerido
+                confiancaSugestao: confianca,
+                similaridadeSugestao: similaridade,
+                historicoSugestao: { confirmacoes, correcoes }
+              };
+            }
           }
         }
         
@@ -9324,18 +9338,28 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
       totais: metadata.totais || { subtotal: 0, iva: 0, total: 0 } // ✅ TOTAIS DA FATURA
     };
     
-    // Tentar identificar fornecedor pelo NIF (se existir)
-    if (metadata.nif) {
+    // ✅ PRIORIDADE 1: Usar fornecedorId se foi confirmado no Modal 1
+    if (metadata.fornecedorId) {
+      const fornecedor = fornecedores.find(f => f.id === metadata.fornecedorId);
+      if (fornecedor) {
+        novaFaturaAtualizada.fornecedorId = fornecedor.id;
+        novaFaturaAtualizada.fornecedorNome = fornecedor.nome;
+        novaFaturaAtualizada.fornecedorNif = fornecedor.nif || metadata.nif || '';
+        console.log('✅ Fornecedor confirmado no Modal 1:', fornecedor.nome);
+      }
+    }
+    // PRIORIDADE 2: Tentar identificar fornecedor pelo NIF (se não foi confirmado)
+    else if (metadata.nif) {
       const fornecedor = fornecedores.find(f => f.nif === metadata.nif);
       if (fornecedor) {
         novaFaturaAtualizada.fornecedorId = fornecedor.id;
         novaFaturaAtualizada.fornecedorNome = fornecedor.nome;
         novaFaturaAtualizada.fornecedorNif = metadata.nif;
-        console.log('✅ Fornecedor identificado:', fornecedor.nome);
+        console.log('✅ Fornecedor identificado por NIF:', fornecedor.nome);
       }
     }
     
-    // Se fornecedor foi selecionado manualmente (sem NIF detectado)
+    // PRIORIDADE 3: Se fornecedor foi selecionado manualmente (sem NIF detectado)
     if (metadata.fornecedorManual && !novaFaturaAtualizada.fornecedorId) {
       // Verificar se é fornecedor temporário (recém-criado)
       let fornecedorManual = fornecedores.find(f => f.id === metadata.fornecedorManual);
