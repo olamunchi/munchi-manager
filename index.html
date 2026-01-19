@@ -1577,7 +1577,7 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-[95vh] flex flex-col">
+      <div className="bg-white rounded-lg shadow-xl max-w-[95vw] w-full max-h-[95vh] flex flex-col">
         <div className="p-4 border-b flex-shrink-0">
           <h2 className="text-xl font-bold mb-2">📄 Confirmar Produtos Extraídos</h2>
           
@@ -2158,7 +2158,7 @@ const ModalConfirmacaoFatura = ({ dadosFatura, onConfirmar, onCancelar, forneced
   
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
+      <div className="bg-white rounded-lg p-6 max-w-sm w-full mx-4 shadow-xl">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-xl font-bold">Confirmar Tipo de Fatura</h3>
           {dadosFatura.pdfUrl && (
@@ -2689,11 +2689,14 @@ const INVOICE_TYPES = {
     description: 'NÃO vai para contabilista',
     patterns: [
       /Fatura\s+Simplificada/i,
+      /FS\s+[MN]\/\d+/i, // FS M/68601
       /FS\s+\d{4}\/\d+/,
       /Recibo\s+N[.º°]\s*\d+/,
       /Simplificada/i
     ],
     numberPatterns: [
+      /Simplificada\s+FS\s+([MN]\/\d+)/i, // FS M/68601
+      /FS\s+([MN]\/\d+)/i,
       /Simplificada\s+N[.º°]\s*(FS\s*\d{4}\/\d+)/i,
       /(FS\s*\d{4}\/\d+)/,
       /Recibo\s+N[.º°]\s*(\d+)/,
@@ -9000,10 +9003,15 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
         
         // Garantir valores válidos
         const quantidade = parseFloat(l.quantidade) || 1;
-        const precoTotal = parseFloat(l.preco) || 0;
-        const precoUnitario = precoTotal > 0 ? (precoTotal / quantidade) : 0;
+        const precoTotal = parseFloat(l.preco) || 0; // COM IVA
         const iva = parseFloat(ingrediente?.iva || 13);
-        const subtotal = precoTotal;
+        
+        // ✅ REMOVER IVA do preço
+        const precoComIVA = precoTotal / quantidade;
+        const precoUnitario = precoComIVA / (1 + iva / 100); // SEM IVA
+        const subtotal = precoUnitario * quantidade; // SEM IVA
+        
+        console.log(`📦 Item: ${ingrediente?.nome} - Preço COM IVA: €${precoComIVA.toFixed(2)} → SEM IVA: €${precoUnitario.toFixed(2)}`);
         
         return {
           id: `ocr_${Date.now()}_${index}`, // ID único
