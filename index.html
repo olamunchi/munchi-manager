@@ -8273,16 +8273,20 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
       return true;
     }
     
-    // APENAS para Tesseract: verificar se tem quantidade/preço
-    // Google OCR já vem limpo, não precisa dessa validação
-    if (!skipQuantityCheck) {
-      const temQuantidade = /\d+[.,]?\d*\s*(kg|g|l|ml|cl|un|unid)/i.test(linha);
-      const temPreco = /\d+[.,]\d{2}\s*€?/i.test(linha);
-      const temFormatoRecheio = /\d+\s+\d+\s+\d+[.,]\d{3}/i.test(linha);  // "1 6 6,000"
-      
-      if (!temQuantidade && !temPreco && !temFormatoRecheio) {
-        return true; // Ignorar se não tiver nem quantidade nem preço
-      }
+    // Linha DEVE ter pelo menos: código de produto OU (quantidade + preço)
+    const temCodigoProduto = /^\d{6}\.\d\s+\w/i.test(linha); // Ex: "735902.0 SUMO..."
+    const temQuantidade = /\d+[.,]?\d*\s*(kg|g|l|ml|cl|un|unid)/i.test(linha);
+    const temPreco = /\d+[.,]\d{2}\s*€?/i.test(linha);
+    const temFormatoRecheio = /\d+\s+\d+\s+\d+[.,]\d{3}/i.test(linha);  // "1 6 6,000"
+    
+    // Se tem código de produto, aceitar (mesmo sem qtd/preço - podem estar na linha seguinte)
+    if (temCodigoProduto) {
+      return false; // NÃO ignorar
+    }
+    
+    // Se não tem código, DEVE ter quantidade/preço
+    if (!temQuantidade && !temPreco && !temFormatoRecheio) {
+      return true; // Ignorar
     }
     
     return false;
@@ -8448,6 +8452,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
       }
       const parsed = parseLinha(linha);
       if (parsed && parsed.nomeProduto) {
+        console.log(`✅ PRODUTO: "${parsed.nomeProduto.substring(0, 40)}..." | Qtd: ${parsed.quantidade} | Preço: €${parsed.preco}`);
         linhasProdutos.push(parsed);
       } else {
         linhasSemNome++;
