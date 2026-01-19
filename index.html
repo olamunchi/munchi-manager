@@ -9027,6 +9027,9 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
   const handleConfirmarOCR = (linhasValidadas, metadata) => {
     console.log('📝 Auto-preenchendo fatura...');
     
+    // ✅ FECHAR MODAL OCR IMEDIATAMENTE para evitar cliques duplicados
+    setMostrarModalOCR(false);
+    
     // 🧠 FASE 2: RECONHECIMENTO AUTOMÁTICO DE INGREDIENTES
     const nifFornecedor = metadata.nif || novaFatura.fornecedorNIF;
     
@@ -9421,7 +9424,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
     console.log('Tipo documento:', novaFaturaAtualizada.tipoDocumento);
     
     setNovaFatura(novaFaturaAtualizada);
-    setMostrarModalOCR(false);
+    // ✅ Modal OCR já foi fechado no início de handleConfirmarOCR
     
     const tipoMsg = novaFaturaAtualizada.tipoDocumento === 'fatura' ? 'Fatura' : 'Recibo';
     showNotification(`✅ ${tipoMsg} preenchida com ${novosItens.length} produtos!`, 'success');
