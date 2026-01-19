@@ -1671,14 +1671,34 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
             </div>
           </div>
           
-          {/* Stats - COMPACTO */}
+          {/* Stats de Aprendizagem - MELHORADO */}
           {stats && (
-            <div className="flex gap-2 text-xs">
-              <div className="bg-blue-50 px-2 py-1 rounded"><strong>{stats.total}</strong> produtos</div>
-              <div className="bg-green-50 px-2 py-1 rounded"><strong>{stats.altaConfianca}</strong> alta</div>
-              <div className="bg-yellow-50 px-2 py-1 rounded"><strong>{stats.mediaConfianca}</strong> verificar</div>
-              <div className="bg-red-50 px-2 py-1 rounded"><strong>{stats.semSugestao}</strong> manual</div>
-              <div className="bg-purple-50 px-2 py-1 rounded"><strong>{stats.percentagemAuto}%</strong> auto</div>
+            <div className="mb-2">
+              <div className="flex gap-2 text-xs mb-2">
+                <div className="bg-blue-100 border border-blue-300 px-3 py-1.5 rounded font-semibold text-blue-900">
+                  📦 <strong>{stats.total}</strong> produtos
+                </div>
+                <div className="bg-green-100 border border-green-300 px-3 py-1.5 rounded font-semibold text-green-900">
+                  ✓ <strong>{stats.altaConfianca}</strong> auto-preenchidos
+                </div>
+                <div className="bg-yellow-100 border border-yellow-300 px-3 py-1.5 rounded font-semibold text-yellow-900">
+                  ⚠ <strong>{stats.mediaConfianca}</strong> para verificar
+                </div>
+                <div className="bg-gray-100 border border-gray-300 px-3 py-1.5 rounded font-semibold text-gray-700">
+                  ❓ <strong>{stats.semSugestao}</strong> manual
+                </div>
+              </div>
+              
+              {/* Barra de progresso de aprendizagem */}
+              {stats.percentagemAuto > 0 && (
+                <div className="bg-gradient-to-r from-purple-500 to-blue-500 text-white px-3 py-2 rounded flex items-center gap-2">
+                  <span className="text-lg">🧠</span>
+                  <div className="flex-1">
+                    <div className="font-bold text-sm">Sistema Inteligente: {stats.percentagemAuto}% reconhecidos automaticamente</div>
+                    <div className="text-xs opacity-90">Baseado em {stats.altaConfianca} confirmações anteriores com este fornecedor</div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -1712,28 +1732,45 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
                       <div className="flex gap-1">
                         {/* Search + Dropdown de ingredientes */}
                         <div className="flex-1 relative">
-                          <input
-                            type="text"
-                            value={searchIngredienteOCR[index] || ''}
-                            onChange={(e) => {
-                              const valor = e.target.value;
-                              setSearchIngredienteOCR({...searchIngredienteOCR, [index]: valor});
-                              setShowDropdownOCR({...showDropdownOCR, [index]: valor.length >= 2});
-                            }}
-                            onFocus={() => {
-                              if ((searchIngredienteOCR[index] || '').length >= 2) {
-                                setShowDropdownOCR({...showDropdownOCR, [index]: true});
-                              }
-                            }}
-                            onBlur={() => {
-                              // Delay para permitir click no dropdown
-                              setTimeout(() => {
-                                setShowDropdownOCR({...showDropdownOCR, [index]: false});
-                              }, 200);
-                            }}
-                            placeholder="Digite para buscar..."
-                            className={`w-full px-2 py-1 text-sm border rounded ${getConfidenceClass(confianca)}`}
-                          />
+                          <div className="relative">
+                            <input
+                              type="text"
+                              value={searchIngredienteOCR[index] || ''}
+                              onChange={(e) => {
+                                const valor = e.target.value;
+                                setSearchIngredienteOCR({...searchIngredienteOCR, [index]: valor});
+                                setShowDropdownOCR({...showDropdownOCR, [index]: valor.length >= 2});
+                              }}
+                              onFocus={() => {
+                                if ((searchIngredienteOCR[index] || '').length >= 2) {
+                                  setShowDropdownOCR({...showDropdownOCR, [index]: true});
+                                }
+                              }}
+                              onBlur={() => {
+                                // Delay para permitir click no dropdown
+                                setTimeout(() => {
+                                  setShowDropdownOCR({...showDropdownOCR, [index]: false});
+                                }, 200);
+                              }}
+                              placeholder="Digite para buscar..."
+                              className={`w-full px-2 py-1 text-sm border-2 rounded ${
+                                confianca >= 80 ? 'border-green-400 bg-green-50' :
+                                confianca >= 60 ? 'border-yellow-400 bg-yellow-50' :
+                                confianca > 0 ? 'border-orange-300 bg-orange-50' :
+                                'border-gray-300'
+                              }`}
+                            />
+                            {/* Badge de confiança */}
+                            {confianca > 0 && (
+                              <div className={`absolute -top-2 -right-2 px-1.5 py-0.5 rounded-full text-xs font-bold ${
+                                confianca >= 80 ? 'bg-green-500 text-white' :
+                                confianca >= 60 ? 'bg-yellow-500 text-white' :
+                                'bg-orange-500 text-white'
+                              }`}>
+                                {confianca}%
+                              </div>
+                            )}
+                          </div>
                           
                           {/* Dropdown de sugestões */}
                           {showDropdownOCR[index] && (
@@ -1804,12 +1841,27 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
                         </button>
                       </div>
                       {linha.ingredienteSugerido && ingredienteSugerido && (
-                        <div className="text-xs mt-1 flex items-center gap-1">
-                          <span className="text-blue-600">🔵</span>
-                          <span className="text-gray-600">
-                            Sugestão: <strong>{ingredienteSugerido.nome}</strong>
-                            {historico && ` (${historico.confirmacoes} confirmações)`}
-                          </span>
+                        <div className="text-xs mt-1 p-2 bg-blue-50 border border-blue-200 rounded">
+                          <div className="flex items-center gap-1 mb-1">
+                            <span className={`font-bold ${
+                              confianca >= 80 ? 'text-green-600' :
+                              confianca >= 60 ? 'text-yellow-600' :
+                              'text-orange-600'
+                            }`}>
+                              {confianca >= 80 ? '✓ AUTO-PREENCHIDO' :
+                               confianca >= 60 ? '⚠ VERIFICAR' :
+                               '💡 SUGESTÃO'}
+                            </span>
+                          </div>
+                          <div className="text-gray-700">
+                            <strong>{ingredienteSugerido.nome}</strong>
+                          </div>
+                          {historico && (
+                            <div className="text-gray-600 text-xs mt-1">
+                              📊 {historico.confirmacoes} confirmações
+                              {historico.correcoes > 0 && `, ${historico.correcoes} correções`}
+                            </div>
+                          )}
                         </div>
                       )}
                     </td>
@@ -4093,7 +4145,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
   };
   
   const parseComTemplate = (texto, template) => {
-    if (!template) return parseLinhasProdutos(texto);
+    if (!template) return parseLinhasProdutos(texto, template?.nifFornecedor); // 🚫 CORRIGIDO: Passar NIF mesmo sem template
     
     console.log(`📋 Usando template (${template.vezeUsado}x usado)`);
     const linhas = texto.split('\n').map(l => l.trim());
@@ -5262,6 +5314,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
         deliveryApps: deliveryApps || [],
         blacklist: blacklist || [],
         templatesOCR: templatesOCR || [], // ✅ Templates com blacklists
+        vocabularioFornecedor: vocabularioFornecedor || [], // 🧠 CORRIGIDO: Salvar aprendizagem
         lastUpdate: new Date().toISOString()
       };
       let fileId = driveFileId;
@@ -5425,13 +5478,9 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
       // Criar Google Picker para escolher PDF do Drive
       const picker = new window.google.picker.PickerBuilder()
         .addView(
-          new window.google.picker.DocsView(window.google.picker.ViewId.FOLDERS)
-            .setIncludeFolders(true)
-            .setSelectFolderEnabled(false)
-        )
-        .addView(
           new window.google.picker.DocsView(window.google.picker.ViewId.DOCS)
             .setMimeTypes('application/pdf')
+            .setIncludeFolders(true) // ✅ Permite ver pastas
         )
         .setOAuthToken(driveAccessToken)
         .setDeveloperKey(GOOGLE_DRIVE_CONFIG.API_KEY)
@@ -5478,7 +5527,9 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
               // 4. Parsear linhas de produtos
               console.log('📝 Texto para parsing (primeiras 2000 chars):', textoExtraido.substring(0, 2000));
               const template = buscarTemplateOCR(dadosFatura.fornecedor.nif);
-              const linhas = template ? parseComTemplate(textoExtraido, template) : parseLinhasProdutos(textoExtraido);
+              const linhas = template 
+                ? parseComTemplate(textoExtraido, template) 
+                : parseLinhasProdutos(textoExtraido, dadosFatura.fornecedor.nif); // 🚫 CORRIGIDO: Passar NIF para usar blacklist
               
               console.log(`📦 ${linhas.length} linhas de produtos identificadas`);
               if (linhas.length > 0) {
@@ -5598,6 +5649,12 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
         if (data.templatesOCR && data.templatesOCR.length > 0) {
           setTemplatesOCR(data.templatesOCR);
           console.log('✅ Templates OCR carregados do Drive:', data.templatesOCR.length, 'templates');
+        }
+        
+        // 🧠 CORRIGIDO: VOCABULÁRIO DE APRENDIZAGEM: Carregar
+        if (data.vocabularioFornecedor && data.vocabularioFornecedor.length > 0) {
+          setVocabularioFornecedor(data.vocabularioFornecedor);
+          console.log('🧠 Vocabulário carregado do Drive:', data.vocabularioFornecedor.length, 'associações');
         }
         
         setDriveLastSync(new Date(file.modifiedTime));
@@ -6756,6 +6813,13 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
     // Se é recibo e não tem número, deixa null
     if (tipoDoc === 'recibo' && (!novaFatura.numero || novaFatura.numero.trim() === '')) {
       novaFatura.numero = null;
+    }
+    
+    // ✅ PULAR VERIFICAÇÃO DE PREÇOS se veio do OCR (já foi processada)
+    if (novaFatura.fromOCR) {
+      console.log('⏭️ Fatura veio do OCR - pulando verificação de preços');
+      salvarFaturaSemAlerta();
+      return;
     }
     
     // Verificar se algum item tem preço muito diferente
@@ -8678,10 +8742,20 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
   };
   
   // Parse produtos
-  const parseLinhasProdutos = (texto) => {
+  const parseLinhasProdutos = (texto, nifFornecedor = null) => {
     console.log('🔍 Parsing...');
     console.log('📄 Texto ORIGINAL (primeiras 1000 chars):', texto.substring(0, 1000));
     setProgressoOCR('Identificando produtos...');
+    
+    // 🚫 CORRIGIDO: Carregar blacklist do fornecedor (se existir)
+    let blacklist = [];
+    if (nifFornecedor) {
+      const template = buscarTemplateOCR(nifFornecedor);
+      if (template && template.blacklist) {
+        blacklist = template.blacklist;
+        console.log(`🚫 Blacklist do fornecedor ativa: ${blacklist.length} itens`);
+      }
+    }
     
     // 1. LIMPAR texto completo ANTES de split
     const textoLimpo = cleanOCRText(texto);
@@ -8733,8 +8807,21 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
     const linhasProdutos = [];
     let linhasIgnoradas = 0;
     let linhasSemNome = 0;
+    let linhasIgnoradasBlacklist = 0; // 🚫 NOVO: Contador de blacklist
     
     for (const linha of linhas) {
+      // 🚫 CORRIGIDO: Verificar blacklist ANTES de qualquer outra validação
+      if (blacklist.length > 0) {
+        const linhaLower = linha.toLowerCase();
+        const temPalavraBlacklist = blacklist.some(palavra => linhaLower.includes(palavra));
+        
+        if (temPalavraBlacklist) {
+          console.log(`🚫 Ignorado por blacklist: "${linha.substring(0, 60)}..."`);
+          linhasIgnoradasBlacklist++;
+          continue;
+        }
+      }
+      
       if (shouldIgnoreLine(linha)) {
         linhasIgnoradas++;
         continue;
@@ -8750,6 +8837,9 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
     
     console.log(`✅ ${linhasProdutos.length} produtos identificados`);
     console.log(`⏭️ ${linhasIgnoradas} linhas ignoradas (headers, totais, etc)`);
+    if (linhasIgnoradasBlacklist > 0) {
+      console.log(`🚫 ${linhasIgnoradasBlacklist} linhas ignoradas por BLACKLIST`);
+    }
     console.log(`❌ ${linhasSemNome} linhas sem nome de produto`);
     
     if (linhasProdutos.length === 0) {
@@ -8980,7 +9070,9 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
       
       // 📋 Usar template se existir
       const template = buscarTemplateOCR(metadata.nif);
-      const linhas = template ? parseComTemplate(text, template) : parseLinhasProdutos(text);
+      const linhas = template 
+        ? parseComTemplate(text, template) 
+        : parseLinhasProdutos(text, metadata.nif); // 🚫 CORRIGIDO: Passar NIF para usar blacklist
       
       // SEMPRE guardar PDF (independente de ter produtos ou não)
       metadata.pdfBase64 = base64;
@@ -9423,11 +9515,37 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
     console.log('PDF na fatura final:', novaFaturaAtualizada.documentoPDF ? 'SIM' : 'NÃO');
     console.log('Tipo documento:', novaFaturaAtualizada.tipoDocumento);
     
+    // ✅ MARCAR COMO VINDO DE OCR para evitar re-processar preços ao guardar
+    novaFaturaAtualizada.fromOCR = true;
+    
     setNovaFatura(novaFaturaAtualizada);
     // ✅ Modal OCR já foi fechado no início de handleConfirmarOCR
     
-    const tipoMsg = novaFaturaAtualizada.tipoDocumento === 'fatura' ? 'Fatura' : 'Recibo';
-    showNotification(`✅ ${tipoMsg} preenchida com ${novosItens.length} produtos!`, 'success');
+    // ✅ AUTO-SALVAR FATURA após processar OCR (evita clique duplicado em "Guardar")
+    setTimeout(() => {
+      salvarFaturaSemAlerta(novaFaturaAtualizada);
+      
+      // Limpar formulário para próxima fatura
+      setNovaFatura({
+        numero: '',
+        tipo: 'FT',
+        tipoDocumento: 'fatura',
+        data: new Date().toISOString().split('T')[0],
+        fornecedorId: '',
+        fornecedorNome: '',
+        fornecedorNif: '',
+        itens: [],
+        notas: '',
+        categoria: 'compras',
+        recorrente: false,
+        documentoPDF: null,
+        nomeDocumento: ''
+      });
+      
+      const tipoMsg = novaFaturaAtualizada.tipoDocumento === 'fatura' ? 'Fatura' : 'Recibo';
+      showNotification(`✅ ${tipoMsg} guardada com ${novosItens.length} produtos!`, 'success');
+    }, 100);
+
   };
   
   // Converter data DD/MM/YYYY para YYYY-MM-DD
