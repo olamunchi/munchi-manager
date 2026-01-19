@@ -3278,18 +3278,83 @@ const RestauranteGestor = () => {
   const handleConfirmarFatura = (dadosConfirmados) => {
     console.log('✅ Fatura confirmada:', dadosConfirmados);
     
+    // 🚫 CRÍTICO: RE-PARSEAR linhas com NIF confirmado para aplicar blacklist
+    if (metadataOCR && metadataOCR.textoCompleto && dadosConfirmados.fornecedor.nif) {
+      console.log('🔄 RE-PARSEANDO com blacklist do fornecedor:', dadosConfirmados.fornecedor.nome);
+      
+      const nifConfirmado = dadosConfirmados.fornecedor.nif;
+      const template = buscarTemplateOCR(nifConfirmado);
+      
+      if (template && template.blacklist && template.blacklist.length > 0) {
+        console.log(`🚫 Blacklist encontrada: ${template.blacklist.length} itens`);
+      }
+      
+      // Re-parsear com template/blacklist
+      const linhasReparsed = template 
+        ? parseComTemplate(metadataOCR.textoCompleto, template)
+        : parseLinhasProdutos(metadataOCR.textoCompleto, nifConfirmado);
+      
+      console.log(`📦 ANTES: ${linhasOCR.length} linhas | DEPOIS: ${linhasReparsed.length} linhas`);
+      
+      // Fazer matching dos ingredientes COM sistema de aprendizagem
+      const linhasComMatch = linhasReparsed.length > 0 
+        ? matchIngredientes(linhasReparsed, ingredientes)
+        : [];
+      
+      // 🧠 Aplicar sistema de aprendizagem IMEDIATAMENTE
+      const linhasComAprendizagem = linhasComMatch.map(linha => {
+        // Buscar no vocabulário do fornecedor
+        const resultado = buscarNoVocabulario(linha.nomeProduto, nifConfirmado);
+        
+        if (resultado) {
+          const { ingredienteId, confianca, similaridade, confirmacoes, correcoes } = resultado;
+          const ingrediente = ingredientes.find(i => i.id === ingredienteId);
+          
+          if (ingrediente) {
+            console.log(`🔵 "${linha.nomeProduto}" → ${ingrediente.nome} (${confianca}% confiança)`);
+            
+            // ✅ AUTO-PREENCHER SE CONFIANÇA >= 80%
+            if (confianca >= 80) {
+              return {
+                ...linha,
+                ingredienteConfirmado: ingredienteId,
+                ingredienteSugerido: ingredienteId,
+                confiancaSugestao: confianca,
+                similaridadeSugestao: similaridade,
+                historicoSugestao: { confirmacoes, correcoes }
+              };
+            } else {
+              // Só sugerir
+              return {
+                ...linha,
+                ingredienteSugerido: ingredienteId,
+                confiancaSugestao: confianca,
+                similaridadeSugestao: similaridade,
+                historicoSugestao: { confirmacoes, correcoes }
+              };
+            }
+          }
+        }
+        
+        return linha;
+      });
+      
+      // Atualizar linhas com blacklist aplicada E aprendizagem
+      setLinhasOCR(linhasComAprendizagem);
+    }
+    
     // Atualizar metadata OCR com dados confirmados
     setMetadataOCR(prev => ({
       ...prev,
       tipoFatura: dadosConfirmados.tipo,
       numeroFatura: dadosConfirmados.numero,
       fornecedor: dadosConfirmados.fornecedor.nome,
-      fornecedorId: dadosConfirmados.fornecedor.id, // ✅ FIX: Guardar ID do fornecedor
+      fornecedorId: dadosConfirmados.fornecedor.id,
       nif: dadosConfirmados.fornecedor.nif,
       dataFatura: dadosConfirmados.data,
       atcud: dadosConfirmados.atcud,
       totais: dadosConfirmados.totais,
-      precosComIVA: dadosConfirmados.precosComIVA // ✅ CRÍTICO: passar flag de IVA
+      precosComIVA: dadosConfirmados.precosComIVA
     }));
     
     console.log('📋 Metadata atualizada com precosComIVA:', dadosConfirmados.precosComIVA);
