@@ -1822,12 +1822,6 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
                           <div className="text-gray-700">
                             <strong>{ingredienteSugerido.nome}</strong>
                           </div>
-                          {historico && (
-                            <div className="text-gray-600 text-xs mt-1">
-                              📊 {historico.confirmacoes} confirmações
-                              {historico.correcoes > 0 && `, ${historico.correcoes} correções`}
-                            </div>
-                          )}
                         </div>
                       )}
                     </td>
@@ -3000,6 +2994,10 @@ const RestauranteGestor = () => {
   const [ordenadoDesejado, setOrdenadoDesejado] = useState(920);
   const [incluirSubsidioAlimentacao, setIncluirSubsidioAlimentacao] = useState(false);
   const [valorSubsidioAlimentacao, setValorSubsidioAlimentacao] = useState(6.00);
+  const [incluirMedicinaTrabalho, setIncluirMedicinaTrabalho] = useState(false);
+  const [valorMedicinaTrabalho, setValorMedicinaTrabalho] = useState(100); // €100/ano (média)
+  const [incluirSeguroAcidentes, setIncluirSeguroAcidentes] = useState(false);
+  const [valorSeguroAcidentes, setValorSeguroAcidentes] = useState(150); // €150/ano (média restauração)
   const [modoSimulador, setModoSimulador] = useState('fulltime'); // 'fulltime' ou 'parttime'
   const [horasSemanaisPartTime, setHorasSemanaisPartTime] = useState(8);
   const [horasSemanais, setHorasSemanais] = useState(20);
@@ -3007,6 +3005,7 @@ const RestauranteGestor = () => {
   const [simuladorAberto, setSimuladorAberto] = useState(false);
   const [notification, setNotification] = useState(null);
   const [expandedProduct, setExpandedProduct] = useState(null);
+  const [desempenhoProdutoExpanded, setDesempenhoProdutoExpanded] = useState(false);
   const [searchTakeAway, setSearchTakeAway] = useState('');
   
   // Novos estados para Dados da Empresa
@@ -10887,43 +10886,45 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
               {/* ============================================ */}
 
               <div className="bg-white rounded-lg shadow p-4 mb-3">
-                <h2 className="text-xl font-bold mb-3 flex items-center gap-2">
-                  📊 Desempenho por Produto
-                </h2>
-                
-                {/* Filtros de Categoria */}
-                <div className="mb-4 p-3 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-200">
-                  <p className="text-xs font-semibold text-gray-700 mb-2">Filtrar por categoria:</p>
-                  <div className="flex flex-wrap gap-2">
-                    {[
-                      { id: 'todos', label: '📊 Todos', color: 'gray' },
-                      { id: 'cafes', label: '☕ Cafés', color: 'amber' },
-                      { id: 'bebidas', label: '🥤 Bebidas', color: 'blue' },
-                      { id: 'pratos', label: '🍳 Pratos', color: 'orange' },
-                      { id: 'sobremesas', label: '🍰 Sobremesas', color: 'pink' },
-                      { id: 'takeaway', label: '📦 Take Away', color: 'green' }
-                    ].map(cat => (
-                      <button
-                        key={cat.id}
-                        onClick={() => setCategoriaFiltroDesempenho(cat.id)}
-                        className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all shadow-sm ${
-                          categoriaFiltroDesempenho === cat.id
-                            ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg scale-105'
-                            : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-300'
-                        }`}
-                      >
-                        {cat.label}
-                      </button>
-                    ))}
-                  </div>
+                {/* Header clicável */}
+                <div 
+                  onClick={() => setDesempenhoProdutoExpanded(!desempenhoProdutoExpanded)}
+                  className="flex items-center justify-between cursor-pointer hover:bg-gray-50 -m-4 p-4 rounded-lg transition"
+                >
+                  <h2 className="text-xl font-bold flex items-center gap-2">
+                    📊 Desempenho por Produto
+                  </h2>
+                  <span className="text-2xl text-gray-600 transform transition-transform duration-200" style={{ transform: desempenhoProdutoExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}>
+                    ▼
+                  </span>
                 </div>
                 
-                <p className="text-xs text-gray-600 mb-3">
-                  Ranking de vendas, lucro e margens
-                  {categoriaFiltroDesempenho !== 'todos' && (
-                    <span className="font-bold text-blue-600"> - {categoriaFiltroDesempenho}</span>
-                  )}
-                </p>
+                {/* Conteúdo expansível */}
+                {desempenhoProdutoExpanded && (
+                  <div className="mt-4">
+                    {/* Filtro de Categoria - DROPDOWN */}
+                    <div className="mb-4 p-3 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-200">
+                      <label className="text-xs font-semibold text-gray-700 block mb-2">Filtrar por categoria:</label>
+                      <select
+                        value={categoriaFiltroDesempenho}
+                        onChange={(e) => setCategoriaFiltroDesempenho(e.target.value)}
+                        className="w-full md:w-64 px-4 py-2 border-2 border-blue-300 rounded-lg text-sm font-semibold bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      >
+                        <option value="todos">📊 Todos os Produtos</option>
+                        <option value="cafes">☕ Cafés</option>
+                        <option value="bebidas">🥤 Bebidas</option>
+                        <option value="pratos">🍳 Pratos</option>
+                        <option value="sobremesas">🍰 Sobremesas</option>
+                        <option value="takeaway">📦 Take Away</option>
+                      </select>
+                    </div>
+                    
+                    <p className="text-xs text-gray-600 mb-3">
+                      Ranking de vendas, lucro e margens
+                      {categoriaFiltroDesempenho !== 'todos' && (
+                        <span className="font-bold text-blue-600"> - {categoriaFiltroDesempenho}</span>
+                      )}
+                    </p>
                 
                 {(() => {
                   // Calcular vendas por produto
@@ -11061,6 +11062,8 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
                     </div>
                   );
                 })()}
+                </div>
+              )}
               </div>
 
               {/* ============================================ */}
@@ -11703,6 +11706,76 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
                             💡 Não obrigatório no setor privado. Referência: €6.00/dia (função pública)
                           </p>
                         </div>
+                        
+                        {/* Medicina no Trabalho */}
+                        <div className="pt-2 border-t border-blue-300">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={incluirMedicinaTrabalho}
+                              onChange={(e) => setIncluirMedicinaTrabalho(e.target.checked)}
+                              className="w-4 h-4"
+                            />
+                            <span className="text-sm font-medium text-gray-700">Incluir Medicina no Trabalho</span>
+                          </label>
+                          
+                          {incluirMedicinaTrabalho && (
+                            <div className="mt-2 pl-6">
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="number"
+                                  step="1"
+                                  value={valorMedicinaTrabalho}
+                                  onChange={(e) => setValorMedicinaTrabalho(parseFloat(e.target.value) || 0)}
+                                  className="w-20 border rounded px-2 py-1 text-sm"
+                                />
+                                <span className="text-sm text-gray-600">€/ano</span>
+                              </div>
+                              <p className="text-xs text-blue-700 mt-1">
+                                = €{(valorMedicinaTrabalho / 12).toFixed(2)}/mês
+                              </p>
+                            </div>
+                          )}
+                          
+                          <p className="text-xs text-gray-500 mt-1 pl-6">
+                            💡 Obrigatório. Média: €80-150/ano por trabalhador
+                          </p>
+                        </div>
+                        
+                        {/* Seguro Contra Acidentes */}
+                        <div className="pt-2 border-t border-blue-300">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={incluirSeguroAcidentes}
+                              onChange={(e) => setIncluirSeguroAcidentes(e.target.checked)}
+                              className="w-4 h-4"
+                            />
+                            <span className="text-sm font-medium text-gray-700">Incluir Seguro Contra Acidentes</span>
+                          </label>
+                          
+                          {incluirSeguroAcidentes && (
+                            <div className="mt-2 pl-6">
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="number"
+                                  step="1"
+                                  value={valorSeguroAcidentes}
+                                  onChange={(e) => setValorSeguroAcidentes(parseFloat(e.target.value) || 0)}
+                                  className="w-20 border rounded px-2 py-1 text-sm"
+                                />
+                                <span className="text-sm text-gray-600">€/ano</span>
+                              </div>
+                              <p className="text-xs text-blue-700 mt-1">
+                                = €{(valorSeguroAcidentes / 12).toFixed(2)}/mês
+                              </p>
+                            </div>
+                          )}
+                          
+                          <p className="text-xs text-gray-500 mt-1 pl-6">
+                            💡 Obrigatório. Média restauração: €100-200/ano por trabalhador
+                          </p>
+                        </div>
                       </div>
                     </div>
                     
@@ -11729,7 +11802,12 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
                         
                         const salarioComSubsidios = salarioBase + salarioBase / 12 * 2;
                         const tsuBase = salarioComSubsidios * 0.2375;
-                        const custoTotal = salarioComSubsidios * 1.2375 + subsidioAlimentacaoMensal;
+                        
+                        // Calcular custos adicionais mensais
+                        const medicinaTrabalhoMensal = incluirMedicinaTrabalho ? valorMedicinaTrabalho / 12 : 0;
+                        const seguroAcidentesMensal = incluirSeguroAcidentes ? valorSeguroAcidentes / 12 : 0;
+                        
+                        const custoTotal = salarioComSubsidios * 1.2375 + subsidioAlimentacaoMensal + medicinaTrabalhoMensal + seguroAcidentesMensal;
                         
                         return (
                           <>
@@ -11769,10 +11847,24 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
                                 <span className="font-semibold">€{(salarioComSubsidios + subsidioAlimentacaoMensal).toFixed(2)}</span>
                               </div>
                               
-                              <div className="flex justify-between items-center text-orange-700 pb-2 border-b-2 border-green-300">
+                              <div className="flex justify-between items-center text-orange-700 pb-2 border-b border-green-300">
                                 <span className="font-medium">TSU Patronal (23.75%):</span>
                                 <span className="font-semibold">€{tsuBase.toFixed(2)}</span>
                               </div>
+                              
+                              {incluirMedicinaTrabalho && (
+                                <div className="flex justify-between items-center text-xs text-purple-700 pt-1">
+                                  <span>Medicina no Trabalho:</span>
+                                  <span>€{medicinaTrabalhoMensal.toFixed(2)}</span>
+                                </div>
+                              )}
+                              
+                              {incluirSeguroAcidentes && (
+                                <div className="flex justify-between items-center text-xs text-purple-700 pb-2 border-b-2 border-green-300">
+                                  <span>Seguro Contra Acidentes:</span>
+                                  <span>€{seguroAcidentesMensal.toFixed(2)}</span>
+                                </div>
+                              )}
                               
                               <div className="flex justify-between items-center pt-2">
                                 <span className="text-lg font-bold text-green-900">CUSTO TOTAL MENSAL:</span>
@@ -11804,6 +11896,8 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
                       <li>• <strong>Subsídio de Natal</strong>: 1 mês de salário (13º mês) - obrigatório por lei</li>
                       <li>• <strong>Subsídio de Alimentação</strong>: Opcional (não obrigatório no setor privado). Isento até €6/dia em dinheiro ou €10.20/dia em cartão</li>
                       <li>• <strong>TSU Patronal</strong>: 23.75% sobre salário + subsídios de férias e natal (não incide sobre subsídio alimentação até limites isentos)</li>
+                      <li>• <strong>Medicina no Trabalho</strong>: Obrigatório. Consultas médicas periódicas para vigilância da saúde. Média: €80-150/ano</li>
+                      <li>• <strong>Seguro Contra Acidentes</strong>: Obrigatório. Seguro de acidentes de trabalho. Média restauração: €100-200/ano</li>
                       <li>• <strong>Nota</strong>: Trabalhador também desconta 11% (retido do salário), mas não está incluído aqui</li>
                     </ul>
                   </div>
