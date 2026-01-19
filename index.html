@@ -8082,11 +8082,11 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
     // MAS só se forem palavras CURTAS repetidas 3+ vezes
     cleaned = cleaned.replace(/(\b\w{1,2}\b)(\s+\1){3,}/gi, '$1');
     
-    // 5. Limpar espaços múltiplos
-    cleaned = cleaned.replace(/\s{3,}/g, ' ');  // 3+ espaços → 1 espaço
+    // 5. Limpar espaços múltiplos (mas NÃO quebras de linha)
+    cleaned = cleaned.replace(/ {2,}/g, ' ');  // 2+ espaços → 1 espaço (SÓ espaços, não \n)
     
     // 6. Remover linhas vazias múltiplas (mais de 2)
-    cleaned = cleaned.replace(/\n\s*\n\s*\n/g, '\n\n');
+    cleaned = cleaned.replace(/\n\s*\n\s*\n+/g, '\n\n');
     
     return cleaned.trim();
   };
