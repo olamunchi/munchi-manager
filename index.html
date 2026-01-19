@@ -2134,13 +2134,25 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
 /**
  * Modal para confirmar tipo de fatura detectado
  */
-const ModalConfirmacaoFatura = ({ dadosFatura, onConfirmar, onCancelar }) => {
+const ModalConfirmacaoFatura = ({ dadosFatura, onConfirmar, onCancelar, fornecedores = [] }) => {
   const [tipoSelecionado, setTipoSelecionado] = React.useState(dadosFatura.tipo);
+  const [fornecedorSelecionado, setFornecedorSelecionado] = React.useState(
+    dadosFatura.fornecedor?.nif ? 
+      fornecedores.find(f => f.nif === dadosFatura.fornecedor.nif) : 
+      null
+  );
+  const [numeroFatura, setNumeroFatura] = React.useState(dadosFatura.numero || '');
   
   const handleConfirmar = () => {
     onConfirmar({
       ...dadosFatura,
-      tipo: tipoSelecionado
+      tipo: tipoSelecionado,
+      numero: numeroFatura || dadosFatura.numero,
+      fornecedor: fornecedorSelecionado ? {
+        nome: fornecedorSelecionado.nome,
+        nif: fornecedorSelecionado.nif,
+        id: fornecedorSelecionado.id
+      } : dadosFatura.fornecedor
     });
   };
   
@@ -2186,6 +2198,42 @@ const ModalConfirmacaoFatura = ({ dadosFatura, onConfirmar, onCancelar }) => {
               <strong>Total:</strong> {dadosFatura.totais.total.toFixed(2)}€
             </p>
           )}
+        </div>
+        
+        {/* Dropdown Fornecedor */}
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Fornecedor:
+          </label>
+          <select
+            value={fornecedorSelecionado?.id || ''}
+            onChange={(e) => {
+              const forn = fornecedores.find(f => f.id === e.target.value);
+              setFornecedorSelecionado(forn || null);
+            }}
+            className="w-full p-2 border rounded-lg"
+          >
+            <option value="">Desconhecido</option>
+            {fornecedores.map(f => (
+              <option key={f.id} value={f.id}>
+                {f.nome} {f.nif ? `(NIF: ${f.nif})` : ''}
+              </option>
+            ))}
+          </select>
+        </div>
+        
+        {/* Campo Número Fatura */}
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Número da Fatura:
+          </label>
+          <input
+            type="text"
+            value={numeroFatura}
+            onChange={(e) => setNumeroFatura(e.target.value)}
+            placeholder="Ex: FT 2024/001"
+            className="w-full p-2 border rounded-lg"
+          />
         </div>
         
         <div className="mb-6">
@@ -8802,11 +8850,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
     let ingredientesModificados = 0;
     const mudancasPreco = []; // NOVO: Coletar mudanças em vez de aplicar
     
-    // Detectar se preços na fatura são COM ou SEM IVA
-    const precosComIVA = metadata.precosComIVA !== undefined ? metadata.precosComIVA : true;
-    
     console.log('💶 Processando preços da fatura:');
-    console.log(`   - Flag precosComIVA: ${precosComIVA}`);
     console.log(`   - Fornecedor: ${metadata.nif || 'N/A'}`);
     console.log(`   - Linhas validadas: ${linhasValidadas.length}`);
     
@@ -8830,34 +8874,21 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
         
         let novoPrecoUnitario;
         
-        if (precosComIVA) {
-          // Preço JÁ inclui IVA - usar direto
-          novoPrecoUnitario = precoTotal / quantidade;
-        } else {
-          // Preço SEM IVA - precisa ADICIONAR IVA
-          const precoSemIVA = precoTotal / quantidade;
-          novoPrecoUnitario = precoSemIVA * (1 + iva / 100);
-        }
+        // ✅ SEMPRE assumir que preços inseridos INCLUEM IVA
+        // Sistema guarda preços SEM IVA internamente
+        const precoComIVA = precoTotal / quantidade;
+        novoPrecoUnitario = precoComIVA / (1 + iva / 100); // Remover IVA
         
         const precoAnterior = ingredientesAtualizados[index].custoUnitario || 0;
         
         // Log detalhado do cálculo
         console.log(`\n🔍 CALCULANDO: ${ingredientesAtualizados[index].nome}`);
-        console.log(`   Preço anterior: €${precoAnterior.toFixed(2)}`);
-        console.log(`   Preço total na fatura: €${precoTotal.toFixed(2)}`);
+        console.log(`   Preço anterior (SEM IVA): €${precoAnterior.toFixed(2)}`);
+        console.log(`   Preço total na fatura (COM IVA): €${precoTotal.toFixed(2)}`);
         console.log(`   Quantidade: ${quantidade}`);
+        console.log(`   Preço unitário COM IVA: €${precoComIVA.toFixed(3)}`);
         console.log(`   IVA: ${iva}%`);
-        console.log(`   Flag precosComIVA: ${precosComIVA}`);
-        
-        if (precosComIVA) {
-          console.log(`   ✅ Preço JÁ inclui IVA`);
-          console.log(`   Cálculo: €${precoTotal.toFixed(2)} / ${quantidade} = €${novoPrecoUnitario.toFixed(3)} (COM IVA)`);
-        } else {
-          const precoSemIVA = precoTotal / quantidade;
-          console.log(`   ✅ Preço SEM IVA - adicionando ${iva}%`);
-          console.log(`   Cálculo: (€${precoTotal.toFixed(2)} / ${quantidade}) × (1 + ${iva}/100)`);
-          console.log(`   Resultado: €${precoSemIVA.toFixed(3)} × ${(1 + iva/100).toFixed(2)} = €${novoPrecoUnitario.toFixed(3)} (COM IVA)`);
-        }
+        console.log(`   ✅ Removendo IVA: €${precoComIVA.toFixed(3)} / ${(1 + iva/100).toFixed(2)} = €${novoPrecoUnitario.toFixed(3)} (SEM IVA)`);
         
         // COLETAR mudança se preço mudou
         if (Math.abs(novoPrecoUnitario - precoAnterior) > 0.01) {
@@ -8868,8 +8899,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
             ingredienteNome: ingrediente.nome,
             ingredienteIndex: index,
             precoAnterior,
-            precoNovo: novoPrecoUnitario,
-            precosComIVA
+            precoNovo: novoPrecoUnitario
           });
           
           ingredientesModificados++;
@@ -9136,7 +9166,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
 
       {/* Price Change Alert Modal */}
       {showPriceAlert && priceAlertData && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
           <div className="bg-white rounded-lg shadow-2xl max-w-md w-full">
             <div className="bg-orange-500 text-white px-4 py-3 rounded-t-lg flex items-center justify-between">
               <h3 className="font-bold text-lg flex items-center gap-2">
@@ -14299,6 +14329,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
       {modalConfirmacaoFatura.mostrar && modalConfirmacaoFatura.dados && (
         <ModalConfirmacaoFatura
           dadosFatura={modalConfirmacaoFatura.dados}
+          fornecedores={fornecedores}
           onConfirmar={handleConfirmarFatura}
           onCancelar={handleCancelarFatura}
         />
