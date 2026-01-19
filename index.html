@@ -5402,10 +5402,20 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
         if (data.fornecedores) setFornecedores(data.fornecedores);
         if (data.dadosEmpresa) setDadosEmpresa(data.dadosEmpresa);
         if (data.deliveryApps) setDeliveryApps(data.deliveryApps);
-        if (data.blacklist) {
+        
+        // ✅ BLACKLIST: Merge com local (não sobrescrever se Drive não tem)
+        if (data.blacklist && data.blacklist.length > 0) {
           setBlacklist(data.blacklist);
-          localStorage.setItem('munchi_blacklist', JSON.stringify(data.blacklist)); // ✅ GUARDAR TAMBÉM NO LOCALSTORAGE
+          localStorage.setItem('munchi_blacklist', JSON.stringify(data.blacklist));
+          console.log('✅ Blacklist carregada do Drive:', data.blacklist.length, 'items');
+        } else {
+          // Drive não tem blacklist - manter local
+          const localBlacklist = localStorage.getItem('munchi_blacklist');
+          if (localBlacklist) {
+            console.log('⚠️ Drive sem blacklist - mantendo versão local');
+          }
         }
+        
         setDriveLastSync(new Date(file.modifiedTime));
         showNotification('✅ Dados carregados!', 'success');
       }
