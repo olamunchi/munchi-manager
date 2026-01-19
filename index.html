@@ -3861,7 +3861,17 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
     
     const index = templatesOCR.findIndex(t => t.nifFornecedor === nifFornecedor);
     const blacklistAtual = template.blacklist || [];
-    const novaBlacklist = [...new Set([...blacklistAtual, ...palavras])]; // Remove duplicados
+    
+    // ✅ GUARDAR LINHA COMPLETA normalizada em lowercase
+    const linhaNormalizada = linha.toLowerCase().trim();
+    
+    // Verificar se já existe
+    if (blacklistAtual.includes(linhaNormalizada)) {
+      showNotification(`⚠️ "${linha}" já está na blacklist!`, 'warning');
+      return;
+    }
+    
+    const novaBlacklist = [...blacklistAtual, linhaNormalizada];
     
     console.log('🔍 Blacklist antes:', blacklistAtual);
     console.log('🔍 Blacklist depois:', novaBlacklist);
@@ -3877,8 +3887,8 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
     
     setTemplatesOCR(novos);
     
-    console.log(`✅ Adicionado à blacklist: ${palavras.join(', ')}`);
-    showNotification(`🚫 Adicionado à blacklist: ${palavras.join(', ')}`, 'success');
+    console.log(`✅ Adicionado à blacklist: ${linha}`);
+    showNotification(`🚫 "${linha}" adicionado à blacklist. 💾 Sincroniza com Drive para guardar!`, 'success', 5000);
   };
   
   const aprenderTemplateOCR = (nifFornecedor, texto, linhasValidadas) => {
@@ -5082,7 +5092,8 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
         fornecedores: fornecedores || [],
         dadosEmpresa: dadosEmpresa || {},
         deliveryApps: deliveryApps || [],
-        blacklist: blacklist || [], // ✅ ADICIONAR BLACKLIST
+        blacklist: blacklist || [],
+        templatesOCR: templatesOCR || [], // ✅ Templates com blacklists
         lastUpdate: new Date().toISOString()
       };
       let fileId = driveFileId;
@@ -5403,17 +5414,22 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
         if (data.dadosEmpresa) setDadosEmpresa(data.dadosEmpresa);
         if (data.deliveryApps) setDeliveryApps(data.deliveryApps);
         
-        // ✅ BLACKLIST: Merge com local (não sobrescrever se Drive não tem)
+        // ✅ BLACKLIST: Merge com local
         if (data.blacklist && data.blacklist.length > 0) {
           setBlacklist(data.blacklist);
           localStorage.setItem('munchi_blacklist', JSON.stringify(data.blacklist));
           console.log('✅ Blacklist carregada do Drive:', data.blacklist.length, 'items');
         } else {
-          // Drive não tem blacklist - manter local
           const localBlacklist = localStorage.getItem('munchi_blacklist');
           if (localBlacklist) {
             console.log('⚠️ Drive sem blacklist - mantendo versão local');
           }
+        }
+        
+        // ✅ TEMPLATES OCR: Carregar
+        if (data.templatesOCR && data.templatesOCR.length > 0) {
+          setTemplatesOCR(data.templatesOCR);
+          console.log('✅ Templates OCR carregados do Drive:', data.templatesOCR.length, 'templates');
         }
         
         setDriveLastSync(new Date(file.modifiedTime));
