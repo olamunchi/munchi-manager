@@ -1400,7 +1400,20 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
   const [linhaIndexCriando, setLinhaIndexCriando] = useState(null);
   
   // States para search de ingredientes
-  const [searchIngredienteOCR, setSearchIngredienteOCR] = useState({});
+  const [searchIngredienteOCR, setSearchIngredienteOCR] = useState(() => {
+    // ✅ INICIALIZAR com nomes dos ingredientes auto-preenchidos
+    const initial = {};
+    linhas.forEach((linha, index) => {
+      if (linha.ingredienteConfirmado) {
+        const ing = ingredientes.find(i => i.id === linha.ingredienteConfirmado);
+        if (ing) {
+          initial[index] = ing.nome;
+          console.log(`✅ AUTO-PREENCHIDO: Linha ${index} → ${ing.nome}`);
+        }
+      }
+    });
+    return initial;
+  });
   const [showDropdownOCR, setShowDropdownOCR] = useState({});
   
   // States para documento
@@ -2169,19 +2182,38 @@ const ModalConfirmacaoFatura = ({ dadosFatura, onConfirmar, onCancelar, forneced
   
   // ✅ MATCH INTELIGENTE: NOME primeiro (mais confiável), depois NIF
   const [fornecedorSelecionado, setFornecedorSelecionado] = React.useState(() => {
-    console.log('🔍 Tentando match fornecedor:', dadosFatura.fornecedor);
+    console.log('🔍 MODAL 1 - Tentando match fornecedor:', dadosFatura.fornecedor);
+    console.log('🔍 MODAL 1 - Fornecedores disponíveis:', fornecedores.map(f => f.nome));
     
     // 1. PRIORIDADE: Match por NOME (mais confiável que OCR de NIF)
     if (dadosFatura.fornecedor?.nome) {
-      const nomeDetectado = dadosFatura.fornecedor.nome.toLowerCase();
+      const nomeDetectado = dadosFatura.fornecedor.nome.toLowerCase().trim();
+      console.log(`🔍 MODAL 1 - Nome detectado OCR: "${nomeDetectado}"`);
       
       const porNome = fornecedores.find(f => {
         if (!f.nome) return false;
-        const nomeCadastrado = f.nome.toLowerCase();
+        const nomeCadastrado = f.nome.toLowerCase().trim();
+        
+        console.log(`  🔍 Comparando "${nomeDetectado}" com "${nomeCadastrado}"`);
+        
+        // Match exato (ignora case)
+        if (nomeDetectado === nomeCadastrado) {
+          console.log(`    ✅ MATCH EXATO!`);
+          return true;
+        }
+        
+        // Match se um contém o outro
+        if (nomeCadastrado.includes(nomeDetectado) || nomeDetectado.includes(nomeCadastrado)) {
+          console.log(`    ✅ MATCH POR SUBSTRING!`);
+          return true;
+        }
         
         // Extrair palavras significativas (3+ chars)
         const palavrasDetectadas = nomeDetectado.split(/\s+/).filter(p => p.length >= 3);
         const palavrasCadastradas = nomeCadastrado.split(/\s+/).filter(p => p.length >= 3);
+        
+        console.log(`    Palavras detectadas: [${palavrasDetectadas.join(', ')}]`);
+        console.log(`    Palavras cadastradas: [${palavrasCadastradas.join(', ')}]`);
         
         // Match se pelo menos 1 palavra em comum
         const temMatch = palavrasDetectadas.some(pd => 
@@ -2189,25 +2221,29 @@ const ModalConfirmacaoFatura = ({ dadosFatura, onConfirmar, onCancelar, forneced
         );
         
         if (temMatch) {
-          console.log(`✅ Match por NOME: "${dadosFatura.fornecedor.nome}" → "${f.nome}"`);
+          console.log(`    ✅ MATCH POR PALAVRAS!`);
         }
         
         return temMatch;
       });
       
-      if (porNome) return porNome;
+      if (porNome) {
+        console.log(`✅ MODAL 1 - Match por NOME: "${dadosFatura.fornecedor.nome}" → "${porNome.nome}"`);
+        return porNome;
+      }
     }
     
     // 2. FALLBACK: Match por NIF (só se nome não funcionou)
     if (dadosFatura.fornecedor?.nif) {
+      console.log(`🔍 MODAL 1 - Tentando match por NIF: ${dadosFatura.fornecedor.nif}`);
       const porNif = fornecedores.find(f => f.nif === dadosFatura.fornecedor.nif);
       if (porNif) {
-        console.log(`✅ Match por NIF: ${dadosFatura.fornecedor.nif} → "${porNif.nome}"`);
+        console.log(`✅ MODAL 1 - Match por NIF: ${dadosFatura.fornecedor.nif} → "${porNif.nome}"`);
         return porNif;
       }
     }
     
-    console.log('❌ Nenhum match encontrado');
+    console.log('❌ MODAL 1 - Nenhum match encontrado - dropdown ficará em "Desconhecido"');
     return null;
   });
   
@@ -2284,7 +2320,12 @@ const ModalConfirmacaoFatura = ({ dadosFatura, onConfirmar, onCancelar, forneced
               <select
                 value={fornecedorSelecionado?.id || ''}
                 onChange={(e) => {
-                  const forn = fornecedores.find(f => f.id === e.target.value);
+                  const idSelecionado = e.target.value;
+                  console.log('🔍 ID selecionado (tipo):', typeof idSelecionado, idSelecionado);
+                  console.log('🔍 Fornecedores IDs (tipos):', fornecedores.map(f => `${typeof f.id}:${f.id}`));
+                  
+                  // ✅ FIX: Comparar como string (e.target.value sempre retorna string)
+                  const forn = fornecedores.find(f => String(f.id) === String(idSelecionado));
                   console.log('📦 Fornecedor selecionado:', forn);
                   setFornecedorSelecionado(forn || null);
                 }}
