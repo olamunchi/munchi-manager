@@ -19,12 +19,12 @@
   
   <script>
     // Configurar PDF.js worker
-    console.log('📄 Carregando PDF.js v3.11 (legacy estável)...');
+    void 0;
     
     const configurePDFJS = () => {
       if (typeof pdfjsLib !== 'undefined') {
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-        console.log('✅ PDF.js v3.11 configurado!');
+        void 0;
         return true;
       }
       return false;
@@ -38,7 +38,7 @@
           // Retry final após 1.5s
           setTimeout(() => {
             if (!configurePDFJS()) {
-              console.error('❌ PDF.js não carregou após 2 segundos');
+              void 0;
             }
           }, 1000);
         }
@@ -125,7 +125,7 @@ const GitHubSync = {
       
       return { success: true, gistId: result.id, url: result.html_url };
     } catch (error) {
-      console.error('Erro ao guardar no GitHub:', error);
+      void 0;
       return { success: false, error: error.message };
     }
   },
@@ -153,7 +153,7 @@ const GitHubSync = {
       
       return { success: true, data };
     } catch (error) {
-      console.error('Erro ao carregar do GitHub:', error);
+      void 0;
       return { success: false, error: error.message };
     }
   },
@@ -1374,7 +1374,7 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
         const ing = ingredientes.find(i => i.id === linha.ingredienteConfirmado);
         if (ing) {
           initial[index] = ing.nome;
-          console.log(`✅ AUTO-PREENCHIDO: Linha ${index} → ${ing.nome}`);
+          void 0;
         }
       }
     });
@@ -2194,29 +2194,29 @@ const ModalConfirmacaoFatura = ({ dadosFatura, onConfirmar, onCancelar, forneced
   
   // ✅ MATCH INTELIGENTE: NOME primeiro (mais confiável), depois NIF
   const [fornecedorSelecionado, setFornecedorSelecionado] = React.useState(() => {
-    console.log('🔍 MODAL 1 - Tentando match fornecedor:', dadosFatura.fornecedor);
-    console.log('🔍 MODAL 1 - Fornecedores disponíveis:', fornecedores.map(f => f.nome));
+    void 0;
+    void 0;
     
     // 1. PRIORIDADE: Match por NOME (mais confiável que OCR de NIF)
     if (dadosFatura.fornecedor?.nome) {
       const nomeDetectado = dadosFatura.fornecedor.nome.toLowerCase().trim();
-      console.log(`🔍 MODAL 1 - Nome detectado OCR: "${nomeDetectado}"`);
+      void 0;
       
       const porNome = fornecedores.find(f => {
         if (!f.nome) return false;
         const nomeCadastrado = f.nome.toLowerCase().trim();
         
-        console.log(`  🔍 Comparando "${nomeDetectado}" com "${nomeCadastrado}"`);
+        void 0;
         
         // Match exato (ignora case)
         if (nomeDetectado === nomeCadastrado) {
-          console.log(`    ✅ MATCH EXATO!`);
+          void 0;
           return true;
         }
         
         // Match se um contém o outro
         if (nomeCadastrado.includes(nomeDetectado) || nomeDetectado.includes(nomeCadastrado)) {
-          console.log(`    ✅ MATCH POR SUBSTRING!`);
+          void 0;
           return true;
         }
         
@@ -2224,8 +2224,8 @@ const ModalConfirmacaoFatura = ({ dadosFatura, onConfirmar, onCancelar, forneced
         const palavrasDetectadas = nomeDetectado.split(/\s+/).filter(p => p.length >= 3);
         const palavrasCadastradas = nomeCadastrado.split(/\s+/).filter(p => p.length >= 3);
         
-        console.log(`    Palavras detectadas: [${palavrasDetectadas.join(', ')}]`);
-        console.log(`    Palavras cadastradas: [${palavrasCadastradas.join(', ')}]`);
+        void 0;
+        void 0;
         
         // Match se pelo menos 1 palavra em comum
         const temMatch = palavrasDetectadas.some(pd => 
@@ -2233,29 +2233,29 @@ const ModalConfirmacaoFatura = ({ dadosFatura, onConfirmar, onCancelar, forneced
         );
         
         if (temMatch) {
-          console.log(`    ✅ MATCH POR PALAVRAS!`);
+          void 0;
         }
         
         return temMatch;
       });
       
       if (porNome) {
-        console.log(`✅ MODAL 1 - Match por NOME: "${dadosFatura.fornecedor.nome}" → "${porNome.nome}"`);
+        void 0;
         return porNome;
       }
     }
     
     // 2. FALLBACK: Match por NIF (só se nome não funcionou)
     if (dadosFatura.fornecedor?.nif) {
-      console.log(`🔍 MODAL 1 - Tentando match por NIF: ${dadosFatura.fornecedor.nif}`);
+      void 0;
       const porNif = fornecedores.find(f => f.nif === dadosFatura.fornecedor.nif);
       if (porNif) {
-        console.log(`✅ MODAL 1 - Match por NIF: ${dadosFatura.fornecedor.nif} → "${porNif.nome}"`);
+        void 0;
         return porNif;
       }
     }
     
-    console.log('❌ MODAL 1 - Nenhum match encontrado - dropdown ficará em "Desconhecido"');
+    void 0;
     return null;
   });
   
@@ -2333,12 +2333,12 @@ const ModalConfirmacaoFatura = ({ dadosFatura, onConfirmar, onCancelar, forneced
                 value={fornecedorSelecionado?.id || ''}
                 onChange={(e) => {
                   const idSelecionado = e.target.value;
-                  console.log('🔍 ID selecionado (tipo):', typeof idSelecionado, idSelecionado);
-                  console.log('🔍 Fornecedores IDs (tipos):', fornecedores.map(f => `${typeof f.id}:${f.id}`));
+                  void 0;
+                  void 0;
                   
                   // ✅ FIX: Comparar como string (e.target.value sempre retorna string)
                   const forn = fornecedores.find(f => String(f.id) === String(idSelecionado));
-                  console.log('📦 Fornecedor selecionado:', forn);
+                  void 0;
                   setFornecedorSelecionado(forn || null);
                 }}
                 className="w-full p-2 border rounded-lg"
@@ -2453,7 +2453,7 @@ const PainelConfiguracoes = ({ configuracoes, onSalvar, vendas, setVendas, showN
     
     // ✅ ATUALIZAR IMEDIATAMENTE para filtros de métricas
     if (secao === 'metricas') {
-      console.log(`🔄 Filtro de métricas mudou`);
+      void 0;
       onSalvar(novoConfig);
     }
   };
@@ -2767,7 +2767,7 @@ const carregarConfiguracoes = () => {
     const guardado = localStorage.getItem('munchi_configuracoes');
     return guardado ? JSON.parse(guardado) : CONFIGURACOES_DEFAULT;
   } catch (e) {
-    console.error('Erro ao carregar configurações:', e);
+    void 0;
     return CONFIGURACOES_DEFAULT;
   }
 };
@@ -2775,10 +2775,10 @@ const carregarConfiguracoes = () => {
 const guardarConfiguracoes = (configuracoes) => {
   try {
     localStorage.setItem('munchi_configuracoes', JSON.stringify(configuracoes));
-    console.log('✅ Configurações guardadas');
+    void 0;
     return true;
   } catch (e) {
-    console.error('Erro ao guardar configurações:', e);
+    void 0;
     return false;
   }
 };
@@ -2866,7 +2866,7 @@ const FORNECEDORES_CONHECIDOS = {
   }
 };
 
-console.log('✅ Componentes React V2.0 carregados!');
+void 0;
 
 const RestauranteGestor = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -3156,12 +3156,12 @@ const RestauranteGestor = () => {
       const fuzzball = typeof window.fuzzball !== 'undefined';
       
       if (pdfjs && tesseract && fuzzball) {
-        console.log('✅ Todas bibliotecas OCR carregadas: PDF.js + Tesseract + Fuzzball');
+        void 0;
         showNotification('✅ Sistema OCR completo pronto!', 'success');
         return true;
       }
       
-      console.log(`⏳ Tentativa ${attempts + 1}/${maxAttempts}:`, { pdfjs, tesseract, fuzzball });
+      void 0;
       return false;
     };
     
@@ -3173,12 +3173,8 @@ const RestauranteGestor = () => {
         clearInterval(checkInterval);
       } else if (attempts >= maxAttempts) {
         clearInterval(checkInterval);
-        console.error('❌ Bibliotecas OCR não carregaram após', maxAttempts, 'tentativas');
-        console.error('Status final:', {
-          pdfjsLib: typeof pdfjsLib,
-          Tesseract: typeof Tesseract,
-          fuzzball: typeof window.fuzzball
-        });
+        void 0;
+        void 0;
         showNotification('⚠️ OCR pode não funcionar. Tente recarregar a página.', 'warning');
       }
     }, 1000); // Verificar a cada 1 segundo
@@ -3192,9 +3188,9 @@ const RestauranteGestor = () => {
     if (blacklistGuardada) {
       try {
         setBlacklist(JSON.parse(blacklistGuardada));
-        console.log('✅ Blacklist carregada');
+        void 0;
       } catch (e) {
-        console.error('Erro ao carregar blacklist:', e);
+        void 0;
       }
     }
   }, []);
@@ -3244,17 +3240,17 @@ const RestauranteGestor = () => {
   };
 
   const handleConfirmarFatura = (dadosConfirmados) => {
-    console.log('✅ Fatura confirmada:', dadosConfirmados);
+    void 0;
     
     // 🚫 CRÍTICO: RE-PARSEAR linhas com NIF confirmado para aplicar blacklist
     if (metadataOCR && metadataOCR.textoCompleto && dadosConfirmados.fornecedor.nif) {
-      console.log('🔄 RE-PARSEANDO com blacklist do fornecedor:', dadosConfirmados.fornecedor.nome);
+      void 0;
       
       const nifConfirmado = dadosConfirmados.fornecedor.nif;
       const template = buscarTemplateOCR(nifConfirmado);
       
       if (template && template.blacklist && template.blacklist.length > 0) {
-        console.log(`🚫 Blacklist encontrada: ${template.blacklist.length} itens`);
+        void 0;
       }
       
       // Re-parsear com template/blacklist
@@ -3262,7 +3258,7 @@ const RestauranteGestor = () => {
         ? parseComTemplate(metadataOCR.textoCompleto, template)
         : parseLinhasProdutos(metadataOCR.textoCompleto, nifConfirmado);
       
-      console.log(`📦 ANTES: ${linhasOCR.length} linhas | DEPOIS: ${linhasReparsed.length} linhas`);
+      void 0;
       
       // Fazer matching dos ingredientes COM sistema de aprendizagem
       const linhasComMatch = linhasReparsed.length > 0 
@@ -3279,7 +3275,7 @@ const RestauranteGestor = () => {
           const ingrediente = ingredientes.find(i => i.id === ingredienteId);
           
           if (ingrediente) {
-            console.log(`🔵 "${linha.nomeProduto}" → ${ingrediente.nome} (${confianca}% confiança)`);
+            void 0;
             
             // ✅ AUTO-PREENCHER SE CONFIANÇA >= 80%
             if (confianca >= 80) {
@@ -3325,14 +3321,14 @@ const RestauranteGestor = () => {
       precosComIVA: dadosConfirmados.precosComIVA
     }));
     
-    console.log('📋 Metadata atualizada com precosComIVA:', dadosConfirmados.precosComIVA);
+    void 0;
     
     // Fechar modal
     setModalConfirmacaoFatura({ mostrar: false, dados: null });
     
     // Se foi OCR (Google ou Tesseract), abrir modal de ingredientes
     if (linhasOCR && linhasOCR.length >= 0 && metadataOCR) {
-      console.log('🔄 Abrindo modal de ingredientes...');
+      void 0;
       setMostrarModalOCR(true);
     }
     
@@ -3385,7 +3381,7 @@ const RestauranteGestor = () => {
     try {
       return window.fuzzball.ratio(norm1, norm2);
     } catch (e) {
-      console.warn('Erro ao calcular similaridade:', e);
+      void 0;
       return 0;
     }
   };
@@ -3416,13 +3412,13 @@ const detectarTipoFatura = (texto) => {
     const config = INVOICE_TYPES[tipo];
     for (const pattern of config.patterns) {
       if (pattern.test(texto)) {
-        console.log(`✅ Tipo detectado: ${tipo} usando pattern:`, pattern);
+        void 0;
         return tipo;
       }
     }
   }
   
-  console.log('⚠️ Tipo não detectado, usando default: FT');
+  void 0;
   return 'FT';
 };
 
@@ -3438,12 +3434,12 @@ const extrairNumeroFatura = (texto, tipoFatura) => {
   for (const pattern of config.numberPatterns) {
     const match = texto.match(pattern);
     if (match) {
-      console.log(`✅ Número extraído: ${match[1]} usando pattern:`, pattern);
+      void 0;
       return match[1].trim();
     }
   }
   
-  console.log('⚠️ Número de fatura não encontrado');
+  void 0;
   return null;
 };
 
@@ -3457,7 +3453,7 @@ const detectarFornecedor = (texto, fornecedoresList = []) => {
   for (const [chave, fornecedor] of Object.entries(FORNECEDORES_CONHECIDOS)) {
     for (const pattern of fornecedor.patterns) {
       if (pattern.test(texto)) {
-        console.log(`✅ Fornecedor detectado por pattern: ${fornecedor.nome}`);
+        void 0;
         
         // Procurar na lista fornecedores para pegar o ID
         const fornecedorNaLista = fornecedoresList.find(f => 
@@ -3490,7 +3486,7 @@ const detectarFornecedor = (texto, fornecedoresList = []) => {
     const fornecedorEncontrado = fornecedoresList.find(f => f.nif === nifEncontrado);
     
     if (fornecedorEncontrado) {
-      console.log(`✅ Fornecedor encontrado na lista por NIF: ${fornecedorEncontrado.nome}`);
+      void 0;
       return {
         id: fornecedorEncontrado.id,
         nome: fornecedorEncontrado.nome,
@@ -3499,7 +3495,7 @@ const detectarFornecedor = (texto, fornecedoresList = []) => {
     }
     
     // NIF encontrado mas fornecedor não está na lista
-    console.log(`⚠️ NIF ${nifEncontrado} encontrado mas fornecedor não está cadastrado`);
+    void 0;
     return {
       chave: 'desconhecido',
       nome: 'Fornecedor Desconhecido',
@@ -3508,7 +3504,7 @@ const detectarFornecedor = (texto, fornecedoresList = []) => {
   }
   
   // 4. FALLBACK: Tentar detectar por NOME (quando NÃO há NIF no texto)
-  console.log('🔍 NIF não encontrado, tentando detectar por nome...');
+  void 0;
   
   for (const fornecedor of fornecedoresList) {
     if (!fornecedor.nome) continue;
@@ -3541,7 +3537,7 @@ const detectarFornecedor = (texto, fornecedoresList = []) => {
     const limiar = palavrasNome.length === 1 ? 1 : 2;
     
     if (palavrasEncontradas >= limiar) {
-      console.log(`✅ Fornecedor detectado por NOME: ${fornecedor.nome} (${palavrasEncontradas}/${palavrasNome.length} palavras)`);
+      void 0;
       return {
         id: fornecedor.id,
         nome: fornecedor.nome,
@@ -3550,7 +3546,7 @@ const detectarFornecedor = (texto, fornecedoresList = []) => {
     }
   }
   
-  console.log('⚠️ Nenhum fornecedor detectado (nem NIF nem nome)');
+  void 0;
   return { nome: 'Fornecedor Desconhecido', nif: '' };
 };
 
@@ -3568,7 +3564,7 @@ const extrairATCUD = (texto) => {
   for (const pattern of patterns) {
     const match = texto.match(pattern);
     if (match) {
-      console.log(`✅ ATCUD extraído: ${match[1]}`);
+      void 0;
       return match[1].trim();
     }
   }
@@ -3599,7 +3595,7 @@ const extrairDataFatura = (texto) => {
         const parts = dateStr.split('-');
         dateStr = `${parts[2]}-${parts[1]}-${parts[0]}`;
       }
-      console.log(`✅ Data extraída: ${dateStr}`);
+      void 0;
       return dateStr;
     }
   }
@@ -3663,7 +3659,7 @@ const extrairTotaisFatura = (texto) => {
     }
   }
   
-  console.log('✅ Totais extraídos:', result);
+  void 0;
   return result;
 };
 
@@ -3673,7 +3669,7 @@ const extrairTotaisFatura = (texto) => {
  * Processa texto OCR e extrai todos os dados da fatura
  */
 const processarTextoFatura = (texto, fornecedoresList = []) => {
-  console.log('🔍 Iniciando processamento de fatura...');
+  void 0;
   
   const tipoFatura = detectarTipoFatura(texto);
   const numeroFatura = extrairNumeroFatura(texto, tipoFatura);
@@ -3706,7 +3702,7 @@ const processarTextoFatura = (texto, fornecedoresList = []) => {
     textoCompleto: texto
   };
   
-  console.log('✅ Fatura processada:', resultado);
+  void 0;
   return resultado;
 };
 
@@ -3740,7 +3736,7 @@ const calcularBreakdownPreco = (totalComIVA, quantidade, taxaIVA) => {
 const atualizarPrecoIngrediente = (ingredienteId, dadosFatura, ingredientes) => {
   const ingrediente = ingredientes.find(ing => ing.id === ingredienteId);
   if (!ingrediente) {
-    console.warn(`Ingrediente ${ingredienteId} não encontrado`);
+    void 0;
     return ingredientes;
   }
   
@@ -3763,10 +3759,7 @@ const atualizarPrecoIngrediente = (ingredienteId, dadosFatura, ingredientes) => 
     valorIVA: breakdown.valorIVA
   };
   
-  console.log(`✅ Ingrediente ${ingrediente.nome} atualizado:`, {
-    precoComIVA: breakdown.precoComIVA.toFixed(3),
-    precoSemIVA: breakdown.precoSemIVA.toFixed(3)
-  });
+  void 0;
   
   return [...ingredientes];
 };
@@ -3824,12 +3817,12 @@ const calcularMargensProduto = (produto, configuracoes = null) => {
  * Deve ser chamado após: adicionar fatura, venda, ou mudar configurações
  */
 const recalcularMetricas = (faturas, vendas, configuracoes) => {
-  console.log('📊 Recalculando métricas...');
-  console.log('📦 Faturas recebidas:', faturas.length);
-  console.log('💰 Vendas recebidas:', vendas.length);
+  void 0;
+  void 0;
+  void 0;
   
   const config = configuracoes || carregarConfiguracoes();
-  console.log('⚙️ Configurações:', config);
+  void 0;
   
   // Calcular despesas por tipo
   const despesas = {
@@ -3843,14 +3836,14 @@ const recalcularMetricas = (faturas, vendas, configuracoes) => {
     const total = fatura.totais?.total || fatura.total || 0;
     const tipo = fatura.tipo || 'FT';
     
-    console.log(`📝 Fatura: tipo=${tipo}, total=€${total.toFixed(2)}`);
+    void 0;
     
     if (tipo === 'FT') despesas.FT += total;
     else if (tipo === 'FR') despesas.FR += total;
     else if (tipo === 'FS') despesas.FS += total;
   });
   
-  console.log('💸 Despesas por tipo:', despesas);
+  void 0;
   
   // Aplicar filtro de configurações
   if (config.metricas.apenasOficial) {
@@ -3872,7 +3865,7 @@ const recalcularMetricas = (faturas, vendas, configuracoes) => {
     const eMoloni = venda.origem === 'moloni' || !venda.origem; // Default é Moloni
     const total = venda.total || 0;
     
-    console.log(`🛒 Venda: origem=${venda.origem || 'moloni (default)'}, total=€${total.toFixed(2)}`);
+    void 0;
     
     if (eZobaze) vendasZobaze += total;
     if (eMoloni) vendasMoloni += total;
@@ -3888,7 +3881,7 @@ const recalcularMetricas = (faturas, vendas, configuracoes) => {
     }
   });
   
-  console.log(`💵 Receitas: Moloni=€${vendasMoloni.toFixed(2)}, Zobaze=€${vendasZobaze.toFixed(2)}, Total aplicado=€${receita.toFixed(2)}`);
+  void 0;
   
   // Calcular COGS (Cost of Goods Sold)
   // Isto deve ser calculado baseado nas receitas dos produtos vendidos
@@ -3911,7 +3904,7 @@ const recalcularMetricas = (faturas, vendas, configuracoes) => {
     timestamp: new Date().toISOString()
   };
   
-  console.log('✅ Métricas calculadas:', resultado);
+  void 0;
   return resultado;
 };
 
@@ -3951,7 +3944,7 @@ const calcularIndiceDesperdicio = (comprasPeriodo, vendasPeriodo, produtos) => {
   };
 };
 
-console.log('✅ Munchi Invoice Processor V2.0 carregado!');
+void 0;
 
   // ==================== 🧠 SISTEMA DE APRENDIZAGEM - CONTINUAÇÃO ====================
   
@@ -3997,7 +3990,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
         
         const confianca = (similaridade / 100) * fatorHistorico * 100;
         
-        console.log(`📊 "${textoNorm}": ${confirmacoes} conf, ${correcoes} corr → ${Math.round(confianca)}% confiança`);
+        void 0;
         
         melhorMatch = {
           ingredienteId: vocab.ingredienteId,
@@ -4040,7 +4033,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
       atualizado[indexExistente].ultimaConfirmacao = new Date().toISOString();
       setVocabularioFornecedor(atualizado);
       
-      console.log(`📚 Vocabulário atualizado:`, atualizado[indexExistente]);
+      void 0;
     } else {
       // Criar novo
       const novo = {
@@ -4055,7 +4048,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
       };
       
       setVocabularioFornecedor([...vocabularioFornecedor, novo]);
-      console.log(`📚 Nova entrada no vocabulário:`, novo);
+      void 0;
     }
   };
 
@@ -4105,20 +4098,20 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
   
   // 🚫 Adicionar linha à blacklist do template
   const adicionarABlacklist = (nifFornecedor, linha) => {
-    console.log('🔍 adicionarABlacklist chamada:', { nifFornecedor, linha });
+    void 0;
     
     if (!nifFornecedor) {
-      console.log('❌ NIF não fornecido');
+      void 0;
       showNotification('❌ NIF não detectado! Impossível adicionar à blacklist.', 'error');
       return;
     }
     
     let template = buscarTemplateOCR(nifFornecedor);
-    console.log('🔍 Template encontrado:', template ? 'SIM' : 'NÃO');
+    void 0;
     
     // Se não existe template, criar um novo
     if (!template) {
-      console.log('⚠️ Template não existe, criando novo...');
+      void 0;
       template = {
         nifFornecedor: nifFornecedor,
         linhaInicio: 0,
@@ -4144,8 +4137,8 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
     
     const novaBlacklist = [...blacklistAtual, linhaNormalizada];
     
-    console.log('🔍 Blacklist antes:', blacklistAtual);
-    console.log('🔍 Blacklist depois:', novaBlacklist);
+    void 0;
+    void 0;
     
     const novoTemplate = {
       ...template,
@@ -4158,7 +4151,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
     
     setTemplatesOCR(novos);
     
-    console.log(`✅ Adicionado à blacklist: ${linha}`);
+    void 0;
     showNotification(`🚫 "${linha}" adicionado à blacklist. 💾 Sincroniza com Drive para guardar!`, 'success', 5000);
   };
   
@@ -4188,24 +4181,24 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
       const novos = [...templatesOCR];
       novos[index] = novoTemplate;
       setTemplatesOCR(novos);
-      console.log(`📋 Template atualizado (${novoTemplate.vezeUsado}x usado)`);
+      void 0;
     } else {
       setTemplatesOCR([...templatesOCR, template]);
-      console.log(`📋 Novo template criado para NIF ${nifFornecedor}`);
+      void 0;
     }
   };
   
   const parseComTemplate = (texto, template) => {
     if (!template) return parseLinhasProdutos(texto, template?.nifFornecedor); // 🚫 CORRIGIDO: Passar NIF mesmo sem template
     
-    console.log(`📋 Usando template (${template.vezeUsado}x usado)`);
+    void 0;
     const linhas = texto.split('\n').map(l => l.trim());
     const start = Math.max(0, template.linhaInicio);
     const end = Math.min(linhas.length, template.linhaFim);
     const blacklist = template.blacklist || [];
     
     if (blacklist.length > 0) {
-      console.log(`🚫 Blacklist ativa: ${blacklist.join(', ')}`);
+      void 0;
     }
     
     const linhasProdutos = [];
@@ -4219,7 +4212,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
       const temPalavraBlacklist = blacklist.some(palavra => linhaLower.includes(palavra));
       
       if (temPalavraBlacklist) {
-        console.log(`🚫 Ignorado por blacklist: "${linha.substring(0, 50)}..."`);
+        void 0;
         linhasIgnoradasBlacklist++;
         continue;
       }
@@ -4229,9 +4222,9 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
       if (parsed && parsed.nomeProduto) linhasProdutos.push(parsed);
     }
     
-    console.log(`✅ ${linhasProdutos.length} produtos detectados`);
+    void 0;
     if (linhasIgnoradasBlacklist > 0) {
-      console.log(`🚫 ${linhasIgnoradasBlacklist} linha(s) ignorada(s) por blacklist`);
+      void 0;
     }
     return linhasProdutos;
   };
@@ -4296,7 +4289,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
             // ✅ CONVERTER FATURAS ANTIGAS: tipo 'completa' → 'FT'
             const faturasConvertidas = dados.faturas.map(f => {
               if (f.tipo === 'completa') {
-                console.log(`🔄 Convertendo fatura #${f.numero}: tipo 'completa' → 'FT'`);
+                void 0;
                 return {...f, tipo: 'FT'};
               }
               return f;
@@ -5092,7 +5085,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
     // Aviso se há recibos ignorados
     if (recibosIgnorados > 0) {
       const msg = `ℹ️ Nota: ${recibosIgnorados} recibo(s) NÃO serão exportados (apenas faturas vão para contabilista)`;
-      console.log(msg);
+      void 0;
     }
     
     if (faturasSemPDF.length > 0) {
@@ -5174,7 +5167,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
       );
       
     } catch (error) {
-      console.error('Erro ao criar pacote:', error);
+      void 0;
       showNotification('❌ Erro ao criar pacote! Veja o console.', 'error');
     }
   };
@@ -5255,7 +5248,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
         });
       }
     } catch (error) {
-      console.error('Erro ao carregar info do utilizador:', error);
+      void 0;
     }
   };
 
@@ -5311,7 +5304,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
         return data.files && data.files.length > 0 ? data.files[0] : null;
       }
     } catch (error) {
-      console.error('Erro ao procurar ficheiro:', error);
+      void 0;
     }
     return null;
   };
@@ -5385,7 +5378,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
       setDriveLastSync(new Date());
       showNotification('✅ Sincronizado!', 'success');
     } catch (error) {
-      console.error('Erro:', error);
+      void 0;
       setDriveError('Erro ao sincronizar');
       showNotification('❌ Erro ao sincronizar', 'error');
     } finally {
@@ -5404,7 +5397,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
     }
 
     try {
-      console.log('📤 Uploading PDF para Google Drive...');
+      void 0;
       
       // 1. Upload PDF para Google Drive
       const metadata = {
@@ -5431,10 +5424,10 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
 
       const uploadResult = await uploadResponse.json();
       const pdfFileId = uploadResult.id;
-      console.log('✅ PDF uploaded:', pdfFileId);
+      void 0;
 
       // 2. Copiar PDF como Google Doc (Google faz OCR automaticamente)
-      console.log('🔄 Copiando PDF como Google Doc (OCR)...');
+      void 0;
       
       const copyResponse = await fetch(
         `https://www.googleapis.com/drive/v3/files/${pdfFileId}/copy`,
@@ -5453,16 +5446,16 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
 
       if (!copyResponse.ok) {
         const errorText = await copyResponse.text();
-        console.error('❌ Erro ao copiar:', errorText);
+        void 0;
         throw new Error('Falha ao converter PDF para Google Doc');
       }
 
       const docResult = await copyResponse.json();
       const docFileId = docResult.id;
-      console.log('✅ Google Doc criado:', docFileId);
+      void 0;
 
       // 3. Exportar Google Doc como texto plain (funcionava antes)
-      console.log('📥 Extraindo texto do Google Doc...');
+      void 0;
       
       const exportResponse = await fetch(
         `https://www.googleapis.com/drive/v3/files/${docFileId}/export?mimeType=text/plain`,
@@ -5477,8 +5470,8 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
 
       const textContent = await exportResponse.text();
       
-      console.log('✅ Texto extraído (primeiras 500 chars):', textContent.substring(0, 500));
-      console.log('📊 Total de caracteres:', textContent.length);
+      void 0;
+      void 0;
 
       // 4. Limpar ficheiros temporários do Drive
       await fetch(
@@ -5495,11 +5488,11 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
           headers: { 'Authorization': `Bearer ${token}` }
         }
       );
-      console.log('🗑️ Ficheiros temporários removidos');
+      void 0;
 
       return textContent;
     } catch (error) {
-      console.error('❌ Erro no OCR Google Drive:', error);
+      void 0;
       throw error;
     }
   };
@@ -5573,18 +5566,18 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
 
               // 3. Processar texto limpo do Google
               const dadosFatura = processarTextoFatura(textoExtraido, fornecedores); // ✅ PASSAR FORNECEDORES
-              console.log('📋 Fatura processada:', dadosFatura);
+              void 0;
 
               // 4. Parsear linhas de produtos
-              console.log('📝 Texto para parsing (primeiras 2000 chars):', textoExtraido.substring(0, 2000));
+              void 0;
               const template = buscarTemplateOCR(dadosFatura.fornecedor.nif);
               const linhas = template 
                 ? parseComTemplate(textoExtraido, template) 
                 : parseLinhasProdutos(textoExtraido, dadosFatura.fornecedor.nif); // 🚫 CORRIGIDO: Passar NIF para usar blacklist
               
-              console.log(`📦 ${linhas.length} linhas de produtos identificadas`);
+              void 0;
               if (linhas.length > 0) {
-                console.log('📋 Primeiras 3 linhas:', linhas.slice(0, 3));
+                void 0;
               }
 
               // 5. Converter PDF para base64 (para guardar na fatura)
@@ -5642,7 +5635,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
                 showNotification(`✅ OCR concluído! ${linhas.length} produtos identificados.`, 'success');
               }
             } catch (error) {
-              console.error('❌ Erro no OCR Google Drive:', error);
+              void 0;
               showNotification(`❌ Erro: ${error.message}. Tente com OCR local.`, 'error');
             } finally {
               setProcessandoOCR(false);
@@ -5654,7 +5647,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
 
       picker.setVisible(true);
     } catch (error) {
-      console.error('❌ Erro ao abrir Google Picker:', error);
+      void 0;
       showNotification('❌ Erro ao abrir seletor do Drive', 'error');
     }
   };
@@ -5688,31 +5681,31 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
         if (data.blacklist && data.blacklist.length > 0) {
           setBlacklist(data.blacklist);
           localStorage.setItem('munchi_blacklist', JSON.stringify(data.blacklist));
-          console.log('✅ Blacklist carregada do Drive:', data.blacklist.length, 'items');
+          void 0;
         } else {
           const localBlacklist = localStorage.getItem('munchi_blacklist');
           if (localBlacklist) {
-            console.log('⚠️ Drive sem blacklist - mantendo versão local');
+            void 0;
           }
         }
         
         // ✅ TEMPLATES OCR: Carregar
         if (data.templatesOCR && data.templatesOCR.length > 0) {
           setTemplatesOCR(data.templatesOCR);
-          console.log('✅ Templates OCR carregados do Drive:', data.templatesOCR.length, 'templates');
+          void 0;
         }
         
         // 🧠 CORRIGIDO: VOCABULÁRIO DE APRENDIZAGEM: Carregar
         if (data.vocabularioFornecedor && data.vocabularioFornecedor.length > 0) {
           setVocabularioFornecedor(data.vocabularioFornecedor);
-          console.log('🧠 Vocabulário carregado do Drive:', data.vocabularioFornecedor.length, 'associações');
+          void 0;
         }
         
         setDriveLastSync(new Date(file.modifiedTime));
         showNotification('✅ Dados carregados!', 'success');
       }
     } catch (error) {
-      console.error('Erro:', error);
+      void 0;
       setDriveError('Erro ao carregar');
     } finally {
       setDriveSyncing(false);
@@ -5749,7 +5742,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
           });
           
           if (vendasMigradas > 0) {
-            console.log(`🔄 Migração automática: ${vendasMigradas} vendas antigas agora têm tag 'moloni'`);
+            void 0;
           }
           
           setVendas(vendasComOrigem);
@@ -5762,7 +5755,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
           // ✅ CONVERTER FATURAS ANTIGAS: tipo 'completa' → 'FT'
           const faturasConvertidas = faturasCarregadas.map(f => {
             if (f.tipo === 'completa') {
-              console.log(`🔄 Convertendo fatura #${f.numero}: tipo 'completa' → 'FT'`);
+              void 0;
               return {...f, tipo: 'FT'};
             }
             return f;
@@ -5771,7 +5764,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
         }
         if (voc) setVocabularioFornecedor(JSON.parse(voc.value)); // 🧠 Restaurar aprendizagem
         if (templ) setTemplatesOCR(JSON.parse(templ.value)); // 📋 Restaurar templates
-      } catch (e) { console.log('Primeira vez'); }
+      } catch (e) { void 0; }
     };
     carregar();
   }, []);
@@ -5803,7 +5796,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
           window.storage.set('vocabularioFornecedor', JSON.stringify(vocabularioFornecedor)), // 🧠 Salvar aprendizagem
           window.storage.set('templatesOCR', JSON.stringify(templatesOCR)) // 📋 Salvar templates
         ]);
-      } catch (e) { console.error(e); }
+      } catch (e) { void 0; }
     };
     salvar();
   }, [produtos, ingredientes, vendas, despesas, fornecedores, dadosEmpresa, faturas, vocabularioFornecedor, templatesOCR]);
@@ -5976,7 +5969,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
   };
   
   const editarIngrediente = (ingrediente) => {
-    console.log('🔧 Editando ingrediente:', ingrediente);
+    void 0;
     
     setNovoIngrediente({
       nome: ingrediente.nome || '',
@@ -5991,12 +5984,12 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
   };
   
   const atualizarIngrediente = () => {
-    console.log('🔘 BOTÃO ATUALIZAR CLICADO');
-    console.log('   ingredienteEditandoId:', ingredienteEditandoId);
-    console.log('   novoIngrediente:', novoIngrediente);
+    void 0;
+    void 0;
+    void 0;
     
     if (!novoIngrediente.nome || !novoIngrediente.custoUnitario) {
-      console.log('   ❌ Validação falhou: nome ou custo vazio');
+      void 0;
       showNotification('Preencha nome e custo!', 'error');
       return;
     }
@@ -6004,7 +5997,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
     const ingredienteAntigo = ingredientes.find(i => i.id === ingredienteEditandoId);
     
     if (!ingredienteAntigo) {
-      console.log('   ❌ Ingrediente antigo não encontrado!');
+      void 0;
       showNotification('Erro: ingrediente não encontrado!', 'error');
       return;
     }
@@ -6014,9 +6007,9 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
     const diferenca = Math.abs(custoNovo - custoAntigo);
     const diferencaPerc = custoAntigo > 0 ? (diferenca / custoAntigo) * 100 : 100;
     
-    console.log(`   Custo antigo: €${custoAntigo.toFixed(2)}`);
-    console.log(`   Custo novo: €${custoNovo.toFixed(2)}`);
-    console.log(`   Diferença: ${diferencaPerc.toFixed(1)}%`);
+    void 0;
+    void 0;
+    void 0;
     
     // Se preço mudou mais de 5%, mostrar alerta
     if (diferencaPerc > 5) {
@@ -6057,21 +6050,21 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
   };
   
   const atualizarIngredienteSemAlerta = () => {
-    console.log('💾 Atualizando ingrediente sem alerta...');
-    console.log('   ID:', ingredienteEditandoId);
-    console.log('   Dados novos:', novoIngrediente);
+    void 0;
+    void 0;
+    void 0;
     
     const custoComIva = parseFloat(novoIngrediente.custoUnitario);
     const iva = parseFloat(novoIngrediente.iva);
     const custoSemIva = custoComIva / (1 + iva / 100);
     
-    console.log(`   Custo COM IVA: €${custoComIva.toFixed(2)}`);
-    console.log(`   Custo SEM IVA: €${custoSemIva.toFixed(2)}`);
-    console.log(`   IVA: ${iva}%`);
+    void 0;
+    void 0;
+    void 0;
     
     const ingredientesAtualizados = (ingredientes || []).map(i => {
       if (i.id === ingredienteEditandoId) {
-        console.log(`   ✅ Encontrado ingrediente: ${i.nome}`);
+        void 0;
         return {
           ...i,
           nome: novoIngrediente.nome,
@@ -6086,7 +6079,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
       return i;
     });
     
-    console.log('   📦 Total ingredientes após update:', ingredientesAtualizados.length);
+    void 0;
     
     setIngredientes(ingredientesAtualizados);
     
@@ -6423,18 +6416,18 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
   // ========== FUNÇÕES PARA FATURAS ==========
   
   const confirmarFaturaSemAtualizar = () => {
-    console.log('confirmarFaturaSemAtualizar chamada', priceAlertData);
+    void 0;
     
     // CASO ESPECIAL: OCR Price Update Queue
     if (priceAlertData.tipoOperacao === 'ocrPriceUpdate') {
       const ctx = window._ocrContext;
       if (!ctx) {
-        console.error('❌ Contexto OCR perdido!');
+        void 0;
         setShowPriceAlert(false);
         return;
       }
       
-      console.log(`⏭️ Preço de ${priceAlertData.ingrediente.nome} NÃO atualizado (mantém €${priceAlertData.precoAtual.toFixed(2)})`);
+      void 0;
       
       // Avançar para próxima mudança SEM aplicar a atual
       ctx.indiceAtual++;
@@ -6457,11 +6450,11 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
           mudancaAtual: ctx.indiceAtual + 1
         });
         
-        console.log(`📋 Mostrando mudança ${ctx.indiceAtual + 1}/${ctx.mudancasPreco.length}`);
+        void 0;
         return; // Mantém modal aberto para próxima mudança
       } else {
         // Todas mudanças processadas - finalizar
-        console.log('✅ Todas as mudanças de preço processadas!');
+        void 0;
         setShowPriceAlert(false);
         setPriceAlertData(null);
         finalizarFaturaOCR(ctx.ingredientesAtualizados, ctx.linhasValidadas, ctx.metadata);
@@ -6500,14 +6493,14 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
   };
   
   const confirmarFaturaEAtualizar = () => {
-    console.log('confirmarFaturaEAtualizar chamada', priceAlertData);
+    void 0;
     const { ingrediente, precoNovo, produtosAfetados } = priceAlertData;
     
     // CASO ESPECIAL: OCR Price Update Queue
     if (priceAlertData.tipoOperacao === 'ocrPriceUpdate') {
       const ctx = window._ocrContext;
       if (!ctx) {
-        console.error('❌ Contexto OCR perdido!');
+        void 0;
         setShowPriceAlert(false);
         return;
       }
@@ -6520,7 +6513,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
         precoUnitario: mudancaAtual.precoNovo
       };
       
-      console.log(`✅ Preço de ${ingrediente.nome} atualizado: €${mudancaAtual.precoAnterior.toFixed(2)} → €${mudancaAtual.precoNovo.toFixed(2)}`);
+      void 0;
       
       // Avançar para próxima mudança
       ctx.indiceAtual++;
@@ -6543,11 +6536,11 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
           mudancaAtual: ctx.indiceAtual + 1
         });
         
-        console.log(`📋 Mostrando mudança ${ctx.indiceAtual + 1}/${ctx.mudancasPreco.length}`);
+        void 0;
         return; // Mantém modal aberto para próxima mudança
       } else {
         // Todas mudanças confirmadas - finalizar
-        console.log('✅ Todas as mudanças de preço confirmadas!');
+        void 0;
         setShowPriceAlert(false);
         setPriceAlertData(null);
         finalizarFaturaOCR(ctx.ingredientesAtualizados, ctx.linhasValidadas, ctx.metadata);
@@ -6610,18 +6603,18 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
   };
   
   const adicionarItemFatura = () => {
-    console.log('adicionarItemFatura chamada', { itemFatura, categoria: novaFatura.categoria });
+    void 0;
     
     // MODO COMPRAS - Validação para ingredientes
     if (novaFatura.categoria === 'compras') {
       if (!itemFatura.ingredienteId || !itemFatura.quantidade || !itemFatura.precoTotal || !itemFatura.unidade) {
-        console.log('Validação falhou (compras):', itemFatura);
+        void 0;
         showNotification('Preencha todos os campos do item!', 'error');
         return;
       }
       
       const ingrediente = ingredientes.find(i => i.id == itemFatura.ingredienteId);
-      console.log('Ingrediente encontrado:', ingrediente);
+      void 0;
       
       if (!ingrediente) {
         showNotification('Ingrediente não encontrado!', 'error');
@@ -6651,14 +6644,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
     // CALCULAR preço por unidade base
     const precoPorUnidadeBase = precoTotal / quantidadeBase;
     
-    console.log('Conversão:', {
-      quantidade,
-      unidadeCompra,
-      quantidadeBase,
-      unidadeBase,
-      precoTotal,
-      precoPorUnidadeBase
-    });
+    void 0;
     
     // VERIFICAR se preço mudou mais de 5%
     const precoAtual = ingrediente.custoUnitario;
@@ -6764,7 +6750,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
       subtotal: subtotalSemIva
     };
     
-    console.log('Novo item criado:', novoItem);
+    void 0;
     
     setNovaFatura({
       ...novaFatura,
@@ -6790,7 +6776,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
     
     // MODO OUTRAS DESPESAS (não-compras)
     if (!itemFatura.descricao || !itemFatura.precoTotal) {
-      console.log('Validação falhou (outras despesas):', itemFatura);
+      void 0;
       showNotification('Preencha descrição e valor!', 'error');
       return;
     }
@@ -6811,7 +6797,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
       num_funcionarios: itemFatura.num_funcionarios || 1 // Para salários
     };
     
-    console.log('Novo item criado (despesa):', novoItem);
+    void 0;
     
     setNovaFatura({
       ...novaFatura,
@@ -6868,7 +6854,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
     
     // ✅ PULAR VERIFICAÇÃO DE PREÇOS se veio do OCR (já foi processada)
     if (novaFatura.fromOCR) {
-      console.log('⏭️ Fatura veio do OCR - pulando verificação de preços');
+      void 0;
       salvarFaturaSemAlerta();
       return;
     }
@@ -6976,8 +6962,8 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
       }
     };
     
-    console.log('💾 Guardando fatura com tipo:', novaFaturaCompleta.tipo);
-    console.log('💾 Total da fatura:', novaFaturaCompleta.total);
+    void 0;
+    void 0;
     
     setFaturas([...faturas, novaFaturaCompleta]);
     
@@ -7319,7 +7305,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
   };
   
   const atualizarFatura = () => {
-    console.log('atualizarFatura chamada', { novaFatura, faturaEditando });
+    void 0;
     
     if (!novaFatura.fornecedorId || (novaFatura.itens || []).length === 0) {
       showNotification('Preencha fornecedor e adicione pelo menos 1 item!', 'error');
@@ -7399,7 +7385,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
     const idParaAtualizar = faturaId || faturaEditando;
     
     const fornecedor = fornecedores.find(f => (f.id || f) === faturaParaAtualizar.fornecedorId);
-    console.log('Fornecedor encontrado:', fornecedor);
+    void 0;
     
     // Handle both old format (string) and new format (object)
     const fornecedorNome = typeof fornecedor === 'string' ? fornecedor : (fornecedor?.nome || '');
@@ -7573,14 +7559,14 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
       const lns = txt.split('\n').filter(l => l.trim());
       const vs = [];
       
-      console.log(`📥 Importando CSV Moloni: ${lns.length} linhas`);
+      void 0;
       
       for (let i = 0; i < lns.length; i++) {
         const ln = lns[i];
         
         // Skip header line
         if (i === 0 || ln.toLowerCase().includes('data') || ln.toLowerCase().includes('documento')) {
-          console.log(`⏭️ Linha ${i}: cabeçalho ignorado`);
+          void 0;
           continue;
         }
         
@@ -7588,7 +7574,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
           const pts = ln.split(';').map(p => p.replace(/"/g, '').trim());
           
           if (i < 3) {
-            console.log(`🔍 Linha ${i} exemplo:`, pts.slice(0, 15));
+            void 0;
           }
           
           // Tentar encontrar data (pode estar em posições diferentes)
@@ -7645,13 +7631,13 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
             });
             
             if (vs.length <= 3) {
-              console.log(`✅ Venda ${vs.length}: ${produto} - ${quantidade}x - €${total} - ${dt}`);
+              void 0;
             }
           }
         }
       }
       
-      console.log(`📊 Total vendas importadas: ${vs.length}`);
+      void 0;
       
       if (vs.length > 0) { 
         setVendas([...vendas, ...vs]); 
@@ -7659,7 +7645,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
         e.target.value = ''; 
       }
       else {
-        console.error('❌ Nenhuma venda válida encontrada');
+        void 0;
         showNotification('Nenhuma venda encontrada. Verifica formato CSV.', 'error');
       }
     };
@@ -7754,7 +7740,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
             });
           });
         } catch (err) {
-          console.error('Erro ao processar data:', vendaData.data, err);
+          void 0;
         }
       }
       
@@ -7767,7 +7753,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
       }
       
     } catch (err) {
-      console.error('Erro ao processar Zobaze:', err);
+      void 0;
       showNotification('❌ Erro ao processar ficheiro Zobaze', 'error');
     }
   };
@@ -8081,12 +8067,12 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
     origem: 'fatura' // Flag para identificar
   }));
   
-  console.log(`📋 Faturas filtradas: ${filteredFaturas.length} total → ${faturasParaContabilista.length} para contabilista (excluídas ${filteredFaturas.length - faturasParaContabilista.length} FS)`);
+  void 0;
   
   // Combinar despesas manuais + faturas
   const todasDespesas = [...filteredDespesas, ...faturasComoDespesas];
   
-  console.log(`💰 Total despesas combinadas: ${todasDespesas.length} (${filteredDespesas.length} manuais + ${faturasComoDespesas.length} faturas)`);
+  void 0;
 
   // Total de vendas do filtro do utilizador COM FILTRO DE MÉTRICAS POR TAGS
   let totV = 0;
@@ -8111,12 +8097,12 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
   if (configuracoes.metricas?.incluirZobaze !== false) tagsAtivas.push('ZOBAZE');
   if (configuracoes.metricas?.incluirManual !== false) tagsAtivas.push('MANUAL');
   
-  console.log(`💰 VENDAS [${tagsAtivas.join('+')}]: ${vendasFiltradas.length} de ${filteredVendas.length} transações = €${totV.toFixed(2)}`);
+  void 0;
   
   // ✅ TOTAL DESPESAS com filtro de configurações aplicado
   let totD = 0;
   
-  console.log(`📦 Calculando despesas de ${todasDespesas.length} registos:`);
+  void 0;
   
   todasDespesas.forEach((despesa, idx) => {
     const valor = despesa.valor || 0;
@@ -8133,14 +8119,14 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
       
       if (incluir) {
         totD += valor;
-        console.log(`  ${idx + 1}. Fatura [${tipo}]: €${valor.toFixed(2)} ✅`);
+        void 0;
       } else {
-        console.log(`  ${idx + 1}. Fatura [${tipo}]: €${valor.toFixed(2)} ❌ Filtrada`);
+        void 0;
       }
     } else {
       // Despesas manuais: sempre incluir
       totD += valor;
-      if (idx < 3) console.log(`  ${idx + 1}. Despesa manual: €${valor.toFixed(2)} ✅`);
+      if (idx < 3) void 0;
     }
   });
   
@@ -8149,7 +8135,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
   if (configuracoes.metricas?.incluirFR !== false) tagsDespesasAtivas.push('FR');
   if (configuracoes.metricas?.incluirFS !== false) tagsDespesasAtivas.push('FS');
   
-  console.log(`💰 TOTAL DESPESAS [${tagsDespesasAtivas.join('+')}]: €${totD.toFixed(2)}`);
+  void 0;
   
   // Limite IVA: SEMPRE calcular apenas vendas do ano atual (reset a 1 Janeiro)
   const anoAtual = new Date().getFullYear();
@@ -8235,10 +8221,10 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
   const lucroLiquido = totV - totD - ivaPagarPeriodo;
   const margemLiquida = totV > 0 ? (lucroLiquido / totV) * 100 : 0;
   
-  console.log(`💰 LUCRO LÍQUIDO: €${lucroLiquido.toFixed(2)} (${margemLiquida.toFixed(1)}%)`);
-  console.log(`   Receita: €${totV.toFixed(2)}`);
-  console.log(`   Despesas: €${totD.toFixed(2)}`);
-  console.log(`   IVA a pagar: €${ivaPagarPeriodo.toFixed(2)}`);
+  void 0;
+  void 0;
+  void 0;
+  void 0;
 
   const dFixas = todasDespesas.filter(d => ['renda', 'eletricidade', 'agua', 'gas', 'internet', 'salarios'].includes(d.categoria)).reduce((s, d) => s + d.valor, 0);
   const dFixDia = dFixas / 30;
@@ -8280,11 +8266,11 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
   const revenuePerEmployee = numEmployees > 0 ? totV / numEmployees : 0;
   const salesPerEmployee = numEmployees > 0 ? filteredVendas.length / numEmployees : 0;
   
-  console.log(`📊 KPIs calculados:`);
-  console.log(`   Food Cost: €${totalFoodCost.toFixed(2)} (${foodCostPercentage.toFixed(1)}%)`);
-  console.log(`   Labor Cost: €${totalSalarios.toFixed(2)} (${laborCostPercentage.toFixed(1)}%)`);
-  console.log(`   Prime Cost: €${primeCostTotal.toFixed(2)} (${primeCostPercentage.toFixed(1)}%)`);
-  console.log(`   Break-even: €${breakEvenPoint.toFixed(2)}`);
+  void 0;
+  void 0;
+  void 0;
+  void 0;
+  void 0;
 
 
   const vPorProd = {};
@@ -8511,7 +8497,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
       }
       return fullText.trim();
     } catch (error) {
-      console.warn('PDF.js falhou:', error.message);
+      void 0;
       return '';
     }
   };
@@ -8537,7 +8523,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
   const extractWithOCR = async (pdfBuffer) => {
     try {
       const images = await pdfToImages(pdfBuffer);
-      console.log(`🖼️ ${images.length} página(s)`);
+      void 0;
       let fullText = '';
       for (let i = 0; i < images.length; i++) {
         setProgressoOCR(`OCR página ${i + 1}/${images.length}...`);
@@ -8558,14 +8544,14 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
   
   // Extração principal - SIMPLIFICADA (sem PDF.js)
   const extractTextFromPdf = async (file) => {
-    console.log('📄 Processando ficheiro...');
+    void 0;
     setProgressoOCR('Preparando OCR...');
     
     try {
       //  Converter PDF para imagem usando FileReader
       const imageData = await convertPdfToImage(file);
       
-      console.log('🖼️ Imagem preparada, iniciando OCR...');
+      void 0;
       setProgressoOCR('Aplicando OCR...');
       
       // Fazer OCR direto
@@ -8577,7 +8563,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
         }
       });
       
-      console.log('✅ OCR completo:', result.data.text.length, 'caracteres');
+      void 0;
       return { text: result.data.text, method: 'ocr' };
       
     } catch (error) {
@@ -8594,7 +8580,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
     const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
     const pdf = await loadingTask.promise;
     
-    console.log(`📄 PDF tem ${pdf.numPages} página(s)`);
+    void 0;
     
     // Converter primeira página para imagem
     const page = await pdf.getPage(1);
@@ -8615,7 +8601,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
     // Converter canvas para data URL (imagem)
     const imageDataUrl = canvas.toDataURL('image/png');
     
-    console.log('✅ PDF convertido para imagem PNG');
+    void 0;
     
     return imageDataUrl;
   };
@@ -8810,8 +8796,8 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
   
   // Parse produtos
   const parseLinhasProdutos = (texto, nifFornecedor = null) => {
-    console.log('🔍 Parsing...');
-    console.log('📄 Texto ORIGINAL (primeiras 1000 chars):', texto.substring(0, 1000));
+    void 0;
+    void 0;
     setProgressoOCR('Identificando produtos...');
     
     // 🚫 CORRIGIDO: Carregar blacklist do fornecedor (se existir)
@@ -8820,13 +8806,13 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
       const template = buscarTemplateOCR(nifFornecedor);
       if (template && template.blacklist) {
         blacklist = template.blacklist;
-        console.log(`🚫 Blacklist do fornecedor ativa: ${blacklist.length} itens`);
+        void 0;
       }
     }
     
     // 1. LIMPAR texto completo ANTES de split
     const textoLimpo = cleanOCRText(texto);
-    console.log('📝 Texto após limpeza (primeiras 1000 chars):', textoLimpo.substring(0, 1000));
+    void 0;
     
     // 2. Split em linhas
     let linhas = textoLimpo.split('\n').map(l => l.trim()).filter(l => l.length > 0);
@@ -8838,7 +8824,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
       const codigos = linha.match(/\d{6}\.\d+/g);
       
       if (codigos && codigos.length > 1) {
-        console.log(`🔀 Linha com ${codigos.length} produtos juntos detectada`);
+        void 0;
         
         // Separar por cada código
         let resto = linha;
@@ -8853,13 +8839,13 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
             const proxPos = resto.indexOf(proximoCodigo);
             const fragmento = resto.substring(pos, proxPos).trim();
             linhasSeparadas.push(fragmento);
-            console.log(`  → Produto ${idx + 1}: "${fragmento.substring(0, 50)}..."`);
+            void 0;
             resto = resto.substring(proxPos);
           } else {
             // Último produto
             const fragmento = resto.substring(pos).trim();
             linhasSeparadas.push(fragmento);
-            console.log(`  → Produto ${idx + 1}: "${fragmento.substring(0, 50)}..."`);
+            void 0;
           }
         });
       } else {
@@ -8869,7 +8855,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
     }
     
     linhas = linhasSeparadas;
-    console.log(`📊 Total de linhas após separação: ${linhas.length}`);
+    void 0;
     
     const linhasProdutos = [];
     let linhasIgnoradas = 0;
@@ -8883,7 +8869,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
         const temPalavraBlacklist = blacklist.some(palavra => linhaLower.includes(palavra));
         
         if (temPalavraBlacklist) {
-          console.log(`🚫 Ignorado por blacklist: "${linha.substring(0, 60)}..."`);
+          void 0;
           linhasIgnoradasBlacklist++;
           continue;
         }
@@ -8895,22 +8881,22 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
       }
       const parsed = parseLinha(linha);
       if (parsed && parsed.nomeProduto) {
-        console.log(`✅ PRODUTO: "${parsed.nomeProduto.substring(0, 40)}..." | Qtd: ${parsed.quantidade} | Preço: €${parsed.preco}`);
+        void 0;
         linhasProdutos.push(parsed);
       } else {
         linhasSemNome++;
       }
     }
     
-    console.log(`✅ ${linhasProdutos.length} produtos identificados`);
-    console.log(`⏭️ ${linhasIgnoradas} linhas ignoradas (headers, totais, etc)`);
+    void 0;
+    void 0;
     if (linhasIgnoradasBlacklist > 0) {
-      console.log(`🚫 ${linhasIgnoradasBlacklist} linhas ignoradas por BLACKLIST`);
+      void 0;
     }
-    console.log(`❌ ${linhasSemNome} linhas sem nome de produto`);
+    void 0;
     
     if (linhasProdutos.length === 0) {
-      console.error('⚠️ NENHUM produto encontrado! Verificar limpeza e parsing.');
+      void 0;
     }
     
     return linhasProdutos;
@@ -8957,7 +8943,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
         if (total) metadata.total = parseFloat(total[1].replace(',', '.'));
       }
     }
-    console.log('📋 Metadata extraída:', metadata);
+    void 0;
     return metadata;
   };
   
@@ -9040,7 +9026,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
   };
   
   const matchIngredientes = (linhas, ingredientes) => {
-    console.log('🎯 Matching...');
+    void 0;
     setProgressoOCR('Relacionando...');
     return linhas.map(linha => ({
       ...linha,
@@ -9110,7 +9096,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
       
       // Extrair texto (passa file direto agora, não arrayBuffer)
       const { text, method } = await extractTextFromPdf(file);
-      console.log(`Método: ${method}`);
+      void 0;
       
       // Extrair metadata PRIMEIRO (para ter NIF)
       const metadata = extractFaturaMetadata(text);
@@ -9119,7 +9105,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
       // ==================== PROCESSAR FATURA V2.0 ====================
       // Detectar tipo de fatura e extrair dados estruturados
       const dadosFatura = processarTextoFatura(text, fornecedores); // ✅ PASSAR FORNECEDORES
-      console.log('📋 Fatura processada:', dadosFatura);
+      void 0;
       
       // Criar URL temporário do PDF para visualização
       const pdfBlob = new Blob([await file.arrayBuffer()], { type: 'application/pdf' });
@@ -9162,7 +9148,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
         showNotification(`✅ ${linhas.length} produtos identificados!`, 'success');
       }
     } catch (error) {
-      console.error('Erro:', error);
+      void 0;
       
       // MESMO com erro, tenta guardar o PDF se conseguiu converter
       if (base64) {
@@ -9184,7 +9170,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
   
   // Confirmar
   const handleConfirmarOCR = (linhasValidadas, metadata) => {
-    console.log('📝 Auto-preenchendo fatura...');
+    void 0;
     
     // ✅ FECHAR MODAL OCR IMEDIATAMENTE para evitar cliques duplicados
     setMostrarModalOCR(false);
@@ -9193,12 +9179,12 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
     const nifFornecedor = metadata.nif || novaFatura.fornecedorNIF;
     
     if (nifFornecedor) {
-      console.log('🧠 Iniciando reconhecimento inteligente...');
+      void 0;
       
       linhasValidadas = linhasValidadas.map(linha => {
         // Se já tem ingrediente confirmado, manter
         if (linha.ingredienteConfirmado) {
-          console.log(`✅ "${linha.nomeProduto}" já confirmado manualmente`);
+          void 0;
           return linha;
         }
         
@@ -9210,11 +9196,11 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
           const ingrediente = ingredientes.find(i => i.id === ingredienteId);
           
           if (ingrediente) {
-            console.log(`🔵 "${linha.nomeProduto}" → ${ingrediente.nome} (${confianca}% confiança, ${confirmacoes} confirmações)`);
+            void 0;
             
             // ✅ AUTO-PREENCHER SE CONFIANÇA >= 80%
             if (confianca >= 80) {
-              console.log(`  → ✅ AUTO-PREENCHIDO (confiança ${confianca}%)`);
+              void 0;
               return {
                 ...linha,
                 ingredienteConfirmado: ingredienteId, // Auto-preencher
@@ -9225,7 +9211,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
               };
             } else {
               // Confiança baixa - só sugerir, não auto-preencher
-              console.log(`  → 💡 SUGERIDO (confiança ${confianca}% < 80%)`);
+              void 0;
               return {
                 ...linha,
                 ingredienteSugerido: ingredienteId, // ✅ FIX: ID do sugerido
@@ -9241,7 +9227,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
         const fuzzyMatch = findBestMatch(linha.nomeProduto, ingredientes);
         
         if (fuzzyMatch && fuzzyMatch.score >= 60) {
-          console.log(`🟡 "${linha.nomeProduto}" → ${fuzzyMatch.ingrediente.nome} (${fuzzyMatch.score}% fuzzy match)`);
+          void 0;
           
           return {
             ...linha,
@@ -9252,7 +9238,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
           };
         }
         
-        console.log(`⚪ "${linha.nomeProduto}" → sem sugestão (desconhecido)`);
+        void 0;
         return linha;
       });
       
@@ -9260,9 +9246,9 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
       const total = linhasValidadas.length;
       
       if (sugeridos > 0) {
-        console.log(`🎯 ${sugeridos}/${total} ingredientes reconhecidos automaticamente!`);
+        void 0;
       } else {
-        console.log(`📚 Nenhum ingrediente reconhecido (primeira vez com este fornecedor)`);
+        void 0;
       }
     }
     
@@ -9273,7 +9259,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
     if (metadata.novosIngredientes && metadata.novosIngredientes.length > 0) {
       const novosIngs = metadata.novosIngredientes;
       setIngredientes([...ingredientes, ...novosIngs]);
-      console.log(`✨ ${novosIngs.length} novo(s) ingrediente(s) criado(s):`, novosIngs.map(i => i.nome));
+      void 0;
       
       // Atualizar lista local para usar nas próximas etapas
       ingredientesAtualizados.push(...novosIngs);
@@ -9283,7 +9269,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
     if (window._novosFornecedores && window._novosFornecedores.length > 0) {
       const novosForn = window._novosFornecedores;
       setFornecedores([...fornecedores, ...novosForn]);
-      console.log(`✨ ${novosForn.length} novo(s) fornecedor(es) criado(s):`, novosForn.map(f => f.nome));
+      void 0;
       
       // Limpar cache
       window._novosFornecedores = [];
@@ -9292,16 +9278,16 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
     let ingredientesModificados = 0;
     const mudancasPreco = []; // NOVO: Coletar mudanças em vez de aplicar
     
-    console.log('💶 Processando preços da fatura:');
-    console.log(`   - Fornecedor: ${metadata.nif || 'N/A'}`);
-    console.log(`   - Linhas validadas: ${linhasValidadas.length}`);
+    void 0;
+    void 0;
+    void 0;
     
     linhasValidadas.forEach(l => {
       if (l.ingredienteConfirmado && l.preco && l.quantidade) {
         const index = ingredientesAtualizados.findIndex(i => i.id === l.ingredienteConfirmado);
         
         if (index === -1) {
-          console.log(`❌ ERRO: Ingrediente ID ${l.ingredienteConfirmado} não encontrado!`);
+          void 0;
           return;
         }
         
@@ -9312,29 +9298,29 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
         const unidadeBase = ingrediente.unidade; // Unidade base do ingrediente
         const iva = ingrediente.iva || 23;
         
-        console.log(`\n📦 Item da fatura: ${l.nomeProduto}`);
-        console.log(`   Ingrediente associado: ${ingrediente.nome} (ID: ${ingrediente.id})`);
-        console.log(`   IVA do ingrediente: ${iva}%`);
-        console.log(`   Quantidade comprada: ${quantidade} ${unidadeCompra}`);
-        console.log(`   Unidade base do ingrediente: ${unidadeBase}`);
+        void 0;
+        void 0;
+        void 0;
+        void 0;
+        void 0;
         
         // ✅ CONVERTER QUANTIDADE PARA UNIDADE BASE
         let quantidadeBase = quantidade;
         if (unidadeCompra === 'g' && unidadeBase === 'kg') {
           quantidadeBase = quantidade / 1000;
-          console.log(`   🔄 Conversão: ${quantidade}g → ${quantidadeBase}kg`);
+          void 0;
         } else if (unidadeCompra === 'ml' && unidadeBase === 'L') {
           quantidadeBase = quantidade / 1000;
-          console.log(`   🔄 Conversão: ${quantidade}ml → ${quantidadeBase}L`);
+          void 0;
         } else if (unidadeCompra === 'kg' && unidadeBase === 'g') {
           quantidadeBase = quantidade * 1000;
-          console.log(`   🔄 Conversão: ${quantidade}kg → ${quantidadeBase}g`);
+          void 0;
         } else if (unidadeCompra === 'L' && unidadeBase === 'ml') {
           quantidadeBase = quantidade * 1000;
-          console.log(`   🔄 Conversão: ${quantidade}L → ${quantidadeBase}ml`);
+          void 0;
         } else if (unidadeCompra === unidadeBase) {
           quantidadeBase = quantidade;
-          console.log(`   ✓ Mesma unidade: ${quantidade} ${unidadeBase}`);
+          void 0;
         }
         
         let novoPrecoUnitario;
@@ -9346,15 +9332,15 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
         const precoAnterior = ingredientesAtualizados[index].custoUnitario || 0;
         
         // Log detalhado do cálculo
-        console.log(`\n🔍 CALCULANDO: ${ingredientesAtualizados[index].nome}`);
-        console.log(`   Preço anterior: €${precoAnterior.toFixed(2)}/${unidadeBase}`);
-        console.log(`   Preço total na fatura: €${precoTotal.toFixed(2)}`);
-        console.log(`   Quantidade (base): ${quantidadeBase} ${unidadeBase}`);
-        console.log(`   ✅ Preço unitário: €${precoTotal.toFixed(2)} / ${quantidadeBase} = €${novoPrecoUnitario.toFixed(3)}/${unidadeBase}`);
+        void 0;
+        void 0;
+        void 0;
+        void 0;
+        void 0;
         
         // COLETAR mudança se preço mudou
         if (Math.abs(novoPrecoUnitario - precoAnterior) > 0.01) {
-          console.log(`💰 MUDANÇA DETECTADA ${ingrediente.nome}: €${precoAnterior.toFixed(2)} → €${novoPrecoUnitario.toFixed(2)}`);
+          void 0;
           
           mudancasPreco.push({
             ingredienteId: ingrediente.id,
@@ -9366,15 +9352,15 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
           
           ingredientesModificados++;
         } else {
-          console.log(`   ⏭️ Preço não mudou significativamente (diferença: €${Math.abs(novoPrecoUnitario - precoAnterior).toFixed(3)})`);
+          void 0;
         }
       }
     });
     
     // Se houver mudanças, iniciar fila de modais
     if (mudancasPreco.length > 0) {
-      console.log(`\n🎯 ${mudancasPreco.length} mudança(s) de preço detectada(s)`);
-      console.log('📋 Iniciando fila de confirmações...');
+      void 0;
+      void 0;
       
       // Guardar contexto no window para handlers do modal acessarem
       window._ocrContext = {
@@ -9408,13 +9394,13 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
     }
     
     // Se não houver mudanças, continuar normalmente
-    console.log('✅ Nenhuma mudança de preço detectada');
+    void 0;
     finalizarFaturaOCR(ingredientesAtualizados, linhasValidadas, metadata);
   };
   
   // Função para finalizar fatura após confirmações de preço
   const finalizarFaturaOCR = (ingredientesAtualizados, linhasValidadas, metadata) => {
-    console.log('📝 Finalizando fatura OCR...');
+    void 0;
     
     // Atualizar ingredientes
     setIngredientes(ingredientesAtualizados);
@@ -9440,7 +9426,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
       
       // Só atualizar se mudou
       if (Math.abs(novoCusto - (produto.custoReceita || 0)) > 0.01) {
-        console.log(`🍕 Recalculando ${produto.nome}: Custo €${(produto.custoReceita || 0).toFixed(2)} → €${novoCusto.toFixed(2)}, Margem ${(produto.margemLucro || 0).toFixed(1)}% → ${novaMargemLucro.toFixed(1)}%`);
+        void 0;
         
         return {
           ...produto,
@@ -9470,7 +9456,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
         const precoUnitario = precoComIVA / (1 + iva / 100); // SEM IVA
         const subtotal = precoUnitario * quantidade; // SEM IVA
         
-        console.log(`📦 Item: ${ingrediente?.nome} - Preço COM IVA: €${precoComIVA.toFixed(2)} → SEM IVA: €${precoUnitario.toFixed(2)}`);
+        void 0;
         
         return {
           id: `ocr_${Date.now()}_${index}`, // ID único
@@ -9487,8 +9473,8 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
         };
       });
     
-    console.log('Itens processados:', novosItens);
-    console.log('PDF Base64 length:', metadata.pdfBase64 ? metadata.pdfBase64.length : 'NULL');
+    void 0;
+    void 0;
     
     // Extrair NIF do fornecedor para aprendizagem
     const nifFornecedor = metadata.nif || novaFatura.fornecedorNIF;
@@ -9509,12 +9495,12 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
           
           if (foiAlterado) {
             const ingrediente = ingredientes.find(i => i.id === ingredienteId);
-            console.log(`📝 Correção aprendida: "${textoOCR}" → ${ingrediente?.nome}`);
+            void 0;
           } else if (linha.ingredienteSugerido) {
-            console.log(`✅ Confirmação aprendida: "${textoOCR}"`);
+            void 0;
           } else {
             const ingrediente = ingredientes.find(i => i.id === ingredienteId);
-            console.log(`🆕 Nova associação: "${textoOCR}" → ${ingrediente?.nome}`);
+            void 0;
           }
         }
       });
@@ -9548,7 +9534,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
         novaFaturaAtualizada.fornecedorId = fornecedor.id;
         novaFaturaAtualizada.fornecedorNome = fornecedor.nome;
         novaFaturaAtualizada.fornecedorNif = fornecedor.nif || metadata.nif || '';
-        console.log('✅ Fornecedor confirmado no Modal 1:', fornecedor.nome);
+        void 0;
       }
     }
     // PRIORIDADE 2: Tentar identificar fornecedor pelo NIF (se não foi confirmado)
@@ -9558,7 +9544,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
         novaFaturaAtualizada.fornecedorId = fornecedor.id;
         novaFaturaAtualizada.fornecedorNome = fornecedor.nome;
         novaFaturaAtualizada.fornecedorNif = metadata.nif;
-        console.log('✅ Fornecedor identificado por NIF:', fornecedor.nome);
+        void 0;
       }
     }
     
@@ -9575,12 +9561,12 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
         novaFaturaAtualizada.fornecedorId = fornecedorManual.id;
         novaFaturaAtualizada.fornecedorNome = fornecedorManual.nome;
         novaFaturaAtualizada.fornecedorNif = fornecedorManual.nif;
-        console.log('✅ Fornecedor selecionado manualmente:', fornecedorManual.nome);
+        void 0;
       }
     }
     
-    console.log('PDF na fatura final:', novaFaturaAtualizada.documentoPDF ? 'SIM' : 'NÃO');
-    console.log('Tipo documento:', novaFaturaAtualizada.tipoDocumento);
+    void 0;
+    void 0;
     
     // ✅ MARCAR COMO VINDO DE OCR para evitar re-processar preços ao guardar
     novaFaturaAtualizada.fromOCR = true;
@@ -9685,7 +9671,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
               </h3>
               <button
                 onClick={() => {
-                  console.log('Fechar modal');
+                  void 0;
                   setShowPriceAlert(false);
                   setPriceAlertData(null);
                 }}
@@ -9743,7 +9729,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
             <div className="flex gap-2 px-4 pb-4">
               <button
                 onClick={() => {
-                  console.log('Botão Ignorar clicado', priceAlertData);
+                  void 0;
                   if (priceAlertData.tipoFatura || priceAlertData.tipoOperacao) {
                     confirmarFaturaSemAtualizar();
                   } else {
@@ -9756,17 +9742,17 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
               </button>
               <button
                 onClick={() => {
-                  console.log('Botão Atualizar clicado', priceAlertData);
+                  void 0;
                   // Verificar se é edição manual de ingrediente
                   if (priceAlertData.tipoFatura === 'ingrediente') {
-                    console.log('   → Edição manual de ingrediente');
+                    void 0;
                     atualizarIngredienteSemAlerta();
                     setShowPriceAlert(false);
                   } else if (priceAlertData.tipoFatura || priceAlertData.tipoOperacao) {
-                    console.log('   → Importação de fatura');
+                    void 0;
                     confirmarFaturaEAtualizar();
                   } else {
-                    console.log('   → Despesa manual');
+                    void 0;
                     confirmarDespesaEAtualizar();
                   }
                 }}
@@ -11027,13 +11013,13 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
                             
                             // DEBUG apenas para primeiro produto
                             if (idx === 0) {
-                              console.log('🔍 DEBUG Desempenho:');
-                              console.log('  Total produtos:', produtos.length);
-                              console.log('  Produto #1:', p.nome);
-                              console.log('  Encontrado?', !!produto);
+                              void 0;
+                              void 0;
+                              void 0;
+                              void 0;
                               if (produto) {
-                                console.log('  Receita:', produto.receita?.length || 0, 'ingredientes');
-                                console.log('  Campos:', Object.keys(produto));
+                                void 0;
+                                void 0;
                               }
                             }
                             
@@ -11398,25 +11384,25 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
                 
                 {/* Filtrar produtos com embalagens */}
                 {(() => {
-                  console.log('=== DEBUG DELIVERY ===');
-                  console.log('Produtos total:', (produtos || []).length);
-                  console.log('Ingredientes total:', (ingredientes || []).length);
+                  void 0;
+                  void 0;
+                  void 0;
                   
                   // Debug ingredientes embalagens
                   const embalagens = ingredientes.filter(i => i.categoria === 'embalagens');
-                  console.log('Ingredientes embalagens:', embalagens);
+                  void 0;
                   
                   const produtosTakeAway = produtos
                     .filter(p => {
                       if (!p.embalagens || !Array.isArray(p.embalagens) || p.embalagens.length === 0) {
-                        console.log('Produto sem embalagens:', p.nome);
+                        void 0;
                         return false;
                       }
                       
                       const temEmbalagem = p.embalagens.some(e => {
                         const ing = ingredientes.find(i => i.id == e.ingredienteId);
                         if (ing && ing.categoria === 'embalagens') {
-                          console.log('Produto', p.nome, 'tem embalagem:', ing.nome);
+                          void 0;
                           return true;
                         }
                         return false;
@@ -11428,8 +11414,8 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
                       p.nome.toLowerCase().includes(searchTakeAway.toLowerCase())
                     );
                   
-                  console.log('Produtos take-away encontrados:', produtosTakeAway.length);
-                  console.log('Produtos take-away:', produtosTakeAway.map(p => p.nome));
+                  void 0;
+                  void 0;
                   
                   if (produtosTakeAway.length === 0) {
                     // Verificar se é porque a pesquisa não encontrou ou porque não há produtos take-away
@@ -13515,7 +13501,7 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
                                             // Abrir em nova janela
                                             window.open(blobUrl, '_blank');
                                           } catch (error) {
-                                            console.error('Erro ao abrir PDF:', error);
+                                            void 0;
                                             alert('Erro ao abrir PDF. Verifique a consola para detalhes.');
                                           }
                                         }}
