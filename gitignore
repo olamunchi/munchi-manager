@@ -1,0 +1,48 @@
+# ============================================
+# .gitignore - Munchi Manager
+# ============================================
+
+# SEGURANÇA - Nunca commitar estes ficheiros
+config.js
+.env
+.env.local
+.env.production
+*.key
+*.pem
+secrets.txt
+
+# Dependências
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build outputs
+dist/
+build/
+*.min.js.map
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+logs/
+*.log
+
+# Temporários
+tmp/
+temp/
+*.tmp
+
+# Backups
+*.backup
+*.bak
