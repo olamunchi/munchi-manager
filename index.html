@@ -3134,6 +3134,9 @@ const RestauranteGestor = () => {
   const [mesSelecionado, setMesSelecionado] = useState(new Date().getMonth());
   const [anoSelecionado, setAnoSelecionado] = useState(new Date().getFullYear());
   const [backupExpanded, setBackupExpanded] = useState(false);
+  const [exportarExpanded, setExportarExpanded] = useState(false);
+  const [exportDateStart, setExportDateStart] = useState('');
+  const [exportDateEnd, setExportDateEnd] = useState('');
   
   // Estados OCR
   const [mostrarModalOCR, setMostrarModalOCR] = useState(false);
@@ -4672,8 +4675,8 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
   // É apenas para facilitar o lançamento contabilístico.
   // Os PDFs das faturas são OBRIGATÓRIOS e devem ser enviados separadamente.
   const exportarRelatorioCompletoCSV = () => {
-    const filteredVendas = getFilteredData(vendas || []);
-    const filteredDespesas = getFilteredData(despesas || []);
+    const filteredVendas = getExportFilteredData(vendas || []);
+    const filteredDespesas = getExportFilteredData(despesas || []);
     
     if (filteredVendas.length === 0 && filteredDespesas.length === 0) {
       showNotification('Nenhum dado para exportar no período selecionado!', 'error');
@@ -5067,8 +5070,8 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
 
   // ===== EXPORT COMPLETO: CSV + ZIP COM PDFs =====
   const exportarPacoteCompleto = async () => {
-    const filteredVendas = getFilteredData(vendas || []);
-    const filteredFaturasCompletas = getFilteredData(faturas || []); // Todas
+    const filteredVendas = getExportFilteredData(vendas || []);
+    const filteredFaturasCompletas = getExportFilteredData(faturas || []); // Todas
     
     // ⚠️ FILTRAR: Só FATURAS (não recibos) para contabilista
     const filteredFaturas = filteredFaturasCompletas.filter(f => 
@@ -8039,6 +8042,22 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
         default:
           return true;
       }
+    });
+  };
+
+  const getExportFilteredData = (data, dateField = 'data') => {
+    if (!exportDateStart && !exportDateEnd) {
+      return data;
+    }
+    
+    return data.filter(item => {
+      const itemDate = item[dateField];
+      if (!itemDate) return false;
+      
+      if (exportDateStart && itemDate < exportDateStart) return false;
+      if (exportDateEnd && itemDate > exportDateEnd) return false;
+      
+      return true;
     });
   };
 
@@ -14826,142 +14845,187 @@ console.log('✅ Munchi Invoice Processor V2.0 carregado!');
                   )}
                 </div>
                 
-                {/* Exportar para Excel/CSV */}
-                <div className="border rounded-lg p-4 bg-gradient-to-r from-blue-50 to-green-50">
-                  <h3 className="font-bold text-lg mb-3 flex items-center gap-2">
-                    📊 Exportar para Contabilista
-                  </h3>
+                {/* Exportar para Contabilista - Dropdown */}
+                <div className="border rounded-lg overflow-hidden">
+                  <button
+                    onClick={() => setExportarExpanded(!exportarExpanded)}
+                    className="w-full p-4 flex items-center justify-between bg-gradient-to-r from-blue-50 to-green-50 hover:from-blue-100 hover:to-green-100 transition"
+                  >
+                    <div className="text-left">
+                      <h3 className="font-bold text-lg flex items-center gap-2">
+                        📊 Exportar para Contabilista
+                      </h3>
+                      <p className="text-sm text-gray-600">
+                        Gerar CSV/ZIP com faturas do período selecionado
+                      </p>
+                    </div>
+                    {exportarExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                  </button>
                   
-                  {/* Export Combinado - Apoio Contabilístico */}
-                  <div className="bg-gradient-to-br from-white to-blue-50 rounded-lg border-2 border-blue-300">
-                    {/* Cabeçalho com botões - sempre visível */}
-                    <div className="p-4">
-                      <div className="flex items-center gap-3 mb-3">
-                        <h4 className="font-bold text-blue-900 flex-1">
+                  {exportarExpanded && (
+                    <div className="border-t bg-white p-4 space-y-4">
+                      
+                      {/* Filtro de Datas */}
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                        <h4 className="font-semibold text-sm mb-3 flex items-center gap-2">
+                          📅 Período para Exportar
+                        </h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-xs font-medium text-gray-700 mb-1">
+                              Data Início
+                            </label>
+                            <input
+                              type="date"
+                              value={exportDateStart}
+                              onChange={(e) => setExportDateStart(e.target.value)}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-700 mb-1">
+                              Data Fim
+                            </label>
+                            <input
+                              type="date"
+                              value={exportDateEnd}
+                              onChange={(e) => setExportDateEnd(e.target.value)}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                            />
+                          </div>
+                        </div>
+                        
+                        {/* Atalhos rápidos */}
+                        <div className="flex flex-wrap gap-2 mt-3">
+                          <button
+                            onClick={() => {
+                              const hoje = new Date();
+                              const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+                              setExportDateStart(inicioMes.toISOString().split('T')[0]);
+                              setExportDateEnd(hoje.toISOString().split('T')[0]);
+                            }}
+                            className="px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700"
+                          >
+                            Este Mês
+                          </button>
+                          <button
+                            onClick={() => {
+                              const hoje = new Date();
+                              const inicioMesAnterior = new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1);
+                              const fimMesAnterior = new Date(hoje.getFullYear(), hoje.getMonth(), 0);
+                              setExportDateStart(inicioMesAnterior.toISOString().split('T')[0]);
+                              setExportDateEnd(fimMesAnterior.toISOString().split('T')[0]);
+                            }}
+                            className="px-3 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700"
+                          >
+                            Mês Anterior
+                          </button>
+                          <button
+                            onClick={() => {
+                              setExportDateStart('');
+                              setExportDateEnd('');
+                            }}
+                            className="px-3 py-1 bg-gray-600 text-white rounded text-xs hover:bg-gray-700"
+                          >
+                            Todas as Datas
+                          </button>
+                        </div>
+                        
+                        <p className="text-xs text-blue-700 mt-2">
+                          💡 <strong>Em Portugal:</strong> Enviar faturas ao contabilista <strong>mensalmente até dia 10</strong> do mês seguinte
+                        </p>
+                      </div>
+                  
+                      {/* Export Combinado */}
+                      <div className="bg-gradient-to-br from-white to-blue-50 rounded-lg border-2 border-blue-300 p-4">
+                        <h4 className="font-bold text-blue-900 mb-3">
                           📋 Relatório de Apoio Contabilístico
                         </h4>
-                        <button
-                          onClick={() => {
-                            const section = document.getElementById('export-details');
-                            const icon = document.getElementById('export-chevron');
-                            if (section.classList.contains('hidden')) {
-                              section.classList.remove('hidden');
-                              icon.style.transform = 'rotate(180deg)';
-                            } else {
-                              section.classList.add('hidden');
-                              icon.style.transform = 'rotate(0deg)';
-                            }
-                          }}
-                          className="text-blue-600 hover:text-blue-800 transition"
-                        >
-                          <ChevronDown id="export-chevron" size={20} style={{transition: 'transform 0.3s'}} />
-                        </button>
-                      </div>
-                      
-                      {/* Botões de Export - SEMPRE VISÍVEIS */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <button 
-                          onClick={exportarRelatorioCompletoCSV}
-                          className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-6 py-3 text-base font-bold flex items-center justify-center gap-2 transition shadow-lg"
-                        >
-                          <FileText size={18} />
-                          Só CSV (Rápido)
-                        </button>
                         
-                        <button 
-                          onClick={exportarPacoteCompleto}
-                          className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white rounded-lg px-6 py-3 text-base font-bold flex items-center justify-center gap-2 transition shadow-lg"
-                        >
-                          <Download size={18} />
-                          Pacote Completo (ZIP)
-                        </button>
-                      </div>
-                    </div>
-                    
-                    {/* Detalhes - colapsável */}
-                    <div id="export-details" className="hidden border-t border-blue-200 p-4">
-                      <p className="text-sm text-gray-700 mb-3">
-                        Ficheiro CSV estruturado com vendas e despesas para lançamento contabilístico
-                      </p>
-                      
-                      
-                      {/* Documentos Fiscais - Movido do Dashboard */}
-                      <div className="bg-gradient-to-br from-purple-50 to-pink-50 border border-purple-200 rounded p-3 mb-3">
-                        <div className="flex items-center gap-2 mb-3">
-                          <h4 className="font-bold text-purple-900">📄 Documentos Fiscais</h4>
+                        {/* Estatísticas do período selecionado */}
+                        <div className="bg-purple-50 border border-purple-200 rounded p-3 mb-4">
+                          <div className="flex items-center gap-2 mb-2">
+                            <h5 className="font-bold text-purple-900 text-sm">📄 Documentos no Período</h5>
+                          </div>
+                          <div className="grid grid-cols-3 gap-2">
+                            <div className="bg-white rounded-lg p-2 text-center border border-purple-200">
+                              <p className="text-lg font-bold text-purple-600">{(() => {
+                                if (!exportDateStart && !exportDateEnd) return despesas.length;
+                                return despesas.filter(d => {
+                                  const dataFatura = d.data;
+                                  if (!dataFatura) return false;
+                                  if (exportDateStart && dataFatura < exportDateStart) return false;
+                                  if (exportDateEnd && dataFatura > exportDateEnd) return false;
+                                  return true;
+                                }).length;
+                              })()}</p>
+                              <p className="text-purple-600 text-xs mt-1">Total</p>
+                            </div>
+                            <div className="bg-green-50 rounded-lg p-2 text-center border border-green-200">
+                              <p className="text-lg font-bold text-green-600">{(() => {
+                                if (!exportDateStart && !exportDateEnd) return despesas.filter(d => d.documentoPDF).length;
+                                return despesas.filter(d => {
+                                  const dataFatura = d.data;
+                                  if (!dataFatura) return false;
+                                  if (exportDateStart && dataFatura < exportDateStart) return false;
+                                  if (exportDateEnd && dataFatura > exportDateEnd) return false;
+                                  return d.documentoPDF;
+                                }).length;
+                              })()}</p>
+                              <p className="text-green-600 text-xs mt-1">✅ Com PDF</p>
+                            </div>
+                            <div className="bg-red-50 rounded-lg p-2 text-center border border-red-200">
+                              <p className="text-lg font-bold text-red-600">{(() => {
+                                if (!exportDateStart && !exportDateEnd) return despesas.filter(d => !d.documentoPDF).length;
+                                return despesas.filter(d => {
+                                  const dataFatura = d.data;
+                                  if (!dataFatura) return false;
+                                  if (exportDateStart && dataFatura < exportDateStart) return false;
+                                  if (exportDateEnd && dataFatura > exportDateEnd) return false;
+                                  return !d.documentoPDF;
+                                }).length;
+                              })()}</p>
+                              <p className="text-red-600 text-xs mt-1">⚠️ Sem PDF</p>
+                            </div>
+                          </div>
                         </div>
-                        <div className="grid grid-cols-3 gap-2">
-                          <div className="bg-white rounded-lg p-2 text-center border border-purple-200">
-                            <p className="text-xl font-bold text-purple-600">{despesas.length}</p>
-                            <p className="text-purple-600 text-xs mt-1">Total Faturas</p>
-                          </div>
-                          <div className="bg-green-50 rounded-lg p-2 text-center border border-green-200">
-                            <p className="text-xl font-bold text-green-600">{despesas.filter(d => d.documentoPDF).length}</p>
-                            <p className="text-green-600 text-xs mt-1">✅ Com PDF</p>
-                          </div>
-                          <div className="bg-red-50 rounded-lg p-2 text-center border border-red-200">
-                            <p className="text-xl font-bold text-red-600">{despesas.filter(d => !d.documentoPDF).length}</p>
-                            <p className="text-red-600 text-xs mt-1">⚠️ Sem PDF</p>
-                          </div>
+                        
+                        {/* Botões de Export */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <button 
+                            onClick={exportarRelatorioCompletoCSV}
+                            className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-6 py-3 text-base font-bold flex items-center justify-center gap-2 transition shadow-lg"
+                          >
+                            <FileText size={18} />
+                            Só CSV (Rápido)
+                          </button>
+                          
+                          <button 
+                            onClick={exportarPacoteCompleto}
+                            className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white rounded-lg px-6 py-3 text-base font-bold flex items-center justify-center gap-2 transition shadow-lg"
+                          >
+                            <Download size={18} />
+                            Pacote Completo (ZIP)
+                          </button>
                         </div>
-                        {despesas.filter(d => !d.documentoPDF).length > 0 && (
-                          <div className="mt-2 bg-red-50 rounded p-2 border border-red-200">
-                            <p className="text-xs flex items-center gap-1 text-red-800">
-                              <AlertCircle size={12} />
-                              <span>{despesas.filter(d => !d.documentoPDF).length} fatura(s) sem PDF! Adicione os documentos na aba Gestão de Compras.</span>
-                            </p>
-                          </div>
-                        )}
+                        
+                        <p className="text-xs text-gray-600 mt-3">
+                          <strong>CSV:</strong> Dados estruturados para lançamento<br/>
+                          <strong>ZIP:</strong> CSV + PDFs das faturas (recomendado)
+                        </p>
                       </div>
                       
                       {/* AVISO LEGAL */}
-                      <div className="bg-red-50 border border-red-300 rounded p-2.5 mb-3">
-                        <p className="text-xs font-bold text-red-900 mb-1.5">⚠️ AVISO LEGAL</p>
+                      <div className="bg-red-50 border border-red-300 rounded p-3">
+                        <p className="text-xs font-bold text-red-900 mb-1">⚠️ AVISO LEGAL</p>
                         <ul className="text-xs text-red-800 space-y-1">
-                          <li>• Este CSV é APOIO, não substitui documentos fiscais</li>
-                          <li>• Para despesas: PDFs das faturas são OBRIGATÓRIOS</li>
-                          <li>• Conservar PDFs 10 anos (Lei Geral Tributária)</li>
+                          <li>• CSV é APOIO, não substitui documentos fiscais</li>
+                          <li>• PDFs das faturas são OBRIGATÓRIOS</li>
+                          <li>• Conservar documentos 10 anos (Lei Geral Tributária)</li>
                         </ul>
                       </div>
-                      
-                      {/* Comparação */}
-                      <div className="bg-yellow-50 border border-yellow-300 rounded p-2.5">
-                        <p className="text-xs font-bold text-yellow-900 mb-2">📦 Comparação:</p>
-                        <div className="grid grid-cols-2 gap-3 text-xs">
-                          <div>
-                            <p className="font-bold text-blue-700 mb-1">📄 Só CSV:</p>
-                            <p className="text-gray-700">Rápido, mas precisas enviar PDFs separadamente</p>
-                          </div>
-                          <div>
-                            <p className="font-bold text-green-700 mb-1">📦 ZIP:</p>
-                            <p className="text-gray-700">✅ Tudo junto (recomendado)</p>
-                          </div>
-                        </div>
-                      </div>
                     </div>
-                  </div>
-                  
-                  <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-3">
-                    <p className="text-xs text-blue-800">
-                      <strong>💡 Dica:</strong> Os exports CSV respeitam os filtros de data. Para exportar tudo, selecione "Tudo" no filtro de período no Dashboard.
-                    </p>
-                  </div>
-                </div>
-                
-                {/* Outras secções */}
-                <div className="border-b pb-4">
-                  <h3 className="font-semibold mb-2">⚙️ Configurações Gerais</h3>
-                  <p className="text-sm text-gray-500">Em breve: Configurações personalizadas</p>
-                </div>
-                
-                <div className="border-b pb-4">
-                  <h3 className="font-semibold mb-2">🔔 Notificações</h3>
-                  <p className="text-sm text-gray-500">Em breve: Gestão de notificações</p>
-                </div>
-                
-                <div className="border-b pb-4">
-                  <h3 className="font-semibold mb-2">📊 Relatórios</h3>
-                  <p className="text-sm text-gray-500">Em breve: Configuração de relatórios automáticos</p>
+                  )}
                 </div>
                 
                 <div>
