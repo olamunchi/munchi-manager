@@ -1387,13 +1387,13 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
   const [showDropdownOCR, setShowDropdownOCR] = useState({});
   
   // States para documento
-  const [numeroFaturaManual, setNumeroFaturaManual] = useState(metadata.numeroFatura || '');
+  const [numeroFaturaManual, setNumeroFaturaManual] = useState(metadata?.numeroFatura || '');
   const [fornecedorManual, setFornecedorManual] = useState('');
   const [fornecedoresLocais, setFornecedoresLocais] = useState(fornecedores); // Lista local
   const [mostrarModalNovoFornecedor, setMostrarModalNovoFornecedor] = useState(false);
   const [novoFornecedor, setNovoFornecedor] = useState({
     nome: '',
-    nif: metadata.nif || '',
+    nif: metadata?.nif || '',
     contacto: '',
     email: ''
   });
@@ -1446,7 +1446,7 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
     const linha = linhasEditadas[index];
     
     // Buscar NIF: 1) metadata.nif, 2) fornecedor selecionado manualmente
-    let nifFornecedor = metadata.nif;
+    let nifFornecedor = metadata?.nif;
     
     if (!nifFornecedor && fornecedorManual) {
       // Buscar NIF do fornecedor selecionado
@@ -1524,7 +1524,7 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
     const novosIngs = window._novosIngredientes || [];
     
     // Adicionar dados do documento à metadata
-    const numeroFinal = numeroFaturaManual || metadata.numeroFatura || null;
+    const numeroFinal = numeroFaturaManual || metadata?.numeroFatura || null;
     
     // Adicionar "FT " se número existe mas não tem prefixo
     let numeroComPrefixo = numeroFinal;
@@ -1533,7 +1533,7 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
     }
     
     const metadataCompleta = { 
-      ...metadata,
+      ...(metadata || {}),
       numeroFatura: numeroComPrefixo,
       tipoDocumento: numeroComPrefixo ? 'fatura' : 'recibo', // Auto-detecta tipo
       fornecedorManual: fornecedorManual, // ID do fornecedor selecionado manualmente
@@ -1570,7 +1570,7 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
               {/* Número Fatura */}
               <div>
                 <label className="text-xs font-semibold text-gray-600 block mb-1">📋 Número</label>
-                {metadata.numeroFatura ? (
+                {metadata?.numeroFatura ? (
                   <div className="px-2 py-1 bg-white border border-green-300 rounded font-bold text-green-700 text-sm">
                     {metadata.numeroFatura}
                   </div>
@@ -1592,7 +1592,7 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
               <div>
                 <label className="text-xs font-semibold text-gray-600 block mb-1">🏢 Fornecedor</label>
                 {(() => {
-                  const fornecedorDetectado = metadata.nif 
+                  const fornecedorDetectado = metadata?.nif 
                     ? fornecedores.find(f => f.nif === metadata.nif)
                     : null;
                   
@@ -1631,11 +1631,11 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
               {/* Badge Tipo */}
               <div className="flex items-end">
                 <span className={`px-3 py-1 rounded text-xs font-bold ${
-                  metadata.numeroFatura || numeroFaturaManual
+                  metadata?.numeroFatura || numeroFaturaManual
                     ? 'bg-green-100 text-green-700' 
                     : 'bg-gray-100 text-gray-700'
                 }`}>
-                  {metadata.numeroFatura || numeroFaturaManual ? '🧾 FATURA' : '📝 RECIBO'}
+                  {metadata?.numeroFatura || numeroFaturaManual ? '🧾 FATURA' : '📝 RECIBO'}
                 </span>
               </div>
             </div>
@@ -1678,7 +1678,7 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
               <tr>
                 <th className="border p-2 text-left text-sm font-semibold">Texto PDF</th>
                 {/* 🆕 Só mostrar colunas de Ingrediente se categoria = compras */}
-                {metadata.categoria === 'compras' && (
+                {metadata?.categoria === 'compras' && (
                   <>
                     <th className="border p-2 text-left text-sm font-semibold">Ingrediente</th>
                     <th className="border p-2 text-center text-sm font-semibold w-20">Conf.</th>
@@ -1705,7 +1705,7 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
                     </td>
                     
                     {/* 🆕 Só mostrar colunas de ingrediente se categoria = compras */}
-                    {metadata.categoria === 'compras' && (
+                    {metadata?.categoria === 'compras' && (
                       <>
                         <td className="border p-2">
                           <div className="flex gap-1">
@@ -1808,7 +1808,7 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
                                   categoria: 'outros',
                                   unidade: linha.unidade || 'kg',
                                   custo: linha.preco ? linha.preco.toString() : '',
-                                  iva: linha.iva ? linha.iva.toString() : (metadata.iva ? metadata.iva.toString() : '13')
+                                  iva: linha.iva ? linha.iva.toString() : (metadata?.iva ? metadata.iva.toString() : '13')
                                 });
                                 setLinhaIndexCriando(index);
                                 setMostrarModalCriarIng(true);
@@ -1877,6 +1877,38 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
                         className="w-full px-2 py-1 text-sm border rounded text-right"
                         placeholder="--"
                       />
+                      
+                      {/* 🆕 SUGESTÃO DE PREÇO DO HISTÓRICO */}
+                      {linha.precoSugerido && linha.precoSugerido > 0 && (
+                        <div className="mt-1 p-2 bg-blue-50 border border-blue-200 rounded text-xs">
+                          <div className="flex items-center gap-1 text-blue-700 font-semibold mb-1">
+                            💡 Histórico
+                          </div>
+                          <div className="text-blue-600">
+                            Última compra: €{linha.precoSugerido.toFixed(2)}/{linha.unidade}
+                          </div>
+                          {linha.dataUltimaCompra && (
+                            <div className="text-blue-500 text-xs">
+                              em {new Date(linha.dataUltimaCompra).toLocaleDateString('pt-PT')}
+                            </div>
+                          )}
+                          {linha.estatisticasHistorico && linha.estatisticasHistorico.numeroCompras > 1 && (
+                            <div className="mt-1 text-gray-600">
+                              <div>Média: €{linha.estatisticasHistorico.precoMedio.toFixed(2)}</div>
+                              <div className="text-xs text-gray-500">
+                                {linha.estatisticasHistorico.numeroCompras} compras • 
+                                Variação: {linha.estatisticasHistorico.variacaoPercentual.toFixed(1)}%
+                              </div>
+                            </div>
+                          )}
+                          {linha.preenchidoComHistorico && (
+                            <div className="mt-1 text-green-600 font-semibold text-xs">
+                              ✓ Auto-preenchido
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      
                       {/* ✨ PREVIEW DO PREÇO UNITÁRIO CALCULADO */}
                       {linha.preco && linha.quantidade && linha.ingredienteConfirmado && (() => {
                         const ing = ingredientesLocais.find(i => i.id === linha.ingredienteConfirmado);
@@ -2202,6 +2234,173 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
 // Este componente deve ser adicionado antes do componente RestauranteGestor (por volta da linha 2300)
 
 /**
+ * 🆕 MODAL SIMPLES PARA DESPESAS FIXAS (renda, luz, água, etc)
+ * Só pede preço e IVA, sem ingredientes
+ */
+const ModalDespesaSimples = ({ dadosDespesa, onConfirmar, onCancelar }) => {
+  const { categoria, fornecedor, valorDetectado, metadata } = dadosDespesa;
+  
+  const [precoTotal, setPrecoTotal] = React.useState(() => {
+    // Arredondar para 2 casas decimais para evitar 210.94000000000005
+    return valorDetectado ? parseFloat(valorDetectado).toFixed(2) : '';
+  });
+  const [ivaPercentagem, setIvaPercentagem] = React.useState(() => {
+    // IVA padrão por categoria
+    if (categoria === 'salarios') return '0';
+    if (categoria === 'agua') return '6';
+    return '23'; // Padrão para renda, eletricidade, gas, internet, etc
+  });
+  
+  // Labels das categorias
+  const labelsCategorias = {
+    'renda': '🏠 Renda',
+    'eletricidade': '⚡ Eletricidade',
+    'agua': '💧 Água',
+    'gas': '🔥 Gás',
+    'internet': '🌐 Internet',
+    'salarios': '👥 Salários',
+    'marketing': '📢 Marketing',
+    'consumiveis': '📦 Consumíveis',
+    'manutencao': '🔧 Manutenção',
+    'outros': '📋 Outros'
+  };
+  
+  const handleConfirmar = () => {
+    const precoFinal = parseFloat(precoTotal);
+    const iva = parseFloat(ivaPercentagem);
+    
+    if (!precoFinal || precoFinal <= 0) {
+      alert('Por favor, insira um preço válido');
+      return;
+    }
+    
+    onConfirmar({
+      precoTotal: precoFinal,
+      iva: iva,
+      categoria: categoria,
+      fornecedor: fornecedor,
+      metadata: metadata
+    });
+  };
+  
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg shadow-2xl max-w-md w-full">
+        {/* Header */}
+        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-4 rounded-t-lg">
+          <h2 className="text-xl font-bold flex items-center gap-2">
+            {labelsCategorias[categoria] || '📋 Despesa'}
+          </h2>
+          <p className="text-blue-100 text-sm mt-1">Confirme os valores da despesa</p>
+        </div>
+        
+        {/* Body */}
+        <div className="p-6 space-y-4">
+          {/* Fornecedor */}
+          <div className="bg-gray-50 p-3 rounded border">
+            <label className="text-xs font-semibold text-gray-600 block mb-1">
+              🏢 Fornecedor
+            </label>
+            <p className="font-bold text-gray-800">
+              {fornecedor?.nome || 'Não especificado'}
+            </p>
+            {fornecedor?.nif && (
+              <p className="text-xs text-gray-500">NIF: {fornecedor.nif}</p>
+            )}
+          </div>
+          
+          {/* Preço Total */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              💰 Preço Total (com IVA)
+            </label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-bold">
+                €
+              </span>
+              <input
+                type="number"
+                step="0.01"
+                value={precoTotal}
+                onChange={(e) => setPrecoTotal(e.target.value)}
+                className="w-full pl-8 pr-3 py-3 border-2 border-gray-300 rounded-lg text-lg font-bold focus:border-blue-500 focus:outline-none"
+                placeholder="0.00"
+                autoFocus
+              />
+            </div>
+            {valorDetectado && (
+              <p className="text-xs text-blue-600 mt-1">
+                💡 Valor detectado pelo OCR: €{parseFloat(valorDetectado).toFixed(2)}
+              </p>
+            )}
+          </div>
+          
+          {/* IVA */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              📊 Taxa de IVA
+            </label>
+            <select
+              value={ivaPercentagem}
+              onChange={(e) => setIvaPercentagem(e.target.value)}
+              className="w-full px-3 py-3 border-2 border-gray-300 rounded-lg font-semibold focus:border-blue-500 focus:outline-none"
+            >
+              <option value="0">0% (Isento)</option>
+              <option value="6">6% (Taxa reduzida)</option>
+              <option value="13">13% (Taxa intermédia)</option>
+              <option value="23">23% (Taxa normal)</option>
+            </select>
+            <p className="text-xs text-gray-500 mt-1">
+              {categoria === 'salarios' && '💡 Salários normalmente isentos de IVA'}
+              {categoria === 'agua' && '💡 Água normalmente tem IVA de 6%'}
+              {categoria === 'renda' && '💡 Renda normalmente tem IVA de 23%'}
+            </p>
+          </div>
+          
+          {/* Preview cálculo */}
+          {precoTotal && (
+            <div className="bg-blue-50 p-3 rounded border border-blue-200">
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-700">Base tributável:</span>
+                <span className="font-semibold">
+                  €{(parseFloat(precoTotal) / (1 + parseFloat(ivaPercentagem) / 100)).toFixed(2)}
+                </span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-700">IVA ({ivaPercentagem}%):</span>
+                <span className="font-semibold">
+                  €{(parseFloat(precoTotal) - (parseFloat(precoTotal) / (1 + parseFloat(ivaPercentagem) / 100))).toFixed(2)}
+                </span>
+              </div>
+              <div className="flex justify-between text-sm font-bold text-blue-700 mt-2 pt-2 border-t border-blue-300">
+                <span>Total com IVA:</span>
+                <span>€{parseFloat(precoTotal).toFixed(2)}</span>
+              </div>
+            </div>
+          )}
+        </div>
+        
+        {/* Footer */}
+        <div className="bg-gray-50 px-6 py-4 rounded-b-lg flex gap-3">
+          <button
+            onClick={onCancelar}
+            className="flex-1 px-4 py-2.5 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 font-semibold transition"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={handleConfirmar}
+            className="flex-1 px-4 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 font-semibold transition shadow-lg"
+          >
+            ✅ Confirmar e Guardar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/**
  * Modal para confirmar tipo de fatura detectado
  */
 const ModalConfirmacaoFatura = ({ dadosFatura, onConfirmar, onCancelar, fornecedores = [] }) => {
@@ -2405,12 +2604,6 @@ const ModalConfirmacaoFatura = ({ dadosFatura, onConfirmar, onCancelar, forneced
                 <option value="manutencao">🔧 Manutenção</option>
                 <option value="outros">📦 Outros</option>
               </select>
-              <p className="text-xs text-blue-600 mt-1">
-                💡 {categoriaSelecionada === 'compras' 
-                  ? 'Ingredientes serão associados automaticamente'
-                  : 'Será criado item de despesa genérico'
-                }
-              </p>
             </div>
           </div>
           
@@ -3138,6 +3331,7 @@ const RestauranteGestor = () => {
   
   // ==================== NOVOS ESTADOS V2.0 ====================
   const [modalConfirmacaoFatura, setModalConfirmacaoFatura] = useState({ mostrar: false, dados: null });
+  const [modalDespesaSimples, setModalDespesaSimples] = useState({ mostrar: false, dados: null }); // 🆕 MODAL SIMPLES
   const [blacklist, setBlacklist] = useState([]);
   const [configuracoes, setConfiguracoes] = useState(carregarConfiguracoes());
   const [novoIngrediente, setNovoIngrediente] = useState({ nome: '', unidade: 'kg', custoUnitario: '', iva: '6', quantidade: '1', categoria: 'outros', precoTotal: '', quantidadeEmbalagem: '' });
@@ -3628,6 +3822,57 @@ const RestauranteGestor = () => {
   const handleConfirmarFatura = (dadosConfirmados) => {
     void 0;
     
+    // 🆕 DECISÃO CRÍTICA: Verificar categoria ANTES de processar QUALQUER COISA
+    const categoriaFatura = dadosConfirmados.categoria || 'compras';
+    
+    // Fechar Modal 1
+    setModalConfirmacaoFatura({ mostrar: false, dados: null });
+    
+    void 0;
+    
+    // =============== CATEGORIA NÃO-COMPRAS (RENDA, LUZ, ÁGUA, ETC) ===============
+    if (categoriaFatura !== 'compras') {
+      void 0;
+      
+      // 🚫 GARANTIR que Modal 2 NÃO abre
+      setMostrarModalOCR(false);
+      setLinhasOCR([]);
+      
+      // Extrair valor total detectado pelo OCR
+      const valorDetectado = metadataOCR?.totais?.total || 
+                            (linhasOCR && linhasOCR.length > 0 ? 
+                              linhasOCR.reduce((sum, l) => sum + (parseFloat(l.preco) || 0), 0) : 0);
+      
+      // Abrir Modal Simples (só preço e IVA)
+      setModalDespesaSimples({
+        mostrar: true,
+        dados: {
+          categoria: categoriaFatura,
+          fornecedor: {
+            id: dadosConfirmados.fornecedor.id,
+            nome: dadosConfirmados.fornecedor.nome,
+            nif: dadosConfirmados.fornecedor.nif
+          },
+          valorDetectado: valorDetectado,
+          metadata: {
+            ...metadataOCR,
+            tipo: dadosConfirmados.tipo,
+            numero: dadosConfirmados.numero,
+            data: dadosConfirmados.data,
+            atcud: dadosConfirmados.atcud,
+            totais: dadosConfirmados.totais,
+            categoria: categoriaFatura
+          }
+        }
+      });
+      
+      showNotification(`Confirme os valores da ${categoriaFatura}`, 'info');
+      return; // 🚫 PARA AQUI - NÃO continua para processamento de ingredientes
+    }
+    
+    // =============== CATEGORIA COMPRAS - PROCESSAMENTO COMPLETO ===============
+    void 0;
+    
     // 🚫 CRÍTICO: RE-PARSEAR linhas com NIF confirmado para aplicar blacklist
     if (metadataOCR && metadataOCR.textoCompleto && dadosConfirmados.fornecedor.nif) {
       void 0;
@@ -3665,7 +3910,8 @@ const RestauranteGestor = () => {
             
             // ✅ AUTO-PREENCHER SE CONFIANÇA >= 80%
             if (confianca >= 80) {
-              return {
+              // 🆕 APLICAR HISTÓRICO DE COMPRAS
+              const linhaBase = {
                 ...linha,
                 ingredienteConfirmado: ingredienteId,
                 ingredienteSugerido: ingredienteId,
@@ -3673,15 +3919,21 @@ const RestauranteGestor = () => {
                 similaridadeSugestao: similaridade,
                 historicoSugestao: { confirmacoes, correcoes }
               };
+              
+              // Aplicar dados do histórico
+              return aplicarHistoricoAoMatch(linhaBase, ingredienteId, nifConfirmado);
             } else {
               // Só sugerir
-              return {
+              const linhaSugestao = {
                 ...linha,
                 ingredienteSugerido: ingredienteId,
                 confiancaSugestao: confianca,
                 similaridadeSugestao: similaridade,
                 historicoSugestao: { confirmacoes, correcoes }
               };
+              
+              // Aplicar histórico apenas como sugestão
+              return aplicarHistoricoAoMatch(linhaSugestao, ingredienteId, nifConfirmado);
             }
           }
         }
@@ -3710,21 +3962,262 @@ const RestauranteGestor = () => {
     
     void 0;
     
-    // Fechar modal
-    setModalConfirmacaoFatura({ mostrar: false, dados: null });
-    
-    // Se foi OCR (Google ou Tesseract), abrir modal de ingredientes
+    // ✅ ABRIR MODAL 2 (ingredientes) - já sabemos que é categoria COMPRAS
+    // (se fosse outra categoria, já teria saído da função no início)
     if (linhasOCR && linhasOCR.length >= 0 && metadataOCR) {
       void 0;
       setMostrarModalOCR(true);
     }
     
-    showNotification(`Fatura ${dadosConfirmados.tipo} confirmada!`, 'success');
+    showNotification(`Fatura de compras confirmada!`, 'success');
   };
+
 
   const handleCancelarFatura = () => {
     setModalConfirmacaoFatura({ mostrar: false, dados: null });
   };
+
+  /**
+   * 🆕 CONFIRMAR DESPESA SIMPLES (MODAL SIMPLES)
+   * Salva fatura de renda/luz/água sem ingredientes
+   */
+  const handleConfirmarDespesaSimples = (dadosDespesa) => {
+    void 0;
+    
+    const { precoTotal, iva, categoria, fornecedor, metadata } = dadosDespesa;
+    
+    // Calcular valores
+    const precoComIVA = precoTotal;
+    const precoSemIVA = iva > 0 ? precoComIVA / (1 + iva / 100) : precoComIVA;
+    const valorIVA = precoComIVA - precoSemIVA;
+    
+    // Criar item genérico da despesa
+    const item = {
+      id: `despesa_${Date.now()}`,
+      descricao: categoria.charAt(0).toUpperCase() + categoria.slice(1),
+      quantidade: 1,
+      unidade: 'serviço',
+      precoUnitario: precoSemIVA,
+      precoTotal: precoComIVA,
+      subtotal: precoSemIVA,
+      iva: iva,
+      num_funcionarios: categoria === 'salarios' ? 1 : undefined
+    };
+    
+    // Criar fatura completa
+    const novaFaturaCompleta = {
+      id: Date.now(),
+      numero: metadata?.numero || metadata?.numeroFatura || '',
+      tipo: metadata?.tipo || metadata?.tipoFatura || 'FT',
+      tipoDocumento: 'fatura',
+      data: metadata?.data || metadata?.dataFatura || new Date().toISOString().split('T')[0],
+      fornecedorId: fornecedor?.id || '',
+      fornecedorNome: fornecedor?.nome || '',
+      fornecedorNif: fornecedor?.nif || '',
+      itens: [item],
+      notas: '',
+      categoria: categoria,
+      recorrente: false,
+      diaRecorrencia: 1,
+      documentoPDF: metadata?.pdfBase64 || null,
+      nomeDocumento: metadata?.pdfNome || '',
+      subtotal: precoSemIVA,
+      totalIva: valorIVA,
+      total: precoComIVA,
+      totais: {
+        subtotal: precoSemIVA,
+        iva: valorIVA,
+        total: precoComIVA
+      },
+      paraContabilista: (metadata?.tipo !== 'FS' && metadata?.tipoFatura !== 'FS')
+    };
+    
+    void 0;
+    void 0;
+    
+    // Salvar fatura
+    setFaturas([...faturas, novaFaturaCompleta]);
+    
+    // Fechar modal
+    setModalDespesaSimples({ mostrar: false, dados: null });
+    
+    // 🚫 GARANTIR que Modal 2 NÃO abre
+    setMostrarModalOCR(false);
+    
+    // Limpar estados OCR
+    setLinhasOCR([]);
+    setMetadataOCR(null);
+    setProcessandoOCR(false);
+    setProgressoOCR('');
+    
+    // Resetar formulário
+    setNovaFatura({
+      numero: '',
+      tipo: 'FT',
+      tipoDocumento: 'fatura',
+      data: new Date().toISOString().split('T')[0],
+      fornecedorId: '',
+      itens: [],
+      notas: '',
+      categoria: 'compras',
+      recorrente: false,
+      diaRecorrencia: 1,
+      documentoPDF: null,
+      nomeDocumento: ''
+    });
+    
+    const labelsCategorias = {
+      'renda': 'Renda',
+      'eletricidade': 'Eletricidade',
+      'agua': 'Água',
+      'gas': 'Gás',
+      'internet': 'Internet',
+      'salarios': 'Salários',
+      'marketing': 'Marketing',
+      'consumiveis': 'Consumíveis',
+      'manutencao': 'Manutenção',
+      'outros': 'Outros'
+    };
+    
+    showNotification(`✅ ${labelsCategorias[categoria] || 'Despesa'} guardada com sucesso!`, 'success');
+  };
+
+  const handleCancelarDespesaSimples = () => {
+    setModalDespesaSimples({ mostrar: false, dados: null });
+    
+    // 🚫 GARANTIR que Modal 2 NÃO abre
+    setMostrarModalOCR(false);
+    
+    // Limpar estados OCR
+    setLinhasOCR([]);
+    setMetadataOCR(null);
+    setProcessandoOCR(false);
+    setProgressoOCR('');
+  };
+
+  /**
+   * 🚫 FUNÇÃO ANTIGA - NÃO É MAIS USADA (v1.1.3+)
+   * Agora usamos ModalDespesaSimples em vez de salvar direto
+   * 
+   * 🆕 SALVAR FATURA DE DESPESA DIRETA (SEM INGREDIENTES)
+   * Para categorias: renda, eletricidade, agua, gas, internet, salarios, etc.
+   */
+  /*
+  const salvarFaturaDespesaDireta = (dadosConfirmados, metadataOCR) => {
+    void 0;
+    
+    const categoria = dadosConfirmados.categoria || metadataOCR?.categoria || 'outros';
+    
+    // Criar item genérico da despesa (sem ingrediente)
+    const totalFatura = metadataOCR?.totais?.total || 
+                       dadosConfirmados.totais?.total || 
+                       (linhasOCR && linhasOCR.length > 0 ? 
+                         linhasOCR.reduce((sum, l) => sum + (parseFloat(l.preco) || 0), 0) : 0);
+    
+    // Determinar IVA baseado na categoria
+    let iva = 23; // Padrão
+    if (categoria === 'salarios') iva = 0; // Salários sem IVA
+    if (categoria === 'renda') iva = 23;
+    if (categoria === 'eletricidade') iva = 23;
+    if (categoria === 'agua') iva = 6;
+    if (categoria === 'gas') iva = 23;
+    if (categoria === 'internet') iva = 23;
+    
+    const precoComIVA = totalFatura;
+    const precoSemIVA = iva > 0 ? precoComIVA / (1 + iva / 100) : precoComIVA;
+    const valorIVA = precoComIVA - precoSemIVA;
+    
+    const item = {
+      id: `despesa_${Date.now()}`,
+      descricao: categoria.charAt(0).toUpperCase() + categoria.slice(1), // Renda, Eletricidade, etc
+      quantidade: 1,
+      unidade: 'serviço',
+      precoUnitario: precoSemIVA,
+      precoTotal: precoComIVA,
+      subtotal: precoSemIVA,
+      iva: iva,
+      num_funcionarios: categoria === 'salarios' ? 1 : undefined
+    };
+    
+    void 0;
+    
+    // Buscar fornecedor
+    let fornecedorId = '';
+    let fornecedorNome = '';
+    let fornecedorNif = '';
+    
+    if (dadosConfirmados.fornecedor) {
+      fornecedorId = dadosConfirmados.fornecedor.id || '';
+      fornecedorNome = dadosConfirmados.fornecedor.nome || '';
+      fornecedorNif = dadosConfirmados.fornecedor.nif || '';
+    } else if (metadataOCR?.fornecedorId) {
+      const fornecedor = fornecedores.find(f => f.id === metadataOCR.fornecedorId);
+      if (fornecedor) {
+        fornecedorId = fornecedor.id;
+        fornecedorNome = fornecedor.nome;
+        fornecedorNif = fornecedor.nif || '';
+      }
+    }
+    
+    // Criar fatura
+    const novaFaturaCompleta = {
+      id: Date.now(),
+      numero: dadosConfirmados.numero || metadataOCR?.numeroFatura || '',
+      tipo: dadosConfirmados.tipo || metadataOCR?.tipoFatura || 'FT',
+      tipoDocumento: 'fatura',
+      data: dadosConfirmados.data || metadataOCR?.dataFatura || new Date().toISOString().split('T')[0],
+      fornecedorId: fornecedorId,
+      fornecedorNome: fornecedorNome,
+      fornecedorNif: fornecedorNif,
+      itens: [item],
+      notas: '',
+      categoria: categoria,
+      recorrente: false,
+      diaRecorrencia: 1,
+      documentoPDF: metadataOCR?.pdfBase64 || null,
+      nomeDocumento: metadataOCR?.pdfNome || '',
+      subtotal: precoSemIVA,
+      totalIva: valorIVA,
+      total: precoComIVA,
+      totais: {
+        subtotal: precoSemIVA,
+        iva: valorIVA,
+        total: precoComIVA
+      },
+      paraContabilista: (dadosConfirmados.tipo !== 'FS') // FS não vai, FT e FR vão
+    };
+    
+    void 0;
+    void 0;
+    
+    // Salvar fatura
+    setFaturas([...faturas, novaFaturaCompleta]);
+    
+    // Limpar estados OCR
+    setLinhasOCR([]);
+    setMetadataOCR(null);
+    setProcessandoOCR(false);
+    setProgressoOCR('');
+    
+    // Resetar formulário
+    setNovaFatura({
+      numero: '',
+      tipo: 'FT',
+      tipoDocumento: 'fatura',
+      data: new Date().toISOString().split('T')[0],
+      fornecedorId: '',
+      itens: [],
+      notas: '',
+      categoria: 'compras',
+      recorrente: false,
+      diaRecorrencia: 1,
+      documentoPDF: null,
+      nomeDocumento: ''
+    });
+    
+    showNotification(`✅ Fatura de ${categoria} guardada com sucesso!`, 'success');
+  };
+  */
 
 
   // ==================== 🧠 SISTEMA DE APRENDIZAGEM - FASE 1 ====================
@@ -4542,6 +5035,125 @@ void 0;
     showNotification(`🚫 "${linha}" adicionado à blacklist. 💾 Sincroniza com Drive para guardar!`, 'success', 5000);
   };
   
+  /**
+   * 🆕 BUSCA HISTÓRICO DE COMPRAS DE UM INGREDIENTE
+   * Retorna dados da última compra para auto-preencher quantidade, unidade e preço
+   */
+  const buscarHistoricoIngrediente = (ingredienteId, nifFornecedor = null) => {
+    if (!ingredienteId) return null;
+    
+    // Buscar em todas as faturas salvas
+    const comprasHistoricas = [];
+    
+    faturas.forEach(fatura => {
+      // Se fornecedor específico, filtrar
+      if (nifFornecedor && fatura.fornecedorNif !== nifFornecedor) return;
+      
+      // Buscar itens que contém esse ingrediente
+      if (fatura.itens && Array.isArray(fatura.itens)) {
+        fatura.itens.forEach(item => {
+          if (item.ingredienteId === ingredienteId) {
+            comprasHistoricas.push({
+              quantidade: item.quantidade,
+              unidade: item.unidade,
+              precoUnitario: item.precoUnitario,
+              precoTotal: item.precoTotal,
+              data: fatura.data,
+              fornecedorNif: fatura.fornecedorNif,
+              fornecedorNome: fatura.fornecedorNome
+            });
+          }
+        });
+      }
+    });
+    
+    // Se não encontrou nada, retornar null
+    if (comprasHistoricas.length === 0) return null;
+    
+    // Ordenar por data (mais recente primeiro)
+    comprasHistoricas.sort((a, b) => new Date(b.data) - new Date(a.data));
+    
+    // Retornar a compra mais recente
+    const maisRecente = comprasHistoricas[0];
+    
+    return {
+      quantidade: maisRecente.quantidade,
+      unidade: maisRecente.unidade,
+      precoUnitario: maisRecente.precoUnitario,
+      precoTotal: maisRecente.precoTotal,
+      dataUltimaCompra: maisRecente.data,
+      fornecedorNif: maisRecente.fornecedorNif,
+      fornecedorNome: maisRecente.fornecedorNome,
+      historicoCompleto: comprasHistoricas // Para análise de tendências
+    };
+  };
+
+  /**
+   * 🆕 CALCULA ESTATÍSTICAS DO HISTÓRICO
+   * Para mostrar variação de preços ao usuário
+   */
+  const calcularEstatisticasHistorico = (ingredienteId, nifFornecedor = null) => {
+    const historico = buscarHistoricoIngrediente(ingredienteId, nifFornecedor);
+    
+    if (!historico || !historico.historicoCompleto || historico.historicoCompleto.length === 0) {
+      return null;
+    }
+    
+    const precos = historico.historicoCompleto.map(h => h.precoUnitario);
+    const precoMedio = precos.reduce((a, b) => a + b, 0) / precos.length;
+    const precoMinimo = Math.min(...precos);
+    const precoMaximo = Math.max(...precos);
+    const variacaoPreco = precoMaximo - precoMinimo;
+    const variacaoPercentual = precoMinimo > 0 ? ((variacaoPreco / precoMinimo) * 100) : 0;
+    
+    return {
+      precoMedio,
+      precoMinimo,
+      precoMaximo,
+      variacaoPreco,
+      variacaoPercentual,
+      numeroCompras: precos.length
+    };
+  };
+
+  /**
+   * 🆕 APLICAR HISTÓRICO AO MATCH
+   * Preenche automaticamente quantidade, unidade e sugere preço baseado em compras anteriores
+   */
+  const aplicarHistoricoAoMatch = (linha, ingredienteId, nifFornecedor) => {
+    // Buscar histórico
+    const historico = buscarHistoricoIngrediente(ingredienteId, nifFornecedor);
+    
+    if (historico) {
+      void 0;
+      void 0;
+      
+      // Calcular estatísticas
+      const estatisticas = calcularEstatisticasHistorico(ingredienteId, nifFornecedor);
+      
+      // Auto-preencher com dados do histórico
+      return {
+        ...linha,
+        // Se não tem quantidade detectada pelo OCR, usar do histórico
+        quantidade: linha.quantidade || historico.quantidade,
+        // Se não tem unidade detectada pelo OCR, usar do histórico
+        unidade: linha.unidade || historico.unidade,
+        // SEMPRE sugerir preço do histórico (usuário decide se mantém ou atualiza)
+        precoSugerido: historico.precoUnitario,
+        precoTotalSugerido: historico.precoTotal,
+        dataUltimaCompra: historico.dataUltimaCompra,
+        // Se não tem preço detectado, pré-preencher com sugestão
+        preco: linha.preco || historico.precoTotal,
+        // Adicionar estatísticas para o usuário ver
+        estatisticasHistorico: estatisticas,
+        // Flag para indicar que veio do histórico
+        preenchidoComHistorico: true
+      };
+    }
+    
+    return linha;
+  };
+
   const aprenderTemplateOCR = (nifFornecedor, texto, linhasValidadas) => {
     if (!nifFornecedor) return;
     
@@ -9651,6 +10263,14 @@ void 0;
     // ✅ FECHAR MODAL OCR IMEDIATAMENTE para evitar cliques duplicados
     setMostrarModalOCR(false);
     
+    // 🆕 VERIFICAÇÃO DE SEGURANÇA: Só processar ingredientes se categoria for COMPRAS
+    const categoriaFatura = metadata.categoria || 'compras';
+    if (categoriaFatura !== 'compras') {
+      void 0;
+      showNotification('⚠️ Esta fatura não é de compras. Não é necessário processar ingredientes.', 'warning');
+      return;
+    }
+    
     // 🧠 FASE 2: RECONHECIMENTO AUTOMÁTICO DE INGREDIENTES
     const nifFornecedor = metadata.nif || novaFatura.fornecedorNIF;
     
@@ -9677,7 +10297,9 @@ void 0;
             // ✅ AUTO-PREENCHER SE CONFIANÇA >= 80%
             if (confianca >= 80) {
               void 0;
-              return {
+              
+              // 🆕 APLICAR HISTÓRICO DE COMPRAS
+              const linhaBase = {
                 ...linha,
                 ingredienteConfirmado: ingredienteId, // Auto-preencher
                 ingredienteSugerido: ingredienteId,   // ✅ FIX: Guardar ID da sugestão
@@ -9685,16 +10307,32 @@ void 0;
                 similaridadeSugestao: similaridade,
                 historicoSugestao: { confirmacoes, correcoes }
               };
+              
+              // Aplicar dados do histórico (quantidade, unidade, preço sugerido)
+              const linhaComHistorico = aplicarHistoricoAoMatch(linhaBase, ingredienteId, nifFornecedor);
+              
+              if (linhaComHistorico.preenchidoComHistorico) {
+                void 0;
+              }
+              
+              return linhaComHistorico;
             } else {
               // Confiança baixa - só sugerir, não auto-preencher
               void 0;
-              return {
+              
+              // 🆕 MESMO COM BAIXA CONFIANÇA, BUSCAR HISTÓRICO PARA SUGESTÕES
+              const linhaSugestao = {
                 ...linha,
                 ingredienteSugerido: ingredienteId, // ✅ FIX: ID do sugerido
                 confiancaSugestao: confianca,
                 similaridadeSugestao: similaridade,
                 historicoSugestao: { confirmacoes, correcoes }
               };
+              
+              // Aplicar histórico apenas como sugestão (não preenche automaticamente)
+              const linhaComSugestaoHistorico = aplicarHistoricoAoMatch(linhaSugestao, ingredienteId, nifFornecedor);
+              
+              return linhaComSugestaoHistorico;
             }
           }
         }
@@ -10521,6 +11159,118 @@ void 0;
                 <p className="text-orange-100 text-xs">{ivaP >= 0 ? 'Entregar' : 'Crédito'}</p>
               </div>
             </div>
+            
+            {/* 🆕 BREAKDOWN DE DESPESAS POR CATEGORIA */}
+            <div className="bg-white rounded-lg shadow p-4">
+              <h3 className="text-lg font-bold mb-3 flex items-center gap-2">
+                📊 Breakdown de Despesas
+              </h3>
+              
+              {(() => {
+                // Agrupar despesas por categoria
+                const despesasPorCategoria = {};
+                
+                todasDespesas.forEach(d => {
+                  const cat = d.categoria || 'outros';
+                  if (!despesasPorCategoria[cat]) {
+                    despesasPorCategoria[cat] = {
+                      total: 0,
+                      itens: 0
+                    };
+                  }
+                  despesasPorCategoria[cat].total += d.valor;
+                  despesasPorCategoria[cat].itens += 1;
+                });
+                
+                // Ordenar por valor (maior primeiro)
+                const categoriasOrdenadas = Object.entries(despesasPorCategoria)
+                  .sort(([, a], [, b]) => b.total - a.total);
+                
+                const totalGeral = todasDespesas.reduce((s, d) => s + d.valor, 0);
+                
+                // Labels em português
+                const labelsCategorias = {
+                  'compras': '🛒 Compras',
+                  'renda': '🏠 Renda',
+                  'salarios': '👥 Salários',
+                  'eletricidade': '⚡ Eletricidade',
+                  'agua': '💧 Água',
+                  'gas': '🔥 Gás',
+                  'internet': '🌐 Internet',
+                  'consumiveis': '📦 Consumíveis',
+                  'marketing': '📢 Marketing',
+                  'manutencao': '🔧 Manutenção',
+                  'outros': '📋 Outros'
+                };
+                
+                // Cores por categoria
+                const coresCategorias = {
+                  'compras': 'bg-blue-600',
+                  'renda': 'bg-purple-600',
+                  'salarios': 'bg-green-600',
+                  'eletricidade': 'bg-yellow-500',
+                  'agua': 'bg-cyan-500',
+                  'gas': 'bg-orange-500',
+                  'internet': 'bg-indigo-500',
+                  'consumiveis': 'bg-pink-500',
+                  'marketing': 'bg-red-500',
+                  'manutencao': 'bg-gray-600',
+                  'outros': 'bg-gray-400'
+                };
+                
+                return (
+                  <>
+                    <div className="space-y-3">
+                      {categoriasOrdenadas.map(([categoria, dados]) => {
+                        const percentagem = totalGeral > 0 ? (dados.total / totalGeral) * 100 : 0;
+                        
+                        return (
+                          <div key={categoria} className="flex items-center gap-3">
+                            <div className="flex-1">
+                              <div className="flex justify-between items-center mb-1">
+                                <span className="text-sm font-medium">
+                                  {labelsCategorias[categoria] || categoria}
+                                </span>
+                                <span className="text-sm font-bold">
+                                  €{dados.total.toFixed(2)}
+                                </span>
+                              </div>
+                              <div className="w-full bg-gray-200 rounded-full h-2.5">
+                                <div 
+                                  className={`${coresCategorias[categoria] || 'bg-gray-400'} h-2.5 rounded-full transition-all`}
+                                  style={{ width: `${Math.min(percentagem, 100)}%` }}
+                                ></div>
+                              </div>
+                              <div className="flex justify-between mt-1">
+                                <span className="text-xs text-gray-500">
+                                  {dados.itens} {dados.itens === 1 ? 'item' : 'itens'}
+                                </span>
+                                <span className="text-xs text-gray-500">
+                                  {percentagem.toFixed(1)}%
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    
+                    <div className="mt-4 pt-3 border-t">
+                      <div className="flex justify-between items-center">
+                        <span className="font-bold">Total Despesas</span>
+                        <span className="font-bold text-lg">€{totalGeral.toFixed(2)}</span>
+                      </div>
+                      {dateFilter !== 'all' && dias > 0 && (
+                        <div className="text-xs text-gray-500 mt-1">
+                          Média diária: €{(totalGeral / dias).toFixed(2)}/dia
+                        </div>
+                      )}
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+                
                 {/* Simulador de IVA Trimestral */}
                 <div className="bg-white rounded-lg shadow p-4">
                   <h2 className="text-xl font-bold mb-3 flex items-center gap-2">
@@ -15797,6 +16547,16 @@ void 0;
         />
       )}
       {/* ==================== FIM MODAL V2.0 ==================== */}
+      
+      {/* ==================== 🆕 MODAL DESPESA SIMPLES (RENDA/LUZ/ÁGUA) ==================== */}
+      {modalDespesaSimples.mostrar && modalDespesaSimples.dados && (
+        <ModalDespesaSimples
+          dadosDespesa={modalDespesaSimples.dados}
+          onConfirmar={handleConfirmarDespesaSimples}
+          onCancelar={handleCancelarDespesaSimples}
+        />
+      )}
+      {/* ==================== FIM MODAL DESPESA SIMPLES ==================== */}
       
       {/* Modal de Importação com Mapeamento Automático */}
       {mostrarImportacao && (
