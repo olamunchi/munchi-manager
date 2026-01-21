@@ -1677,8 +1677,13 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
             <thead className="sticky top-0 bg-gray-100">
               <tr>
                 <th className="border p-2 text-left text-sm font-semibold">Texto PDF</th>
-                <th className="border p-2 text-left text-sm font-semibold">Ingrediente</th>
-                <th className="border p-2 text-center text-sm font-semibold w-20">Conf.</th>
+                {/* 🆕 Só mostrar colunas de Ingrediente se categoria = compras */}
+                {metadata.categoria === 'compras' && (
+                  <>
+                    <th className="border p-2 text-left text-sm font-semibold">Ingrediente</th>
+                    <th className="border p-2 text-center text-sm font-semibold w-20">Conf.</th>
+                  </>
+                )}
                 <th className="border p-2 text-center text-sm font-semibold w-24">Qtd</th>
                 <th className="border p-2 text-center text-sm font-semibold w-20">Un</th>
                 <th className="border p-2 text-center text-sm font-semibold w-24">Preço</th>
@@ -1698,141 +1703,147 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
                       <div className="font-mono text-xs text-gray-600 mb-1">{linha.textoOriginal}</div>
                       <div className="text-sm font-semibold">{linha.nomeProduto}</div>
                     </td>
-                    <td className="border p-2">
-                      <div className="flex gap-1">
-                        {/* Search + Dropdown de ingredientes */}
-                        <div className="flex-1 relative">
-                          <div className="relative">
-                            <input
-                              type="text"
-                              value={searchIngredienteOCR[index] || ''}
-                              onChange={(e) => {
-                                const valor = e.target.value;
-                                setSearchIngredienteOCR({...searchIngredienteOCR, [index]: valor});
-                                setShowDropdownOCR({...showDropdownOCR, [index]: valor.length >= 2});
-                              }}
-                              onFocus={() => {
-                                if ((searchIngredienteOCR[index] || '').length >= 2) {
-                                  setShowDropdownOCR({...showDropdownOCR, [index]: true});
-                                }
-                              }}
-                              onBlur={() => {
-                                // Delay para permitir click no dropdown
-                                setTimeout(() => {
-                                  setShowDropdownOCR({...showDropdownOCR, [index]: false});
-                                }, 200);
-                              }}
-                              placeholder="Digite para buscar..."
-                              className={`w-full px-2 py-1 text-sm border-2 rounded ${
-                                confianca >= 80 ? 'border-green-400 bg-green-50' :
-                                confianca >= 60 ? 'border-yellow-400 bg-yellow-50' :
-                                confianca > 0 ? 'border-orange-300 bg-orange-50' :
-                                'border-gray-300'
-                              }`}
-                            />
-                            {/* Badge de confiança */}
-                            {confianca > 0 && (
-                              <div className={`absolute -top-2 -right-2 px-1.5 py-0.5 rounded-full text-xs font-bold ${
-                                confianca >= 80 ? 'bg-green-500 text-white' :
-                                confianca >= 60 ? 'bg-yellow-500 text-white' :
-                                'bg-orange-500 text-white'
-                              }`}>
-                                {confianca}%
-                              </div>
-                            )}
-                          </div>
-                          
-                          {/* Dropdown de sugestões */}
-                          {showDropdownOCR[index] && (
-                            (() => {
-                              const search = (searchIngredienteOCR[index] || '').toLowerCase();
-                              const sugestoes = ingredientesLocais
-                                .filter(ing => ing.nome.toLowerCase().includes(search))
-                                .slice(0, 10);
-                              
-                              if (sugestoes.length === 0) return null;
-                              
-                              return (
-                                <div className="absolute top-full left-0 right-0 bg-white border shadow-lg z-50 max-h-60 overflow-y-auto mt-1 rounded">
-                                  {sugestoes.map(ing => (
-                                    <div
-                                      key={ing.id}
-                                      onMouseDown={(e) => {
-                                        e.preventDefault();
-                                        handleIngredienteChange(index, ing.id);
-                                        setSearchIngredienteOCR({...searchIngredienteOCR, [index]: ing.nome});
-                                        setShowDropdownOCR({...showDropdownOCR, [index]: false});
-                                      }}
-                                      className="p-2 hover:bg-blue-50 cursor-pointer border-b"
-                                    >
-                                      <div className="font-semibold text-sm">{ing.nome}</div>
-                                      <div className="text-xs text-gray-600">
-                                        €{ing.custoUnitario.toFixed(2)}/{ing.unidade} · {ing.categoria}
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              );
-                            })()
-                          )}
-                          
-                          {/* Mostrar ingrediente selecionado */}
-                          {linha.ingredienteConfirmado && !searchIngredienteOCR[index] && (
-                            (() => {
-                              const ingSelecionado = ingredientesLocais.find(i => i.id === linha.ingredienteConfirmado);
-                              if (ingSelecionado) {
-                                return (
-                                  <div className="mt-1 text-xs text-blue-600 font-semibold">
-                                    ✓ {ingSelecionado.nome}
+                    
+                    {/* 🆕 Só mostrar colunas de ingrediente se categoria = compras */}
+                    {metadata.categoria === 'compras' && (
+                      <>
+                        <td className="border p-2">
+                          <div className="flex gap-1">
+                            {/* Search + Dropdown de ingredientes */}
+                            <div className="flex-1 relative">
+                              <div className="relative">
+                                <input
+                                  type="text"
+                                  value={searchIngredienteOCR[index] || ''}
+                                  onChange={(e) => {
+                                    const valor = e.target.value;
+                                    setSearchIngredienteOCR({...searchIngredienteOCR, [index]: valor});
+                                    setShowDropdownOCR({...showDropdownOCR, [index]: valor.length >= 2});
+                                  }}
+                                  onFocus={() => {
+                                    if ((searchIngredienteOCR[index] || '').length >= 2) {
+                                      setShowDropdownOCR({...showDropdownOCR, [index]: true});
+                                    }
+                                  }}
+                                  onBlur={() => {
+                                    // Delay para permitir click no dropdown
+                                    setTimeout(() => {
+                                      setShowDropdownOCR({...showDropdownOCR, [index]: false});
+                                    }, 200);
+                                  }}
+                                  placeholder="Digite para buscar..."
+                                  className={`w-full px-2 py-1 text-sm border-2 rounded ${
+                                    confianca >= 80 ? 'border-green-400 bg-green-50' :
+                                    confianca >= 60 ? 'border-yellow-400 bg-yellow-50' :
+                                    confianca > 0 ? 'border-orange-300 bg-orange-50' :
+                                    'border-gray-300'
+                                  }`}
+                                />
+                                {/* Badge de confiança */}
+                                {confianca > 0 && (
+                                  <div className={`absolute -top-2 -right-2 px-1.5 py-0.5 rounded-full text-xs font-bold ${
+                                    confianca >= 80 ? 'bg-green-500 text-white' :
+                                    confianca >= 60 ? 'bg-yellow-500 text-white' :
+                                    'bg-orange-500 text-white'
+                                  }`}>
+                                    {confianca}%
                                   </div>
-                                );
-                              }
-                              return null;
-                            })()
+                                )}
+                              </div>
+                              
+                              {/* Dropdown de sugestões */}
+                              {showDropdownOCR[index] && (
+                                (() => {
+                                  const search = (searchIngredienteOCR[index] || '').toLowerCase();
+                                  const sugestoes = ingredientesLocais
+                                    .filter(ing => ing.nome.toLowerCase().includes(search))
+                                    .slice(0, 10);
+                                  
+                                  if (sugestoes.length === 0) return null;
+                                  
+                                  return (
+                                    <div className="absolute top-full left-0 right-0 bg-white border shadow-lg z-50 max-h-60 overflow-y-auto mt-1 rounded">
+                                      {sugestoes.map(ing => (
+                                        <div
+                                          key={ing.id}
+                                          onMouseDown={(e) => {
+                                            e.preventDefault();
+                                            handleIngredienteChange(index, ing.id);
+                                            setSearchIngredienteOCR({...searchIngredienteOCR, [index]: ing.nome});
+                                            setShowDropdownOCR({...showDropdownOCR, [index]: false});
+                                          }}
+                                          className="p-2 hover:bg-blue-50 cursor-pointer border-b"
+                                        >
+                                          <div className="font-semibold text-sm">{ing.nome}</div>
+                                          <div className="text-xs text-gray-600">
+                                            €{ing.custoUnitario.toFixed(2)}/{ing.unidade} · {ing.categoria}
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  );
+                                })()
+                              )}
+                              
+                              {/* Mostrar ingrediente selecionado */}
+                              {linha.ingredienteConfirmado && !searchIngredienteOCR[index] && (
+                                (() => {
+                                  const ingSelecionado = ingredientesLocais.find(i => i.id === linha.ingredienteConfirmado);
+                                  if (ingSelecionado) {
+                                    return (
+                                      <div className="mt-1 text-xs text-blue-600 font-semibold">
+                                        ✓ {ingSelecionado.nome}
+                                      </div>
+                                    );
+                                  }
+                                  return null;
+                                })()
+                              )}
+                            </div>
+                            
+                            <button
+                              onClick={() => {
+                                setNovoIngrediente({
+                                  nome: linha.nomeProduto || '',
+                                  categoria: 'outros',
+                                  unidade: linha.unidade || 'kg',
+                                  custo: linha.preco ? linha.preco.toString() : '',
+                                  iva: linha.iva ? linha.iva.toString() : (metadata.iva ? metadata.iva.toString() : '13')
+                                });
+                                setLinhaIndexCriando(index);
+                                setMostrarModalCriarIng(true);
+                              }}
+                              className="ml-1 px-2 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700"
+                              title="Criar novo ingrediente"
+                            >
+                              +
+                            </button>
+                          </div>
+                          {linha.ingredienteSugerido && ingredienteSugerido && (
+                            <div className="text-xs mt-1 p-2 bg-blue-50 border border-blue-200 rounded">
+                              <div className="flex items-center gap-1 mb-1">
+                                <span className={`font-bold ${
+                                  confianca >= 80 ? 'text-green-600' :
+                                  confianca >= 60 ? 'text-yellow-600' :
+                                  'text-orange-600'
+                                }`}>
+                                  {confianca >= 80 ? '✓ AUTO-PREENCHIDO' :
+                                   confianca >= 60 ? '⚠ VERIFICAR' :
+                                   '💡 SUGESTÃO'}
+                                </span>
+                              </div>
+                              <div className="text-gray-700">
+                                <strong>{ingredienteSugerido.nome}</strong>
+                              </div>
+                            </div>
                           )}
-                        </div>
-                        
-                        <button
-                          onClick={() => {
-                            setNovoIngrediente({
-                              nome: linha.nomeProduto || '',
-                              categoria: 'outros',
-                              unidade: linha.unidade || 'kg',
-                              custo: linha.preco ? linha.preco.toString() : '',
-                              iva: linha.iva ? linha.iva.toString() : (metadata.iva ? metadata.iva.toString() : '13')
-                            });
-                            setLinhaIndexCriando(index);
-                            setMostrarModalCriarIng(true);
-                          }}
-                          className="ml-1 px-2 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700"
-                          title="Criar novo ingrediente"
-                        >
-                          +
-                        </button>
-                      </div>
-                      {linha.ingredienteSugerido && ingredienteSugerido && (
-                        <div className="text-xs mt-1 p-2 bg-blue-50 border border-blue-200 rounded">
-                          <div className="flex items-center gap-1 mb-1">
-                            <span className={`font-bold ${
-                              confianca >= 80 ? 'text-green-600' :
-                              confianca >= 60 ? 'text-yellow-600' :
-                              'text-orange-600'
-                            }`}>
-                              {confianca >= 80 ? '✓ AUTO-PREENCHIDO' :
-                               confianca >= 60 ? '⚠ VERIFICAR' :
-                               '💡 SUGESTÃO'}
-                            </span>
-                          </div>
-                          <div className="text-gray-700">
-                            <strong>{ingredienteSugerido.nome}</strong>
-                          </div>
-                        </div>
-                      )}
-                    </td>
-                    <td className={`border p-2 text-center ${getConfidenceClass(confianca)}`}>
-                      <div className="text-sm font-bold">{linha.ingredienteSugerido ? `${confianca}%` : '--'}</div>
-                      <div className="text-xs">{getConfidenceIcon(confianca)}</div>
-                    </td>
+                        </td>
+                        <td className={`border p-2 text-center ${getConfidenceClass(confianca)}`}>
+                          <div className="text-sm font-bold">{linha.ingredienteSugerido ? `${confianca}%` : '--'}</div>
+                          <div className="text-xs">{getConfidenceIcon(confianca)}</div>
+                        </td>
+                      </>
+                    )}
                     <td className="border p-2">
                       <input
                         type="number"
@@ -2195,6 +2206,7 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
  */
 const ModalConfirmacaoFatura = ({ dadosFatura, onConfirmar, onCancelar, fornecedores = [] }) => {
   const [tipoSelecionado, setTipoSelecionado] = React.useState(dadosFatura.tipo);
+  const [categoriaSelecionada, setCategoriaSelecionada] = React.useState(dadosFatura.categoria || 'compras'); // 🆕 CATEGORIA
   
   // ✅ MATCH INTELIGENTE: NOME primeiro (mais confiável), depois NIF
   const [fornecedorSelecionado, setFornecedorSelecionado] = React.useState(() => {
@@ -2269,6 +2281,7 @@ const ModalConfirmacaoFatura = ({ dadosFatura, onConfirmar, onCancelar, forneced
     onConfirmar({
       ...dadosFatura,
       tipo: tipoSelecionado,
+      categoria: categoriaSelecionada, // 🆕 PASSAR CATEGORIA
       numero: numeroFatura || dadosFatura.numero,
       fornecedor: fornecedorSelecionado ? {
         nome: fornecedorSelecionado.nome,
@@ -2368,6 +2381,36 @@ const ModalConfirmacaoFatura = ({ dadosFatura, onConfirmar, onCancelar, forneced
                 placeholder="Ex: FT 2024/001"
                 className="w-full p-2 border rounded-lg"
               />
+            </div>
+            
+            {/* 🆕 Seleção de Categoria */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                📂 Categoria da Despesa:
+              </label>
+              <select
+                value={categoriaSelecionada}
+                onChange={(e) => setCategoriaSelecionada(e.target.value)}
+                className="w-full p-2 border rounded-lg"
+              >
+                <option value="compras">🛒 Compras (Ingredientes)</option>
+                <option value="renda">🏠 Renda</option>
+                <option value="eletricidade">💡 Eletricidade</option>
+                <option value="agua">💧 Água</option>
+                <option value="gas">🔥 Gás</option>
+                <option value="internet">🌐 Internet/Telefone</option>
+                <option value="salarios">👥 Salários</option>
+                <option value="marketing">📢 Marketing</option>
+                <option value="consumiveis">🧻 Consumíveis</option>
+                <option value="manutencao">🔧 Manutenção</option>
+                <option value="outros">📦 Outros</option>
+              </select>
+              <p className="text-xs text-blue-600 mt-1">
+                💡 {categoriaSelecionada === 'compras' 
+                  ? 'Ingredientes serão associados automaticamente'
+                  : 'Será criado item de despesa genérico'
+                }
+              </p>
             </div>
           </div>
           
@@ -3661,7 +3704,8 @@ const RestauranteGestor = () => {
       dataFatura: dadosConfirmados.data,
       atcud: dadosConfirmados.atcud,
       totais: dadosConfirmados.totais,
-      precosComIVA: dadosConfirmados.precosComIVA
+      precosComIVA: dadosConfirmados.precosComIVA,
+      categoria: dadosConfirmados.categoria || 'compras' // 🆕 GUARDAR CATEGORIA
     }));
     
     void 0;
@@ -9873,31 +9917,63 @@ void 0;
     setProdutos(produtosAtualizados);
     
     // Criar itens da fatura COM ESTRUTURA CORRETA
+    // 🆕 LÓGICA DIFERENTE CONFORME CATEGORIA
+    const categoria = metadata.categoria || 'compras';
     const novosItens = linhasValidadas
-      .filter(l => l.ingredienteConfirmado)
+      .filter(l => {
+        // Se categoria = compras, exigir ingrediente
+        if (categoria === 'compras') {
+          return l.ingredienteConfirmado;
+        }
+        // Para outras categorias, aceitar todas as linhas com preço
+        return l.preco && parseFloat(l.preco) > 0;
+      })
       .map((l, index) => {
-        const ingrediente = ingredientesAtualizados.find(i => i.id === l.ingredienteConfirmado);
-        
-        // Garantir valores válidos
         const quantidade = parseFloat(l.quantidade) || 1;
         const precoTotal = parseFloat(l.preco) || 0; // COM IVA
-        const iva = parseFloat(ingrediente?.iva || 13);
         
-        // ✅ REMOVER IVA do preço
+        // Se categoria = compras, buscar ingrediente
+        if (categoria === 'compras' && l.ingredienteConfirmado) {
+          const ingrediente = ingredientesAtualizados.find(i => i.id === l.ingredienteConfirmado);
+          const iva = parseFloat(ingrediente?.iva || 13);
+          
+          // ✅ REMOVER IVA do preço
+          const precoComIVA = precoTotal / quantidade;
+          const precoUnitario = precoComIVA / (1 + iva / 100); // SEM IVA
+          const subtotal = precoUnitario * quantidade; // SEM IVA
+          
+          void 0;
+          
+          return {
+            id: `ocr_${Date.now()}_${index}`,
+            ingredienteId: l.ingredienteConfirmado,
+            ingredienteNome: ingrediente?.nome || l.nomeProduto,
+            descricao: ingrediente?.nome || l.nomeProduto,
+            quantidade: quantidade,
+            unidade: l.unidade || ingrediente?.unidade || 'un',
+            precoUnitario: precoUnitario,
+            precoTotal: precoTotal,
+            subtotal: subtotal,
+            iva: iva,
+            num_funcionarios: 1
+          };
+        }
+        
+        // Para outras categorias (renda, eletricidade, etc.)
+        // Criar item genérico sem ingrediente
+        const iva = categoria === 'salarios' ? 0 : 23; // Salários sem IVA, resto 23%
         const precoComIVA = precoTotal / quantidade;
-        const precoUnitario = precoComIVA / (1 + iva / 100); // SEM IVA
-        const subtotal = precoUnitario * quantidade; // SEM IVA
+        const precoUnitario = iva > 0 ? precoComIVA / (1 + iva / 100) : precoComIVA;
+        const subtotal = precoUnitario * quantidade;
         
         void 0;
         
         return {
-          id: `ocr_${Date.now()}_${index}`, // ID único
-          ingredienteId: l.ingredienteConfirmado,
-          ingredienteNome: ingrediente?.nome || l.nomeProduto,
-          descricao: ingrediente?.nome || l.nomeProduto,
-          quantidade: quantidade,
-          unidade: l.unidade || ingrediente?.unidade || 'un',
-          precoUnitario: precoUnitario,
+          id: `ocr_${Date.now()}_${index}`,
+          descricao: l.nomeProduto || `Item ${index + 1}`,
+          quantidade: 1, // Fixo para despesas fixas
+          unidade: 'serviço',
+          precoUnitario: precoTotal,
           precoTotal: precoTotal,
           subtotal: subtotal,
           iva: iva,
@@ -9955,7 +10031,7 @@ void 0;
       itens: novosItens,
       documentoPDF: metadata.pdfBase64 || novaFatura.documentoPDF || null,
       nomeDocumento: metadata.pdfNome || novaFatura.nomeDocumento || '',
-      categoria: 'compras',
+      categoria: metadata.categoria || 'compras', // 🆕 USAR CATEGORIA DO METADATA
       totais: metadata.totais || { subtotal: 0, iva: 0, total: 0 } // ✅ TOTAIS DA FATURA
     };
     
