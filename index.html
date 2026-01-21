@@ -2872,6 +2872,122 @@ const FORNECEDORES_CONHECIDOS = {
 
 void 0;
 
+  // ===== 🆕 COMPONENTE: PAINEL DE ALERTAS DE STOCK =====
+  const PainelAlertasStock = ({ 
+    ingredientes, 
+    getStockStatus, 
+    setActiveTab, 
+    setGestaoSubTab, 
+    showNotification 
+  }) => {
+    const [expandido, setExpandido] = useState(false);
+    
+    const ingredientesComStatus = ingredientes
+      .map(ing => ({
+        ...ing,
+        statusInfo: getStockStatus(ing)
+      }))
+      .sort((a, b) => a.statusInfo.prioridade - b.statusInfo.prioridade);
+    
+    const criticos = ingredientesComStatus.filter(i => i.statusInfo.status === 'CRITICO');
+    const baixos = ingredientesComStatus.filter(i => i.statusInfo.status === 'BAIXO');
+    const atencao = ingredientesComStatus.filter(i => i.statusInfo.status === 'ATENCAO');
+    
+    if (criticos.length === 0 && baixos.length === 0 && atencao.length === 0) {
+      return (
+        <div className="bg-green-50 border-2 border-green-300 rounded-lg p-4 mb-4">
+          <div className="flex items-center gap-3">
+            <span className="text-3xl">✅</span>
+            <div>
+              <p className="font-bold text-green-800">Stocks OK!</p>
+              <p className="text-sm text-green-700">Todos os ingredientes em níveis adequados</p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    
+    return (
+      <div className="bg-white rounded-lg shadow-lg border-2 border-red-300 p-4 mb-4">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-6 h-6 text-red-600" />
+            <h3 className="text-lg font-bold text-red-800">Alertas de Stock</h3>
+          </div>
+          <button 
+            onClick={() => setExpandido(!expandido)}
+            className="text-blue-600 hover:text-blue-800 text-sm font-semibold px-3 py-1 rounded hover:bg-blue-50"
+          >
+            {expandido ? '📊 Minimizar' : '📈 Expandir'}
+          </button>
+        </div>
+        
+        <div className="grid grid-cols-3 gap-3 mb-4">
+          <div className={`rounded-lg p-3 border-2 ${criticos.length > 0 ? 'bg-red-50 border-red-300' : 'bg-gray-50 border-gray-300'}`}>
+            <p className="text-sm font-semibold text-gray-700">🔴 Críticos</p>
+            <p className="text-3xl font-bold text-red-600">{criticos.length}</p>
+          </div>
+          <div className={`rounded-lg p-3 border-2 ${baixos.length > 0 ? 'bg-orange-50 border-orange-300' : 'bg-gray-50 border-gray-300'}`}>
+            <p className="text-sm font-semibold text-gray-700">🟠 Baixos</p>
+            <p className="text-3xl font-bold text-orange-600">{baixos.length}</p>
+          </div>
+          <div className={`rounded-lg p-3 border-2 ${atencao.length > 0 ? 'bg-yellow-50 border-yellow-300' : 'bg-gray-50 border-gray-300'}`}>
+            <p className="text-sm font-semibold text-gray-700">🟡 Atenção</p>
+            <p className="text-3xl font-bold text-yellow-600">{atencao.length}</p>
+          </div>
+        </div>
+        
+        {criticos.length > 0 && (
+          <div className="mb-3">
+            <h4 className="font-bold text-red-700 mb-2 text-sm">🔴 URGENTE - Stock Esgotado:</h4>
+            <div className="space-y-2">
+              {criticos.slice(0, expandido ? criticos.length : 3).map(ing => (
+                <div key={ing.id} className="bg-red-50 border border-red-300 rounded p-2">
+                  <p className="font-semibold text-sm">{ing.nome}</p>
+                  <p className="text-xs text-gray-600">
+                    Stock: <span className="text-red-600 font-bold">{ing.stockAtual || 0} {ing.unidade}</span> | 
+                    Mínimo: {ing.stockMinimo || 0} {ing.unidade}
+                  </p>
+                </div>
+              ))}
+              {!expandido && criticos.length > 3 && (
+                <button onClick={() => setExpandido(true)} className="text-sm text-red-600 hover:text-red-800 font-semibold">
+                  + Ver mais {criticos.length - 3}
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+        
+        {expandido && baixos.length > 0 && (
+          <div className="mb-3">
+            <h4 className="font-bold text-orange-700 mb-2 text-sm">🟠 BAIXOS - Planejar Compra:</h4>
+            <div className="space-y-1">
+              {baixos.map(ing => (
+                <div key={ing.id} className="bg-orange-50 border border-orange-200 rounded p-2 flex justify-between items-center">
+                  <div>
+                    <p className="font-semibold text-sm">{ing.nome}</p>
+                    <p className="text-xs text-gray-600">{ing.stockAtual || 0} / {ing.stockMinimo || 0} {ing.unidade}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        
+        <button 
+          onClick={() => {
+            setActiveTab('gestao');
+            setGestaoSubTab('ingredientes');
+          }}
+          className="w-full bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 text-sm font-semibold"
+        >
+          📋 Ver Inventário Completo
+        </button>
+      </div>
+    );
+  };
+
 const RestauranteGestor = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
 
@@ -2899,6 +3015,19 @@ const RestauranteGestor = () => {
   const [vendas, setVendas] = useState([]);
   const [despesas, setDespesas] = useState([]);
   const [fornecedores, setFornecedores] = useState([]);
+  const [configuracaoWaste, setConfiguracaoWaste] = useState({
+    percentagemGlobal: 8,
+    percentagensPorCategoria: {
+      'vegetais': 15, 'frutas': 14, 'peixe': 12, 'carnes': 10,
+      'lacteos': 9, 'laticínios': 9, 'compotas': 8, 'consumiveis': 7,
+      'temperos': 6, 'padaria': 5, 'cafe': 4, 'cereais': 4,
+      'especiarias': 3, 'oleos': 3, 'bebidas': 4, 'pastelaria': 5,
+      'limpeza': 0, 'outros': 2, 'default': 8
+    },
+    usarCategorias: true
+  });
+  
+  const [contagens, setContagens] = useState([]);
   const [vocabularioFornecedor, setVocabularioFornecedor] = useState([]); // 🧠 Sistema de aprendizagem
   const [templatesOCR, setTemplatesOCR] = useState([]); // 📋 Templates por fornecedor
   const [novoProduto, setNovoProduto] = useState({ nome: '', precoVenda: '', iva: '6', categoria: 'cafes', receita: [], embalagens: [], porcoes: 1 });
@@ -2955,6 +3084,7 @@ const RestauranteGestor = () => {
   const [novaEmbalagem, setNovaEmbalagem] = useState({ nome: '', custoUnitario: '', categoria: 'copos' });
   const [searchIngrediente, setSearchIngrediente] = useState('');
   const [searchIngredienteGlobal, setSearchIngredienteGlobal] = useState('');
+  const [categoriaFiltro, setCategoriaFiltro] = useState('todas');
   const [searchProdutoGlobal, setSearchProdutoGlobal] = useState('');
 
   // Auto-save GitHub (handled by GitHubSync internally)
@@ -2969,6 +3099,11 @@ const RestauranteGestor = () => {
   const [configuracoes, setConfiguracoes] = useState(carregarConfiguracoes());
   const [novoIngrediente, setNovoIngrediente] = useState({ nome: '', unidade: 'kg', custoUnitario: '', iva: '6', quantidade: '1', categoria: 'outros', precoTotal: '', quantidadeEmbalagem: '' });
   const [editandoIngrediente, setEditandoIngrediente] = useState(false);
+  const [modalContagem, setModalContagem] = useState(false);
+  const [ingredienteContagem, setIngredienteContagem] = useState(null);
+  const [valorContagem, setValorContagem] = useState(0);
+  const [ingredienteEditandoMin, setIngredienteEditandoMin] = useState(null);
+  const [valorMinEdicao, setValorMinEdicao] = useState(0);
   const [ingredienteEditandoId, setIngredienteEditandoId] = useState(null);
   const [novaDespesa, setNovaDespesa] = useState({ 
     descricao: '', 
@@ -3150,6 +3285,50 @@ const RestauranteGestor = () => {
   const [progressoOCR, setProgressoOCR] = useState('');
   
   // Verificar carregamento das bibliotecas OCR (Tesseract e Fuzzball apenas)
+  
+  // 🆕 Carregar configurações de waste ao inicializar
+  useEffect(() => {
+    const savedConfig = localStorage.getItem('configuracaoWaste');
+    if (savedConfig) {
+      try {
+        setConfiguracaoWaste(JSON.parse(savedConfig));
+      } catch (e) {
+        console.error('Erro ao carregar configuração waste:', e);
+      }
+    }
+    
+    const savedContagens = localStorage.getItem('contagens');
+    if (savedContagens) {
+      try {
+        setContagens(JSON.parse(savedContagens));
+      } catch (e) {
+        console.error('Erro ao carregar contagens:', e);
+      }
+    }
+  }, []);
+  
+  // 🆕 Salvar configurações automaticamente quando mudar
+  useEffect(() => {
+    localStorage.setItem('configuracaoWaste', JSON.stringify(configuracaoWaste));
+  }, [configuracaoWaste]);
+  
+  useEffect(() => {
+    localStorage.setItem('contagens', JSON.stringify(contagens));
+  }, [contagens])
+  
+  // 🆕 Inicializar ingredientes com campos de waste/stock quando carregarem
+  useEffect(() => {
+    // Verificar se algum ingrediente precisa ser inicializado
+    const precisaInicializar = ingredientes.some(ing => ing.modoWaste === undefined);
+    
+    if (precisaInicializar && ingredientes.length > 0) {
+      console.log('🔧 Inicializando ingredientes com waste tracking...');
+      const ingredientesInicializados = ingredientes.map(inicializarIngrediente);
+      setIngredientes(ingredientesInicializados);
+    }
+  }, [ingredientes.length]); // Apenas quando o número de ingredientes mudar
+;
+  
   useEffect(() => {
     let attempts = 0;
     const maxAttempts = 5;
@@ -3183,7 +3362,10 @@ const RestauranteGestor = () => {
       }
     }, 1000); // Verificar a cada 1 segundo
     
-    return () => clearInterval(checkInterval);
+    
+  
+
+  return () => clearInterval(checkInterval);
   }, []);
   
   // ==================== CARREGAR BLACKLIST ====================
@@ -3218,6 +3400,163 @@ const RestauranteGestor = () => {
 
   // ==================== HANDLERS V2.0 ====================
   
+  
+  // ===== 🆕 WASTE TRACKING & STOCK MANAGEMENT =====
+  
+  // Obter % de desperdício (híbrido: automático ou real)
+  const getPercentagemDesperdicio = (ingrediente) => {
+    if (!ingrediente) return 8;
+    
+    // Se modo manual E tem contagens históricas
+    if (ingrediente.modoWaste === 'manual' && ingrediente.historicoContagens?.length > 0) {
+      const ultimas3 = ingrediente.historicoContagens.slice(-3);
+      const mediaReal = ultimas3.reduce((sum, c) => sum + c.percentagem, 0) / ultimas3.length;
+      return mediaReal;
+    }
+    
+    // Se modo manual mas sem contagens (usa % categoria temporariamente)
+    if (ingrediente.modoWaste === 'manual') {
+      return configuracaoWaste.percentagensPorCategoria[ingrediente.categoria] || 8;
+    }
+    
+    // Modo automático
+    if (configuracaoWaste.usarCategorias) {
+      return configuracaoWaste.percentagensPorCategoria[ingrediente.categoria] || 
+             configuracaoWaste.percentagemGlobal;
+    }
+    
+    return configuracaoWaste.percentagemGlobal;
+  };
+  
+  // 🆕 Inicializar ingredientes com campos de waste/stock se não existirem
+  const inicializarIngrediente = (ing) => {
+    // Se já tem os campos, retornar como está
+    if (ing.modoWaste !== undefined && ing.stockAtual !== undefined) {
+      return ing;
+    }
+    
+    // Obter % de desperdício da categoria
+    const categoria = ing.categoria || 'default';
+    const percentagemDesperdicio = configuracaoWaste.percentagensPorCategoria[categoria] || 8;
+    
+    // Obter stocks sugeridos (valores padrão por categoria)
+    const stocksPorCategoria = {
+      'vegetais': [2, 5], 'frutas': [2, 5], 'peixe': [0.5, 2], 'carnes': [1, 3],
+      'lacteos': [3, 10], 'laticínios': [1, 3], 'padaria': [10, 30], 'cafe': [2, 5],
+      'cereais': [1, 3], 'especiarias': [0.1, 0.5], 'oleos': [2, 5], 'bebidas': [24, 100],
+      'compotas': [1, 3], 'consumiveis': [1, 3], 'temperos': [0.1, 0.3],
+      'pastelaria': [0.1, 0.5], 'limpeza': [5, 20], 'outros': [100, 500],
+      'default': [5, 15]
+    };
+    
+    const [stockMinimo, stockIdeal] = stocksPorCategoria[categoria] || stocksPorCategoria['default'];
+    
+    return {
+      ...ing,
+      modoWaste: ing.modoWaste || 'automatico',
+      percentagemDesperdicio: ing.percentagemDesperdicio || percentagemDesperdicio,
+      stockAtual: ing.stockAtual !== undefined ? ing.stockAtual : 0,
+      stockMinimo: ing.stockMinimo || stockMinimo,
+      stockIdeal: ing.stockIdeal || stockIdeal,
+      ultimaContagem: ing.ultimaContagem || null,
+      historicoContagens: ing.historicoContagens || [],
+      ultimaCompra: ing.ultimaCompra || null
+    };
+  };
+
+  
+  // Obter status de stock (crítico, baixo, atenção, ok)
+  const getStockStatus = (ingrediente) => {
+    const stock = ingrediente.stockAtual || 0;
+    const minimo = ingrediente.stockMinimo || 0;
+    const ideal = ingrediente.stockIdeal || 0;
+    
+    if (stock <= 0) {
+      return {
+        status: 'CRITICO',
+        cor: 'red',
+        icone: '🔴',
+        mensagem: 'ESGOTADO',
+        prioridade: 1
+      };
+    }
+    
+    if (stock < minimo) {
+      return {
+        status: 'BAIXO',
+        cor: 'orange',
+        icone: '🟠',
+        mensagem: 'Abaixo do mínimo',
+        prioridade: 2
+      };
+    }
+    
+    if (stock < ideal * 0.5) {
+      return {
+        status: 'ATENCAO',
+        cor: 'yellow',
+        icone: '🟡',
+        mensagem: 'Requer atenção',
+        prioridade: 3
+      };
+    }
+    
+    return {
+      status: 'OK',
+      cor: 'green',
+      icone: '🟢',
+      mensagem: 'Adequado',
+      prioridade: 4
+    };
+  };
+  
+  // Toggle modo waste (automático <-> manual)
+  const toggleModoWaste = (ingredienteId) => {
+    setIngredientes(ingredientes.map(ing => {
+      if (ing.id !== ingredienteId) return ing;
+      
+      const novoModo = ing.modoWaste === 'automatico' ? 'manual' : 'automatico';
+      
+      showNotification(
+        `${ing.nome}: Modo ${novoModo === 'automatico' ? '🤖 Automático' : '👤 Manual'}`,
+        'success'
+      );
+      
+      return {
+        ...ing,
+        modoWaste: novoModo
+      };
+    }));
+  };
+  
+  // Calcular food cost COM desperdício
+  const calcularFoodCostComDesperdicio = (produto) => {
+    if (!produto.receita || produto.receita.length === 0) return 0;
+    
+    const custoIngredientes = produto.receita.reduce((total, item) => {
+      const ingrediente = ingredientes.find(i => i.id === item.ingredienteId);
+      if (!ingrediente) return total;
+      
+      let qtd = parseFloat(item.quantidade);
+      if (item.unidade === 'g' && ingrediente.unidade === 'kg') qtd /= 1000;
+      if (item.unidade === 'ml' && ingrediente.unidade === 'L') qtd /= 1000;
+      
+      // 🔥 APLICAR DESPERDÍCIO
+      const custoBase = ingrediente.custoUnitario;
+      const percentagemDesperdicio = getPercentagemDesperdicio(ingrediente);
+      const custoAjustado = custoBase * (1 + percentagemDesperdicio / 100);
+      
+      return total + (qtd * custoAjustado);
+    }, 0);
+    
+    const custoEmbalagens = (produto.embalagens || []).reduce((total, item) => {
+      const embalagem = embalagens.find(e => e.id === item.embalagemId);
+      return total + (embalagem ? embalagem.custoUnitario * (item.quantidade || 1) : 0);
+    }, 0);
+    
+    return custoIngredientes + custoEmbalagens;
+  };
+
   const handleAdicionarBlacklist = (item) => {
     const novaBlacklist = [...blacklist, item];
     setBlacklist(novaBlacklist);
@@ -4248,7 +4587,9 @@ void 0;
       dadosEmpresa,
       faturas,
       vocabularioFornecedor, // 🧠 Incluir aprendizagem
-      templatesOCR // 📋 Incluir templates
+      templatesOCR, // 📋 Incluir templates
+      configuracaoWaste, // 🆕 Waste tracking config
+      contagens // 🆕 Histórico de contagens
     };
     
     const blob = new Blob([JSON.stringify(dados, null, 2)], { type: 'application/json' });
@@ -4302,8 +4643,10 @@ void 0;
           }
           if (dados.vocabularioFornecedor) setVocabularioFornecedor(dados.vocabularioFornecedor); // 🧠 Importar aprendizagem
           if (dados.templatesOCR) setTemplatesOCR(dados.templatesOCR); // 📋 Importar templates
+          if (dados.configuracaoWaste) setConfiguracaoWaste(dados.configuracaoWaste); // 🆕 Waste tracking config
+          if (dados.contagens) setContagens(dados.contagens); // 🆕 Contagens de inventário
           
-          showNotification('Dados importados!', 'success');
+          showNotification('Dados importados com sucesso!', 'success');
           event.target.value = '';
         }
       } catch (error) {
@@ -5365,6 +5708,8 @@ void 0;
         blacklist: blacklist || [],
         templatesOCR: templatesOCR || [], // ✅ Templates com blacklists
         vocabularioFornecedor: vocabularioFornecedor || [], // 🧠 CORRIGIDO: Salvar aprendizagem
+        configuracaoWaste: configuracaoWaste || {}, // 🆕 Waste tracking config
+        contagens: contagens || [], // 🆕 Histórico de contagens
         lastUpdate: new Date().toISOString()
       };
       let fileId = driveFileId;
@@ -5704,6 +6049,16 @@ void 0;
         // 🧠 CORRIGIDO: VOCABULÁRIO DE APRENDIZAGEM: Carregar
         if (data.vocabularioFornecedor && data.vocabularioFornecedor.length > 0) {
           setVocabularioFornecedor(data.vocabularioFornecedor);
+          void 0;
+        }
+        
+        // 🆕 WASTE TRACKING: Carregar configuração e contagens
+        if (data.configuracaoWaste) {
+          setConfiguracaoWaste(data.configuracaoWaste);
+          void 0;
+        }
+        if (data.contagens) {
+          setContagens(data.contagens);
           void 0;
         }
         
@@ -6099,6 +6454,63 @@ void 0;
     setNovoIngrediente({ nome: '', unidade: 'kg', custoUnitario: '', iva: '6', quantidade: '1', categoria: 'outros' });
     setEditandoIngrediente(false);
     setIngredienteEditandoId(null);
+  };
+
+  // 🆕 FUNÇÕES DE CONTAGEM MANUAL
+  const abrirContagem = (ingrediente) => {
+    setIngredienteContagem(ingrediente);
+    setValorContagem(ingrediente.stockAtual || 0);
+    setModalContagem(true);
+  };
+  
+  const salvarContagem = () => {
+    if (!ingredienteContagem) return;
+    
+    const novoStock = parseFloat(valorContagem) || 0;
+    
+    // Atualizar ingrediente com novo stock
+    setIngredientes(ingredientes.map(ing => {
+      if (ing.id !== ingredienteContagem.id) return ing;
+      
+      // Se modo manual, calcular % real de desperdício
+      if (ing.modoWaste === 'manual') {
+        // Calcular stock teórico (simplificado por agora)
+        const stockTeorico = ing.stockAtual || 0; // Em produção, calcular com compras/vendas
+        const desperdicio = Math.max(0, stockTeorico - novoStock);
+        const percentagem = stockTeorico > 0 ? (desperdicio / stockTeorico) * 100 : 0;
+        
+        // Adicionar ao histórico
+        const novaContagem = {
+          data: new Date().toISOString(),
+          stockTeorico: stockTeorico,
+          stockReal: novoStock,
+          desperdicio: desperdicio,
+          percentagem: percentagem,
+          observacoes: ''
+        };
+        
+        const historicoAtualizado = [...(ing.historicoContagens || []), novaContagem];
+        
+        return {
+          ...ing,
+          stockAtual: novoStock,
+          ultimaContagem: new Date().toISOString(),
+          historicoContagens: historicoAtualizado
+        };
+      }
+      
+      // Se modo automático, apenas atualizar stock
+      return {
+        ...ing,
+        stockAtual: novoStock,
+        ultimaContagem: new Date().toISOString()
+      };
+    }));
+    
+    showNotification(`Stock de ${ingredienteContagem.nome} atualizado: ${novoStock} ${ingredienteContagem.unidade}`, 'success');
+    setModalContagem(false);
+    setIngredienteContagem(null);
+    setValorContagem(0);
   };
 
   const adicionarProduto = () => {
@@ -7906,7 +8318,12 @@ void 0;
       if (ing.unidade === 'ml' && unidadeReceita === 'L') q = it.quantidade * 1000;
       if (unidadeReceita === ing.unidade) q = it.quantidade;
       
-      return t + (q * ing.custoUnitario);
+      // 🔥 APLICAR DESPERDÍCIO
+      const custoBase = ing.custoUnitario;
+      const percentagemDesperdicio = getPercentagemDesperdicio(ing);
+      const custoComDesperdicio = custoBase * (1 + percentagemDesperdicio / 100);
+      
+      return t + (q * custoComDesperdicio);
     }, 0);
     
     // Se tem porções, dividir custo por porção
@@ -8067,7 +8484,8 @@ void 0;
     descricao: `Fatura ${f.numero || f.id}`,
     valor: f.totais?.total || f.total || 0,
     iva: f.totalIva || 0,
-    categoria: 'compras',
+    ivaPercentagem: f.itens?.[0]?.iva || 23, // Taxa de IVA percentual para cálculos
+    categoria: f.categoria || 'compras', // ✅ MANTÉM CATEGORIA ORIGINAL (renda, eletricidade, etc.)
     tipo: f.tipo || 'FT', // FT/FR (FS excluído)
     fornecedor: f.fornecedorNome || '',
     origem: 'fatura' // Flag para identificar
@@ -8164,12 +8582,13 @@ void 0;
   const ivaComprasFaturas = faturasAnoAtual.reduce((s, f) => s + (f.totalIva || 0), 0);
   
   // IVA Compras (das despesas com categoria "compras") - APENAS ANO ATUAL
-  const despesasComprasAnoAtual = despesas.filter(d => {
+  // ✅ TODAS as despesas com IVA do ano atual (não apenas compras)
+  const despesasComIvaAnoAtual = despesas.filter(d => {
     const dataDespesa = new Date(d.data);
-    return dataDespesa.getFullYear() === anoAtual && d.categoria === 'compras';
+    return dataDespesa.getFullYear() === anoAtual && d.iva && d.iva > 0;
   });
   
-  const ivaComprasDespesas = despesasComprasAnoAtual
+  const ivaComprasDespesas = despesasComIvaAnoAtual
     .reduce((s, d) => {
       const ivaPerc = d.iva || 23;
       const valorSemIva = d.valor / (1 + ivaPerc / 100);
@@ -8213,16 +8632,21 @@ void 0;
   // IVA das faturas do período
   const ivaFaturasPeriodo = filteredFaturas.reduce((s, f) => s + (f.totalIva || 0), 0);
   
-  // IVA das despesas manuais categoria compras do período
+  // IVA das despesas manuais - INCLUI TODAS AS CATEGORIAS COM IVA DEDUTÍVEL
+  // (compras, renda, eletricidade, agua, gas, internet, etc.)
   const ivaDespesasPeriodo = filteredDespesas
-    .filter(d => d.categoria === 'compras')
+    .filter(d => d.iva && d.iva > 0) // Incluir todas as despesas com IVA > 0
     .reduce((s, d) => {
       const ivaPerc = d.iva || 23;
       const valorSemIva = d.valor / (1 + ivaPerc / 100);
-      return s + (d.valor - valorSemIva);
+      const valorIva = d.valor - valorSemIva;
+      return s + valorIva;
     }, 0);
   
   const ivaPagarPeriodo = ivaVendasPeriodo - (ivaFaturasPeriodo + ivaDespesasPeriodo);
+  
+  // ℹ️ NOTA: IVA a pagar = IVA cobrado nas vendas - IVA dedutível das compras/despesas
+  // Inclui TODAS as despesas com IVA (compras, renda, eletricidade, etc.)
   
   const lucroLiquido = totV - totD - ivaPagarPeriodo;
   const margemLiquida = totV > 0 ? (lucroLiquido / totV) * 100 : 0;
@@ -8244,14 +8668,16 @@ void 0;
   const laborCostPercentage = totV > 0 ? (totalSalarios / totV) * 100 : 0;
 
   // New metrics calculations - ✅ USAR todasDespesas
-  const totalFoodCost = todasDespesas.filter(d => d.categoria === 'compras' || d.origem === 'fatura').reduce((s, d) => s + d.valor, 0);
+  // Food Cost = APENAS compras de ingredientes (não inclui renda, eletricidade, etc.)
+  const totalFoodCost = todasDespesas.filter(d => d.categoria === 'compras').reduce((s, d) => s + d.valor, 0);
   const foodCostPercentage = totV > 0 ? (totalFoodCost / totV) * 100 : 0;
   const primeCostPercentage = foodCostPercentage + laborCostPercentage;
   const primeCostTotal = totalFoodCost + totalSalarios;
   
   // Break-even calculation: Fixed costs / (1 - (Variable costs / Revenue)) - ✅ USAR todasDespesas
   const fixedCosts = todasDespesas.filter(d => ['renda', 'eletricidade', 'agua', 'gas', 'internet', 'salarios'].includes(d.categoria)).reduce((s, d) => s + d.valor, 0);
-  const variableCosts = todasDespesas.filter(d => ['compras', 'consumiveis'].includes(d.categoria) || d.origem === 'fatura').reduce((s, d) => s + d.valor, 0);
+  // Variable Costs = APENAS compras e consumíveis (não inclui renda, eletricidade, etc.)
+  const variableCosts = todasDespesas.filter(d => ['compras', 'consumiveis'].includes(d.categoria)).reduce((s, d) => s + d.valor, 0);
   const contributionMarginRatio = totV > 0 ? (totV - variableCosts) / totV : 0;
   const breakEvenPoint = contributionMarginRatio > 0 ? fixedCosts / contributionMarginRatio : 0;
   
@@ -9960,7 +10386,17 @@ void 0;
             </div>
 
             {/* KPI Cards - 2 filas de 2 */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+            
+          {/* Painel de Alertas de Stock */}
+          <PainelAlertasStock 
+            ingredientes={ingredientes}
+            getStockStatus={getStockStatus}
+            setActiveTab={setActiveTab}
+            setGestaoSubTab={setGestaoSubTab}
+            showNotification={showNotification}
+          />
+          
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
               <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg shadow p-3 text-white">
                 <Tooltip text="Total de vendas no período selecionado. Inclui todas as receitas antes de impostos e despesas." position="bottom">
                   <p className="text-green-100 text-xs mb-1 flex items-center gap-1">
@@ -10384,7 +10820,12 @@ void 0;
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                   {/* Ticket Médio */}
                   <div className="bg-blue-50 rounded-lg p-4 border-l-4 border-blue-500">
-                    <p className="text-xs text-blue-700 mb-1 font-semibold">💶 Ticket Médio</p>
+                    <Tooltip text="Valor médio que cada cliente gasta por transação. Calculado como: Faturação Total ÷ Número de Vendas. Um ticket médio mais alto significa melhor rentabilidade por cliente." position="bottom">
+                      <p className="text-xs text-blue-700 mb-1 font-semibold flex items-center gap-1">
+                        💶 Ticket Médio
+                        <span className="text-blue-400 text-sm">ⓘ</span>
+                      </p>
+                    </Tooltip>
                     <p className="text-2xl font-bold text-blue-900">
                       €{filteredVendas.length > 0 ? (totV / filteredVendas.length).toFixed(2) : '0.00'}
                     </p>
@@ -10393,7 +10834,12 @@ void 0;
                   
                   {/* Food Cost % */}
                   <div className="bg-purple-50 rounded-lg p-4 border-l-4 border-purple-500">
-                    <p className="text-xs text-purple-700 mb-1 font-semibold">🍽️ Food Cost %</p>
+                    <Tooltip text="Percentagem da receita gasta em ingredientes e matéria-prima. Calculado como: (Custo dos Ingredientes ÷ Faturação) × 100. O ideal é manter entre 25-35%. Acima de 40% indica problema grave nos preços ou desperdício." position="bottom">
+                      <p className="text-xs text-purple-700 mb-1 font-semibold flex items-center gap-1">
+                        🍽️ Food Cost %
+                        <span className="text-purple-400 text-sm">ⓘ</span>
+                      </p>
+                    </Tooltip>
                     <p className={`text-2xl font-bold ${
                       foodCostPercentage > 40 ? 'text-red-700' :
                       foodCostPercentage > 35 ? 'text-orange-700' : 'text-purple-900'
@@ -10405,7 +10851,12 @@ void 0;
                   
                   {/* Labor Cost % */}
                   <div className="bg-orange-50 rounded-lg p-4 border-l-4 border-orange-500">
-                    <p className="text-xs text-orange-700 mb-1 font-semibold">👥 Labor Cost %</p>
+                    <Tooltip text="Percentagem da receita gasta em salários e encargos sociais. Calculado como: (Despesas com Pessoal ÷ Faturação) × 100. O ideal é entre 25-30%. Acima de 35% indica excesso de pessoal ou baixa produtividade." position="bottom">
+                      <p className="text-xs text-orange-700 mb-1 font-semibold flex items-center gap-1">
+                        👥 Labor Cost %
+                        <span className="text-orange-400 text-sm">ⓘ</span>
+                      </p>
+                    </Tooltip>
                     <p className={`text-2xl font-bold ${
                       laborCostPercentage > 35 ? 'text-red-700' : 
                       laborCostPercentage > 30 ? 'text-orange-700' : 'text-orange-900'
@@ -10417,9 +10868,13 @@ void 0;
                   
                   {/* Prime Cost % - THE KING */}
                   <div className="bg-gradient-to-br from-red-50 to-pink-50 rounded-lg p-4 border-l-4 border-red-500">
-                    <p className="text-xs text-red-700 mb-1 font-bold flex items-center gap-1">
-                      ⚡ Prime Cost % <span className="text-[10px] bg-red-200 px-1 rounded">REI</span>
-                    </p>
+                    <Tooltip text="O indicador MAIS IMPORTANTE! Soma do Food Cost + Labor Cost. É a percentagem da receita gasta nos dois maiores custos operacionais. Ideal: 55-60%. Se >65% = problemas graves. Se <55% = gestão excelente! Este é o KPI que determina o sucesso ou fracasso do negócio." position="bottom">
+                      <p className="text-xs text-red-700 mb-1 font-bold flex items-center gap-1">
+                        ⚡ Prime Cost %
+                        <span className="text-red-400 text-sm">ⓘ</span>
+                        <span className="text-[10px] bg-red-200 px-1 rounded">REI</span>
+                      </p>
+                    </Tooltip>
                     <p className={`text-2xl font-bold ${
                       primeCostPercentage > 65 ? 'text-red-700' :
                       primeCostPercentage > 60 ? 'text-orange-700' : 'text-green-700'
@@ -10664,9 +11119,12 @@ void 0;
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                   {/* Daily Average */}
                   <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg p-4 border-2 border-purple-300">
-                    <p className="text-xs text-purple-700 mb-2 font-bold flex items-center gap-1">
-                      📊 Média Diária
-                    </p>
+                    <Tooltip text="Faturação média por dia útil. Calculado como: Faturação Total ÷ Número de Dias com Vendas. Este indicador ajuda a prever receitas futuras e a identificar dias de baixo desempenho. Compare com o teu break-even diário." position="bottom">
+                      <p className="text-xs text-purple-700 mb-2 font-bold flex items-center gap-1">
+                        📊 Média Diária
+                        <span className="text-purple-400 text-sm">ⓘ</span>
+                      </p>
+                    </Tooltip>
                     <p className="text-3xl font-bold text-purple-900 mb-1">
                       €{medFat.toFixed(0)}
                     </p>
@@ -11205,7 +11663,7 @@ void 0;
                     <p className="text-lg font-bold text-blue-900">
                       €{filteredVendas.length > 0 ? (
                         todasDespesas
-                          .filter(d => d.categoria === 'compras' || d.origem === 'fatura')
+                          .filter(d => d.categoria === 'compras')
                           .reduce((s, d) => s + d.valor, 0) / filteredVendas.length
                       ).toFixed(2) : '0.00'}
                     </p>
@@ -11236,7 +11694,7 @@ void 0;
                     <p className="text-xs text-green-700 mb-1">Margem por Cliente</p>
                     <p className="text-lg font-bold text-green-900">
                       €{filteredVendas.length > 0 ? (
-                        (totV - filteredDespesas.filter(d => d.categoria === 'compras' || d.categoria === 'consumiveis').reduce((s, d) => s + d.valor, 0)) / filteredVendas.length
+                        (totV - todasDespesas.filter(d => d.categoria === 'compras' || d.categoria === 'consumiveis').reduce((s, d) => s + d.valor, 0)) / filteredVendas.length
                       ).toFixed(2) : '0.00'}
                     </p>
                     <p className="text-xs text-green-600 mt-1">Por venda</p>
@@ -11297,7 +11755,7 @@ void 0;
                 
                 {/* IVA Breakdown */}
                 <div className="border-t pt-3">
-                  <h4 className="text-sm font-semibold mb-2 text-gray-700">📋 Breakdown IVA Compras</h4>
+                  <h4 className="text-sm font-semibold mb-2 text-gray-700">📋 Breakdown IVA Dedutível</h4>
                   <div className="grid grid-cols-2 gap-2">
                     <div className="bg-blue-50 rounded p-2 border border-blue-200">
                       <p className="text-xs text-blue-700 mb-1">IVA Compras Alimentos</p>
@@ -11311,17 +11769,19 @@ void 0;
                               return s + (d.valor - valorSemIva);
                             }, 0);
                           
-                          // IVA das faturas (já vem calculado)
-                          const ivaFaturas = filteredFaturas.reduce((s, f) => s + (f.totalIva || 0), 0);
+                          // IVA das faturas de COMPRAS apenas
+                          const ivaFaturasCompras = filteredFaturas
+                            .filter(f => f.categoria === 'compras')
+                            .reduce((s, f) => s + (f.totalIva || 0), 0);
                           
-                          return (ivaDespesas + ivaFaturas).toFixed(2);
+                          return (ivaDespesas + ivaFaturasCompras).toFixed(2);
                         })()}
                       </p>
-                      <p className="text-xs text-blue-600 mt-1">Recuperável</p>
+                      <p className="text-xs text-blue-600 mt-1">Ingredientes</p>
                     </div>
                     
                     <div className="bg-purple-50 rounded p-2 border border-purple-200">
-                      <p className="text-xs text-purple-700 mb-1">IVA Compras Consumíveis</p>
+                      <p className="text-xs text-purple-700 mb-1">IVA Consumíveis</p>
                       <p className="text-base font-bold text-purple-900">
                         €{filteredDespesas
                           .filter(d => d.categoria === 'consumiveis')
@@ -11330,7 +11790,53 @@ void 0;
                             return s + (d.valor - valorSemIva);
                           }, 0).toFixed(2)}
                       </p>
-                      <p className="text-xs text-purple-600 mt-1">Recuperável</p>
+                      <p className="text-xs text-purple-600 mt-1">Material</p>
+                    </div>
+                    
+                    <div className="bg-orange-50 rounded p-2 border border-orange-200">
+                      <p className="text-xs text-orange-700 mb-1">IVA Despesas Fixas</p>
+                      <p className="text-base font-bold text-orange-900">
+                        €{(() => {
+                          // IVA de despesas manuais fixas (renda, eletricidade, etc.)
+                          const ivaDespesasFixas = filteredDespesas
+                            .filter(d => ['renda', 'eletricidade', 'agua', 'gas', 'internet'].includes(d.categoria))
+                            .reduce((s, d) => {
+                              const valorSemIva = d.valor / (1 + (d.iva || 23) / 100);
+                              return s + (d.valor - valorSemIva);
+                            }, 0);
+                          
+                          // IVA de faturas fixas
+                          const ivaFaturasFixas = filteredFaturas
+                            .filter(f => ['renda', 'eletricidade', 'agua', 'gas', 'internet'].includes(f.categoria))
+                            .reduce((s, f) => s + (f.totalIva || 0), 0);
+                          
+                          return (ivaDespesasFixas + ivaFaturasFixas).toFixed(2);
+                        })()}
+                      </p>
+                      <p className="text-xs text-orange-600 mt-1">Renda, Utilidades</p>
+                    </div>
+                    
+                    <div className="bg-gray-50 rounded p-2 border border-gray-200">
+                      <p className="text-xs text-gray-700 mb-1">IVA Outros</p>
+                      <p className="text-base font-bold text-gray-900">
+                        €{(() => {
+                          // IVA de outras despesas
+                          const ivaOutrasDespesas = filteredDespesas
+                            .filter(d => !['compras', 'consumiveis', 'renda', 'eletricidade', 'agua', 'gas', 'internet', 'salarios'].includes(d.categoria))
+                            .reduce((s, d) => {
+                              const valorSemIva = d.valor / (1 + (d.iva || 23) / 100);
+                              return s + (d.valor - valorSemIva);
+                            }, 0);
+                          
+                          // IVA de outras faturas
+                          const ivaOutrasFaturas = filteredFaturas
+                            .filter(f => !['compras', 'renda', 'eletricidade', 'agua', 'gas', 'internet', 'salarios'].includes(f.categoria))
+                            .reduce((s, f) => s + (f.totalIva || 0), 0);
+                          
+                          return (ivaOutrasDespesas + ivaOutrasFaturas).toFixed(2);
+                        })()}
+                      </p>
+                      <p className="text-xs text-gray-600 mt-1">Marketing, etc.</p>
                     </div>
                   </div>
                 </div>
@@ -12031,8 +12537,8 @@ void 0;
                   </div>
                 </div>
 
-                {/* Search Bar Ingredientes */}
-                <div className="mb-3">
+                {/* Search Bar e Filtro de Categoria */}
+                <div className="mb-3 grid grid-cols-1 md:grid-cols-2 gap-2">
                   <div className="relative">
                     <input
                       type="text"
@@ -12050,6 +12556,49 @@ void 0;
                       </button>
                     )}
                   </div>
+                  
+                  <select
+                    value={categoriaFiltro}
+                    onChange={(e) => setCategoriaFiltro(e.target.value)}
+                    className="px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  >
+                    <option value="todas">📁 Todas as Categorias</option>
+                    <option value="padaria">🍞 Padaria</option>
+                    <option value="lacteos">🥛 Lacticínios</option>
+                    <option value="laticínios">🧀 Laticínios</option>
+                    <option value="carnes">🥩 Carnes</option>
+                    <option value="peixe">🐟 Peixe</option>
+                    <option value="vegetais">🥬 Vegetais</option>
+                    <option value="frutas">🍎 Frutas</option>
+                    <option value="bebidas">🥤 Bebidas</option>
+                    <option value="cafe">☕ Café</option>
+                    <option value="especiarias">🌶️ Especiarias</option>
+                    <option value="temperos">🧂 Temperos</option>
+                    <option value="oleos">🫒 Óleos</option>
+                    <option value="cereais">🌾 Cereais</option>
+                    <option value="compotas">🍯 Compotas</option>
+                    <option value="consumiveis">🧴 Consumíveis</option>
+                    <option value="pastelaria">🧁 Pastelaria</option>
+                    <option value="limpeza">🧹 Limpeza</option>
+                    <option value="outros">📦 Outros</option>
+                  </select>
+                </div>
+
+                {/* Contador de Resultados */}
+                <div className="mb-2 text-sm text-gray-600">
+                  {(() => {
+                    const total = (ingredientes || []).length;
+                    const filtrados = (ingredientes || []).filter(ing => {
+                      const matchNome = ing.nome.toLowerCase().includes(searchIngredienteGlobal.toLowerCase());
+                      const matchCategoria = categoriaFiltro === 'todas' || ing.categoria === categoriaFiltro;
+                      return matchNome && matchCategoria;
+                    }).length;
+                    
+                    if (categoriaFiltro !== 'todas' || searchIngredienteGlobal) {
+                      return <p>📊 A mostrar <span className="font-bold">{filtrados}</span> de {total} ingredientes</p>;
+                    }
+                    return <p>📊 Total: <span className="font-bold">{total}</span> ingredientes</p>;
+                  })()}
                 </div>
 
                 <div className="overflow-x-auto rounded border">
@@ -12061,14 +12610,31 @@ void 0;
                         <th className="px-2 py-2 text-left font-semibold">Unid</th>
                         <th className="px-2 py-2 text-right font-semibold">Custo</th>
                         <th className="px-2 py-2 text-center font-semibold">IVA</th>
+                        <th className="px-2 py-2 text-left font-semibold">📦 Stock</th>
+                        <th className="px-2 py-2 text-left font-semibold">🗑️ Modo/Waste</th>
                         <th className="px-2 py-2 text-center font-semibold">Ações</th>
                       </tr>
                     </thead>
                     <tbody>
                       {(() => {
-                        const ingredientesFiltrados = (ingredientes || []).filter(ing =>
-                          ing.nome.toLowerCase().includes(searchIngredienteGlobal.toLowerCase())
-                        );
+                        const ingredientesFiltrados = (ingredientes || []).filter(ing => {
+                          const matchNome = ing.nome.toLowerCase().includes(searchIngredienteGlobal.toLowerCase());
+                          const matchCategoria = categoriaFiltro === 'todas' || ing.categoria === categoriaFiltro;
+                          return matchNome && matchCategoria;
+                        });
+                        
+                        if (ingredientesFiltrados.length === 0) {
+                          return (
+                            <tr>
+                              <td colSpan="8" className="px-4 py-8 text-center text-gray-400 text-sm">
+                                {categoriaFiltro !== 'todas' 
+                                  ? `Nenhum ingrediente encontrado na categoria "${categoriaFiltro}"` 
+                                  : 'Nenhum ingrediente encontrado'}
+                              </td>
+                            </tr>
+                          );
+                        }
+                        
                         return ingredientesFiltrados.map((ing, idx) => (
                         <tr key={ing.id} className={`border-t ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
                           <td className="px-2 py-2 font-medium">{ing.nome}</td>
@@ -12088,6 +12654,97 @@ void 0;
                           </td>
                           <td className="px-2 py-2 text-center">
                             <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-xs font-semibold">{ing.iva}%</span>
+                          </td>
+                          <td className="px-2 py-2">
+                            {(() => {
+                              const status = getStockStatus(ing);
+                              const editandoEste = ingredienteEditandoMin === ing.id;
+                              
+                              return (
+                                <div className="space-y-1">
+                                  <div className="flex items-center gap-1">
+                                    <span className="text-base">{status.icone}</span>
+                                    <div className="flex-1">
+                                      <p className="text-xs font-semibold">{ing.stockAtual || 0} {ing.unidade}</p>
+                                      {editandoEste ? (
+                                        <div className="flex items-center gap-1 mt-0.5">
+                                          <input
+                                            type="number"
+                                            step="0.1"
+                                            value={valorMinEdicao}
+                                            onChange={(e) => setValorMinEdicao(e.target.value)}
+                                            className="w-12 px-1 py-0 text-[10px] border rounded"
+                                            autoFocus
+                                            onKeyPress={(e) => {
+                                              if (e.key === 'Enter') {
+                                                const val = parseFloat(valorMinEdicao) || 0;
+                                                setIngredientes(ingredientes.map(i => 
+                                                  i.id === ing.id ? {...i, stockMinimo: val} : i
+                                                ));
+                                                showNotification(`Stock mínimo atualizado para ${val}`, 'success');
+                                                setIngredienteEditandoMin(null);
+                                              }
+                                            }}
+                                          />
+                                          <button
+                                            onClick={() => {
+                                              const val = parseFloat(valorMinEdicao) || 0;
+                                              setIngredientes(ingredientes.map(i => 
+                                                i.id === ing.id ? {...i, stockMinimo: val} : i
+                                              ));
+                                              showNotification(`Stock mínimo atualizado`, 'success');
+                                              setIngredienteEditandoMin(null);
+                                            }}
+                                            className="text-green-600 hover:text-green-800 text-xs"
+                                            title="Salvar"
+                                          >
+                                            ✓
+                                          </button>
+                                          <button
+                                            onClick={() => {
+                                              setIngredienteEditandoMin(null);
+                                            }}
+                                            className="text-red-600 hover:text-red-800 text-xs"
+                                            title="Cancelar"
+                                          >
+                                            ✕
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <button
+                                          onClick={() => {
+                                            setIngredienteEditandoMin(ing.id);
+                                            setValorMinEdicao(ing.stockMinimo || 0);
+                                          }}
+                                          className="text-[10px] text-gray-500 hover:text-blue-600 hover:underline"
+                                          title="Clica para editar stock mínimo"
+                                        >
+                                          Min: {ing.stockMinimo || 0} ✏️
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <button
+                                    onClick={() => abrirContagem(ing)}
+                                    className="text-[10px] px-2 py-0.5 bg-purple-100 text-purple-700 hover:bg-purple-200 rounded font-semibold w-full"
+                                    title="Fazer contagem de stock"
+                                  >
+                                    📊 Contar
+                                  </button>
+                                </div>
+                              );
+                            })()}
+                          </td>
+                          <td className="px-2 py-2">
+                            <div className="space-y-0.5">
+                              <button 
+                                onClick={() => toggleModoWaste(ing.id)}
+                                className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${ing.modoWaste === 'automatico' ? 'bg-green-100 text-green-800 hover:bg-green-200' : 'bg-blue-100 text-blue-800 hover:bg-blue-200'}`}
+                              >
+                                {ing.modoWaste === 'automatico' ? '🤖 Auto' : '👤 Manual'}
+                              </button>
+                              <p className="text-[10px] text-gray-600">{getPercentagemDesperdicio(ing).toFixed(1)}%</p>
+                            </div>
                           </td>
                           <td className="px-2 py-2 text-center">
                             <div className="flex items-center justify-center gap-1">
@@ -12124,7 +12781,7 @@ void 0;
                 <div className={`rounded p-3 mb-3 border ${editandoProduto ? 'bg-yellow-50 border-yellow-300' : 'bg-green-50 border-green-200'}`}>
                   <h3 className="font-semibold text-sm mb-2">{editandoProduto ? 'Editar Produto' : 'Adicionar Produto'}</h3>
                   <div className="space-y-3">
-                    <div className="grid grid-cols-4 gap-2">
+                    <div className="grid grid-cols-5 gap-2">
                       <input type="text" placeholder="Nome do produto" value={novoProduto.nome}
                         onChange={(e) => setNovoProduto({ ...novoProduto, nome: e.target.value })}
                         className="border rounded px-2 py-1.5 text-sm" />
@@ -12148,24 +12805,15 @@ void 0;
                         <option value="lanches">🥪 Lanches</option>
                         <option value="outros">📦 Outros</option>
                       </select>
-                    </div>
-                    
-                    {/* Campo Porções */}
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">
-                        Nº Porções (para bolos/sobremesas)
-                      </label>
                       <input
                         type="number"
                         min="1"
                         value={novoProduto.porcoes || 1}
                         onChange={(e) => setNovoProduto({...novoProduto, porcoes: parseInt(e.target.value) || 1})}
-                        placeholder="1"
-                        className="w-full px-2 py-1.5 border rounded text-sm"
+                        placeholder="Nº Porções"
+                        title="Nº Porções (para bolos/sobremesas)"
+                        className="border rounded px-2 py-1.5 text-sm"
                       />
-                      <p className="text-xs text-gray-500 mt-1">
-                        💡 Ex: Bolo com 12 fatias = 12 porções. Deixe 1 para produtos normais.
-                      </p>
                     </div>
                     
                     {(ingredientes || []).length > 0 && (
@@ -12652,6 +13300,9 @@ void 0;
                             <option value="manutencao">🔧 Manutenção</option>
                             <option value="outros">📦 Outros</option>
                           </select>
+                          <p className="text-xs text-blue-600 mt-1">
+                            ℹ️ Todas as categorias com IVA são dedutíveis (incluindo renda de imóveis comerciais)
+                          </p>
                         </div>
                         
                         <div className="md:col-span-2">
@@ -15128,6 +15779,77 @@ void 0;
                 className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-400"
               >
                 Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* 🆕 MODAL DE CONTAGEM MANUAL */}
+      {modalContagem && ingredienteContagem && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+            <h3 className="text-xl font-bold mb-4">
+              📊 Contagem de Stock - {ingredienteContagem.nome}
+            </h3>
+            
+            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded">
+              <p className="text-sm text-gray-700">
+                <span className="font-semibold">Modo:</span> {ingredienteContagem.modoWaste === 'manual' ? '👤 Manual' : '🤖 Automático'}
+              </p>
+              <p className="text-sm text-gray-700">
+                <span className="font-semibold">Stock Atual:</span> {ingredienteContagem.stockAtual || 0} {ingredienteContagem.unidade}
+              </p>
+              <p className="text-sm text-gray-700">
+                <span className="font-semibold">Stock Mínimo:</span> {ingredienteContagem.stockMinimo || 0} {ingredienteContagem.unidade}
+              </p>
+            </div>
+            
+            <div className="mb-4">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Stock Real Contado (hoje):
+              </label>
+              <div className="flex gap-2 items-center">
+                <input
+                  type="number"
+                  step="0.01"
+                  value={valorContagem}
+                  onChange={(e) => setValorContagem(e.target.value)}
+                  className="flex-1 px-3 py-2 border rounded text-lg font-bold"
+                  placeholder="0.00"
+                  autoFocus
+                />
+                <span className="text-gray-600 font-semibold">{ingredienteContagem.unidade}</span>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                💡 Conta fisicamente o stock atual e insere o valor
+              </p>
+            </div>
+            
+            {ingredienteContagem.modoWaste === 'manual' && (
+              <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded">
+                <p className="text-xs text-yellow-800">
+                  ⚠️ <span className="font-semibold">Modo Manual:</span> O sistema calculará automaticamente a % real de desperdício comparando com o stock teórico.
+                </p>
+              </div>
+            )}
+            
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  setModalContagem(false);
+                  setIngredienteContagem(null);
+                  setValorContagem(0);
+                }}
+                className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-400 font-semibold"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={salvarContagem}
+                className="flex-1 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 font-semibold"
+              >
+                ✅ Salvar Stock
               </button>
             </div>
           </div>
