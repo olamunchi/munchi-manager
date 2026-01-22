@@ -1356,10 +1356,6 @@ const Tooltip = ({ children, text, position = 'top' }) => {
 
 // ===== MODAL CONFIRMAÇÃO OCR =====
 const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCancelar, fornecedores }) => {
-  // DEBUG: Ver quantas linhas chegam
-  console.log('🔍 [MODAL] Linhas recebidas:', linhas.length);
-  console.log('🔍 [MODAL] Produtos:', linhas.map((l, i) => `${i+1}. ${l.nomeProduto}`));
-  
   const [linhasEditadas, setLinhasEditadas] = useState(linhas);
   const [stats, setStats] = useState(null);
   const [ingredientesLocais, setIngredientesLocais] = useState(ingredientes); // Lista local que pode crescer
@@ -1704,9 +1700,8 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
                 return (
                   <tr key={index} className="hover:bg-gray-50">
                     <td className="border p-2 text-sm">
-                      {/* CORRIGIDO: Mostrar nomeProduto em vez de textoOriginal */}
+                      <div className="font-mono text-xs text-gray-600 mb-1">{linha.textoOriginal}</div>
                       <div className="text-sm font-semibold">{linha.nomeProduto}</div>
-                      <div className="font-mono text-xs text-gray-500 mt-1">{linha.textoLimpo || linha.textoOriginal}</div>
                     </td>
                     
                     {/* 🆕 Só mostrar colunas de ingrediente se categoria = compras */}
@@ -4013,14 +4008,12 @@ const RestauranteGestor = () => {
         ? parseComTemplate(metadataOCR.textoCompleto, template)
         : parseLinhasProdutos(metadataOCR.textoCompleto, nifConfirmado);
       
-      console.log('🔍 [REPARSE] Produtos após parseLinhasProdutos:', linhasReparsed.length);
+      void 0;
       
       // Fazer matching dos ingredientes COM sistema de aprendizagem
       const linhasComMatch = linhasReparsed.length > 0 
         ? matchIngredientes(linhasReparsed, ingredientes)
         : [];
-      
-      console.log('🔍 [MATCH] Produtos após matchIngredientes:', linhasComMatch.length);
       
       // 🧠 Aplicar sistema de aprendizagem IMEDIATAMENTE
       const linhasComAprendizagem = linhasComMatch.map(linha => {
@@ -4066,9 +4059,6 @@ const RestauranteGestor = () => {
         
         return linha;
       });
-      
-      console.log('🔍 [APRENDIZAGEM] Produtos após aplicar aprendizagem:', linhasComAprendizagem.length);
-      console.log('🔍 [APRENDIZAGEM] Lista:', linhasComAprendizagem.map((l, i) => `${i+1}. ${l.nomeProduto}`));
       
       // Atualizar linhas com blacklist aplicada E aprendizagem
       setLinhasOCR(linhasComAprendizagem);
@@ -5355,18 +5345,7 @@ void 0;
     if (!template) return parseLinhasProdutos(texto, template?.nifFornecedor); // 🚫 CORRIGIDO: Passar NIF mesmo sem template
     
     void 0;
-    let linhas = texto.split('\n').map(l => l.trim());
-    
-    // 🆕 CORRIGIDO: Separar produtos colados ANTES de processar!
-    console.log(`🔍 [TEMPLATE+SEPARACAO] Iniciando separação de ${linhas.length} linhas`);
-    const linhasSeparadas = [];
-    for (const linha of linhas) {
-      const produtos = separarProdutosColados(linha);
-      linhasSeparadas.push(...produtos);
-    }
-    linhas = linhasSeparadas;
-    console.log(`🔍 [TEMPLATE+SEPARACAO] Após separação: ${linhas.length} linhas`);
-    
+    const linhas = texto.split('\n').map(l => l.trim());
     const start = Math.max(0, template.linhaInicio);
     const end = Math.min(linhas.length, template.linhaFim);
     const blacklist = template.blacklist || [];
@@ -5395,15 +5374,6 @@ void 0;
       const parsed = parseLinha(linha);
       if (parsed && parsed.nomeProduto) linhasProdutos.push(parsed);
     }
-    
-    // LOG FINAL (como parseLinhasProdutos)
-    console.log('\n' + '='.repeat(60));
-    console.log('🎯 PRODUTOS DETECTADOS (TEMPLATE):', linhasProdutos.length);
-    console.log('='.repeat(60));
-    linhasProdutos.forEach((p, idx) => {
-      console.log(`${idx + 1}. ${p.nomeProduto}`);
-    });
-    console.log('='.repeat(60) + '\n');
     
     void 0;
     if (linhasIgnoradasBlacklist > 0) {
@@ -9656,15 +9626,6 @@ void 0;
     log(etapa, mensagem, dados = null) {
       if (!this.enabled) return;
       
-      // NOVO: Só logar eventos importantes (não cada linha)
-      const etapasImportantes = ['INICIO', 'RESUMO', 'SEPARACAO'];
-      const mensagensImportantes = ['códigos detectados', 'Separados em'];
-      
-      const ehImportante = etapasImportantes.includes(etapa) || 
-                          mensagensImportantes.some(m => mensagem.includes(m));
-      
-      if (!ehImportante) return; // Pular logs não importantes
-      
       const logEntry = {
         timestamp: new Date().toISOString(),
         etapa,
@@ -9798,10 +9759,16 @@ void 0;
   const cleanOCRText = (text) => {
     if (!text) return '';
     
+    OCR_DEBUG.log('LIMPEZA', 'Texto original', { tamanho: text.length });
+    
     let cleaned = text;
     
     // 1. Remover ATCUD (não é produto)
+    const atcudRemovidos = (cleaned.match(/ATCUD:[A-Z0-9-]+/gi) || []).length;
     cleaned = cleaned.replace(/ATCUD:[A-Z0-9-]+/gi, '');
+    if (atcudRemovidos > 0) {
+      OCR_DEBUG.log('LIMPEZA', `${atcudRemovidos} ATCUDs removidos`);
+    }
     
     // 2. Remover "* CARRO No." que aparece em Recheio
     cleaned = cleaned.replace(/\*\s*CARRO\s+No\.\s*\d*/gi, '');
@@ -9822,6 +9789,11 @@ void 0;
     // 6. Remover linhas vazias múltiplas (mais de 2)
     cleaned = cleaned.replace(/\n\s*\n\s*\n+/g, '\n\n');
     
+    OCR_DEBUG.log('LIMPEZA', 'Texto limpo', { 
+      tamanho: cleaned.length,
+      reduzido: text.length - cleaned.length
+    });
+    
     return cleaned.trim();
   };
   
@@ -9830,11 +9802,12 @@ void 0;
    * Mesmo SEM códigos de produto, tenta separar por padrões
    */
   const separarProdutosColados = (linha) => {
+    OCR_DEBUG.log('SEPARACAO', 'Analisando linha', { linha });
+    
     // MÉTODO 1: Por códigos de produto (6 dígitos + ponto)
     const codigos = linha.match(/\d{6}\.\d+/g);
     
     if (codigos && codigos.length > 1) {
-      console.log(`🔍 [SEPARACAO] ${codigos.length} códigos detectados na linha:`, linha.substring(0, 80));
       OCR_DEBUG.log('SEPARACAO', `${codigos.length} códigos detectados`, { codigos });
       
       const produtos = [];
@@ -9857,7 +9830,6 @@ void 0;
         }
       });
       
-      console.log(`🔍 [SEPARACAO] Separados em ${produtos.length} produtos:`, produtos.map(p => p.substring(0, 40)));
       OCR_DEBUG.log('SEPARACAO', `Separados em ${produtos.length} produtos`, { produtos });
       return produtos;
     }
@@ -9867,12 +9839,12 @@ void 0;
     const matches = [...linha.matchAll(padraoItem)];
     
     if (matches && matches.length > 1) {
-      console.log(`🔍 [SEPARACAO] ${matches.length} produtos detectados por padrão qtd+preço`);
       OCR_DEBUG.log('SEPARACAO', `${matches.length} produtos por padrão qtd+preço`, { matches: matches.map(m => m[0]) });
       return matches.map(m => m[0]);
     }
     
     // Se não conseguiu separar, retorna linha original
+    OCR_DEBUG.log('SEPARACAO', 'Nenhuma separação necessária', null);
     return [linha];
   };
   
@@ -9993,8 +9965,6 @@ void 0;
     // Converter canvas para data URL (imagem)
     const imageDataUrl = canvas.toDataURL('image/png');
     
-    void 0;
-    
     return imageDataUrl;
   };
   
@@ -10002,56 +9972,64 @@ void 0;
   const shouldIgnoreLine = (linha) => {
     const lower = linha.toLowerCase();
     
-    // Lista de padrões a ignorar (MÍNIMA - só obvio lixo)
+    // Lista de padrões a ignorar (REDUZIDA - menos agressiva)
     const ignorePatterns = [
-      // Headers documento
+      // Headers óbvios
       { pattern: /^(fatura|factura|invoice|recibo|receipt|talao|talão)/i, motivo: 'header-fatura' },
       { pattern: /^(nif|nipc|vat|contribuinte|tax id)[\s:]/i, motivo: 'nif' },
+      { pattern: /^(data|date)[\s:]/i, motivo: 'data' },
       
-      // Info empresa (SÓ se for linha completa)
-      { pattern: /^(recheio|osco|cash & carry|boost)$/i, motivo: 'header-empresa' },
-      { pattern: /\b(lda|limitada|unipessoal)\b/i, motivo: 'empresa' },
-      
-      // Morada/Contactos
-      { pattern: /^(rua|avenida|av\.|praça)[\s:]/i, motivo: 'morada' },
+      // Empresa info
+      { pattern: /(lda|limitada|s\.a\.|unipessoal|ltda|sa\s)/i, motivo: 'empresa' },
+      { pattern: /^(rua|avenida|av\.|praça|largo|estrada|morada|address)/i, motivo: 'morada' },
       { pattern: /^\d{4}-\d{3}\s/i, motivo: 'codigo-postal' },
-      { pattern: /(email|telefone|fax|www\.)[\s:]/i, motivo: 'contacto' },
+      { pattern: /(email|e-mail|tel|telefone|phone|fax|telef|www\.)[\s:]/i, motivo: 'contacto' },
       
-      // Footer
-      { pattern: /^(total|subtotal|iva|imposto)[\s:]/i, motivo: 'footer' },
+      // Footer info
+      { pattern: /^(total|subtotal|sub-total)[\s:]/i, motivo: 'total' },
+      { pattern: /^(método|metodo|forma|pagamento|payment)/i, motivo: 'pagamento' },
+      { pattern: /(iban|nib|swift|bic)[\s:]/i, motivo: 'iban' },
+      { pattern: /^(referência|reference|ref)[\s:]/i, motivo: 'referencia' },
+      { pattern: /(processado|emitido|certificado)\s+por/i, motivo: 'processado' },
+      { pattern: /(conservatória|registo|matricula|capital social)/i, motivo: 'registo' },
       { pattern: /^atcud/i, motivo: 'atcud' },
-      { pattern: /(processado|certificado)\s+por/i, motivo: 'processado' },
       
-      // Números/símbolos sozinhos
+      // Apenas números/códigos
+      { pattern: /^pt\d{2}\s*\d{4}/i, motivo: 'iban' },
       { pattern: /^\d{9}$/, motivo: 'nif-numero' },
-      { pattern: /^\d+\/\d+\/\d+$/, motivo: 'data' },
+      { pattern: /^\d+\/\d+\/\d+$/, motivo: 'data-numero' },
       { pattern: /^[\s\-\+\.€%]+$/, motivo: 'simbolos' },
     ];
     
     // Verificar padrões
     for (const { pattern, motivo } of ignorePatterns) {
       if (pattern.test(linha)) {
-        return true; // Ignorar sem log
+        OCR_DEBUG.log('FILTRO', `Linha ignorada: ${motivo}`, { linha });
+        return true;
       }
     }
     
     // Ignorar linhas muito curtas (< 3 caracteres)
     if (linha.length < 3) {
+      OCR_DEBUG.log('FILTRO', 'Linha muito curta', { linha });
       return true;
     }
     
-    // Só ignorar se NÃO tem letras
+    // REMOVIDO: Filtro agressivo "só números/símbolos"
+    // NOVO: Só ignorar se NÃO tem letras
     if (!/[a-zA-ZÀ-ÿ]/.test(linha)) {
+      OCR_DEBUG.log('FILTRO', 'Sem letras', { linha });
       return true;
     }
     
     // ACEITAR todo o resto
+    OCR_DEBUG.log('FILTRO', '✓ Linha aceite', { linha });
     return false;
   };
   
   // Extrair qtd/unidade - MELHORADO
   const extractQuantidadeUnidade = (texto) => {
-    // Sem log - muito verbose
+    OCR_DEBUG.log('EXTRACAO', 'Extraindo qtd/unidade', { texto });
     
     // Patterns mais específicos para quantidade + unidade
     const patterns = [
@@ -10086,6 +10064,7 @@ void 0;
           else if (/ml/i.test(texto)) unidade = 'ml';
           else if (/\bl\b/i.test(texto)) unidade = 'L';
           
+          OCR_DEBUG.log('EXTRACAO', 'Qtd/Un extraída (recheio)', { qtd, unidade, match: full });
           return { quantidade: qtd, unidade, match: full };
         }
         
@@ -10118,11 +10097,13 @@ void 0;
           // Se ficou sem unidade, usar 'un'
           if (!unidade) unidade = 'un';
           
+          OCR_DEBUG.log('EXTRACAO', 'Qtd/Un extraída', { qtd, unidade, match: full });
           return { quantidade: qtd, unidade, match: full };
         }
       }
     }
     
+    OCR_DEBUG.log('EXTRACAO', 'Nenhuma qtd/un encontrada', null);
     return { quantidade: null, unidade: null, match: '' };
   };
   
@@ -10132,17 +10113,20 @@ void 0;
     if (match) {
       const last = match[match.length - 1];
       const valor = parseFloat(last.replace(/[^\d.,]/g, '').replace(',', '.'));
+      OCR_DEBUG.log('EXTRACAO', 'Preço extraído', { valor, match: last });
       return { valor, match: last };
     }
+    OCR_DEBUG.log('EXTRACAO', 'Nenhum preço encontrado', null);
     return { valor: null, match: '' };
   };
   
   // Parse linha
   const parseLinha = (linha) => {
-    // Sem log aqui - muito verbose
+    OCR_DEBUG.log('PARSE', '>>> Iniciando parse', { linha });
     
     // 1. CORRIGIR erros de OCR PRIMEIRO
     let linhaCorrigida = corrigirErrosOCR(linha);
+    OCR_DEBUG.log('PARSE', 'Após correção OCR', { linhaCorrigida });
     
     // 2. LIMPAR linha
     let linhaLimpa = linhaCorrigida.trim();
@@ -10151,6 +10135,7 @@ void 0;
     // Ex: "125019.1 AROMA VAHINE..." → "AROMA VAHINE..."
     const codigoMatch = linhaLimpa.match(/^\d{6}\.\d+/);
     if (codigoMatch) {
+      OCR_DEBUG.log('PARSE', 'Código produto removido', { codigo: codigoMatch[0] });
       linhaLimpa = linhaLimpa.replace(/^\d{6}\.\d+\s+/, '');
     }
     
@@ -10168,22 +10153,18 @@ void 0;
       .replace(/\s+/g, ' ')  // Espaços múltiplos
       .replace(/^[\d\s,\.]+/, '')  // Números/símbolos no início
       .replace(/[*]+/g, '')  // Asteriscos
-      .replace(/\d{6}\.\d+/g, '')  // NOVO: Remover códigos de produto que ainda apareçam (6 dígitos + ponto)
       .replace(/\s+[Ajl]\s*$/, '')  // Remove A, j, l no final
-      .replace(/\s+(TN|PA|UN|UNI|EMB|CX|GR|ML|KG|LT)\s*$/i, '')  // Remove siglas no final (EXPANDIDO)
+      .replace(/\s+(TN|PA|UN|UNI|EMB|CX)\s*$/i, '')  // Remove siglas no final
       .replace(/[\d\s,\.€]+$/, '')  // Remove números/preços no final
-      .replace(/\s+R\s*$/, '')  // NOVO: Remove "R" sozinho no final (resíduo de "GR")
-      .replace(/\s+/g, ' ')  // Limpar espaços duplicados novamente
       .trim();
     
-    // Sem log aqui - muito verbose
+    OCR_DEBUG.log('PARSE', 'Nome produto extraído', { nomeProduto });
     
     // 7. Validar se nome é válido (mínimo 2 caracteres alfabéticos)
     const temLetras = /[a-zA-ZÀ-ÿ]{2,}/.test(nomeProduto);
     
-    // SIMPLIFICADO: Só rejeitar se muito curto ou sem letras
-    if (!nomeProduto || nomeProduto.length < 3 || !temLetras) {
-      // Log só se OCR_DEBUG enabled
+    if (!nomeProduto || nomeProduto.length < 2 || !temLetras) {
+      OCR_DEBUG.log('PARSE', '✗ INVÁLIDO - nome muito curto ou sem letras', { nomeProduto });
       return {
         textoOriginal: linha,
         nomeProduto: null, // INVÁLIDO
@@ -10194,7 +10175,13 @@ void 0;
       };
     }
     
-    // Parse completo - sem log (verbose)
+    OCR_DEBUG.log('PARSE', '✓ Parse completo', {
+      nome: nomeProduto,
+      qtd: qtdUnidade.quantidade,
+      unidade: qtdUnidade.unidade,
+      preco: preco.valor
+    });
+    
     return {
       textoOriginal: linha,
       textoCorrigido: linhaCorrigida,
@@ -10211,7 +10198,10 @@ void 0;
   // Parse produtos
   const parseLinhasProdutos = (texto, nifFornecedor = null) => {
     OCR_DEBUG.clear(); // Limpar logs anteriores
-    OCR_DEBUG.log('INICIO', `Processando ${texto.length} caracteres`, null);
+    OCR_DEBUG.log('INICIO', '=== INICIANDO PROCESSAMENTO OCR ===', {
+      tamanhoTexto: texto.length,
+      nifFornecedor
+    });
     
     // 🚫 CORRIGIDO: Carregar blacklist do fornecedor (se existir)
     let blacklist = [];
@@ -10219,18 +10209,22 @@ void 0;
       const template = buscarTemplateOCR(nifFornecedor);
       if (template && template.blacklist) {
         blacklist = template.blacklist;
-        console.log('🔍 [BLACKLIST] Carregada:', blacklist.length, 'palavras', blacklist);
+        OCR_DEBUG.log('BLACKLIST', `${blacklist.length} palavras carregadas`, { blacklist });
       }
     }
     
     // 1. LIMPAR texto completo ANTES de split
     const textoLimpo = cleanOCRText(texto);
+    OCR_DEBUG.log('LIMPEZA', 'Texto limpo completo', {
+      linhasOriginais: texto.split('\n').length,
+      linhasLimpas: textoLimpo.split('\n').length
+    });
     
     // 2. Split em linhas
     let linhas = textoLimpo.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    OCR_DEBUG.log('SPLIT', `${linhas.length} linhas após split`, null);
     
     // 3. NOVO: Separar produtos colados na mesma linha usando a nova função
-    console.log(`🔍 [SEPARACAO] Iniciando separação de ${linhas.length} linhas`);
     const linhasSeparadas = [];
     for (const linha of linhas) {
       const produtos = separarProdutosColados(linha);
@@ -10238,11 +10232,7 @@ void 0;
     }
     
     linhas = linhasSeparadas;
-    console.log(`🔍 [SEPARACAO] Total após separação: ${linhas.length} linhas (eram ${linhas.length - linhasSeparadas.length + textoLimpo.split('\n').filter(l => l.trim()).length})`);
-    OCR_DEBUG.log('SEPARACAO', `Total após separação: ${linhas.length} linhas`, {
-      original: linhas.length - (linhasSeparadas.length - textoLimpo.split('\n').filter(l => l.trim()).length),
-      separadas: linhas.length
-    });
+    OCR_DEBUG.log('SEPARACAO', `${linhas.length} linhas após separação`, null);
     
     // 4. Processar cada linha
     const linhasProdutos = [];
@@ -10261,15 +10251,14 @@ void 0;
         const temPalavraBlacklist = blacklist.some(palavra => linhaLower.includes(palavra));
         
         if (temPalavraBlacklist) {
+          OCR_DEBUG.log('BLACKLIST', 'Linha rejeitada por blacklist', { linha });
           stats.blacklist++;
-          console.log(`🔍 [BLACKLIST] Linha bloqueada #${stats.blacklist}:`, linha);
           continue;
         }
       }
       
       if (shouldIgnoreLine(linha)) {
         stats.ignoradas++;
-        console.log(`🔍 [FILTRO] Linha ignorada #${stats.ignoradas}:`, linha);
         continue;
       }
       
@@ -10280,37 +10269,17 @@ void 0;
         stats.validas++;
       } else {
         stats.semNome++;
-        console.log(`🔍 [PARSE] Linha SEM NOME #${stats.semNome}:`, linha, parsed);
+        OCR_DEBUG.log('PARSE', 'Linha sem nome válido', { linha, parsed });
       }
     }
     
     // 5. Resumo final
-    const produtosNomes = linhasProdutos.map(p => p.nomeProduto);
-    
-    console.log(`🔍 [PARSE FINAL] ${linhasProdutos.length} produtos válidos detectados`);
-    console.log('🔍 [PARSE FINAL] Lista:', produtosNomes);
-    
     OCR_DEBUG.log('RESUMO', '=== PROCESSAMENTO CONCLUÍDO ===', {
       stats,
-      produtosDetectados: linhasProdutos.length,
-      produtos: produtosNomes
+      produtosDetectados: linhasProdutos.length
     });
     
-    // Log limpo no console
-    console.log('\n' + '='.repeat(60));
-    console.log('🎯 PRODUTOS DETECTADOS:', linhasProdutos.length);
-    console.log('='.repeat(60));
-    produtosNomes.forEach((nome, idx) => {
-      console.log(`${idx + 1}. ${nome}`);
-    });
-    console.log('='.repeat(60));
-    console.log('📊 Estatísticas:');
-    console.log(`   Total linhas: ${stats.total}`);
-    console.log(`   Ignoradas: ${stats.ignoradas}`);
-    console.log(`   Sem nome: ${stats.semNome}`);
-    console.log(`   Blacklist: ${stats.blacklist}`);
-    console.log(`   ✅ Válidas: ${stats.validas}`);
-    console.log('='.repeat(60) + '\n');
+    OCR_DEBUG.showSummary();
     
     // 6. Guardar logs no window para análise
     window.lastOCRLogs = OCR_DEBUG.logs;
@@ -10451,14 +10420,12 @@ void 0;
   };
   
   const matchIngredientes = (linhas, ingredientes) => {
-    console.log('🔍 [MATCH] Recebeu', linhas.length, 'produtos para fazer match');
+    void 0;
     setProgressoOCR('Relacionando...');
-    const resultado = linhas.map(linha => ({
+    return linhas.map(linha => ({
       ...linha,
       ingredienteSugerido: findBestMatch(linha.nomeProduto, ingredientes)
     }));
-    console.log('🔍 [MATCH] Retornou', resultado.length, 'produtos após match');
-    return resultado;
   };
   
   const calculateMatchingStats = (linhas) => {
