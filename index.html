@@ -5360,31 +5360,45 @@ void 0;
     console.log(`🔍 [TEMPLATE] ${linhas.length} linhas após separação de produtos colados`);
     
     // 🆕 3. DETECTAR FIM DINÂMICO - procurar marcadores de fim no texto
+    // PROCURAR DO FIM PARA O INÍCIO para encontrar o ÚLTIMO marcador
     const marcadoresFim = [
       /^IVA\s+Incidências/i,
       /^Produto\s+proveniente/i,
       /^Total\s+Volumes/i,
       /^AS\s+MERCADORIAS/i,
-      /^Data:\s*$/i,
-      /^Assinatura:\s*$/i,
-      /^Obs:\s*$/i,
-      /^Totais\s*$/i
+      /^Totais\s*$/i,
+      /^TRANSPORTE\s*$/i,
+      /^Imposto\s*$/i
     ];
     
-    let linhaFimDinamico = linhas.length;
+    // 🆕 PROCURAR MARCADORES DE FIM - mas DEPOIS do último produto com código
+    let ultimaLinhaComCodigo = 0;
     for (let i = 0; i < linhas.length; i++) {
+      if (/\d{6}\.\d+/.test(linhas[i])) {
+        ultimaLinhaComCodigo = i;
+      }
+    }
+    
+    // O fim é DEPOIS da última linha com código de produto
+    let linhaFimDinamico = ultimaLinhaComCodigo + 1;
+    
+    // Mas também verificar se há marcadores de fim DEPOIS
+    for (let i = ultimaLinhaComCodigo + 1; i < linhas.length; i++) {
       if (marcadoresFim.some(m => m.test(linhas[i]))) {
         linhaFimDinamico = i;
-        console.log(`🔍 [TEMPLATE] Fim dinâmico detectado na linha ${i}: "${linhas[i]}"`);
+        console.log(`🔍 [TEMPLATE] Marcador de fim encontrado na linha ${i}: "${linhas[i]}"`);
         break;
       }
     }
     
-    // 4. Aplicar range - usar o MAIOR entre template.linhaFim e detecção dinâmica
+    // 4. Aplicar range - IGNORAR template.linhaFim, usar apenas dinâmico
     const start = Math.max(0, template.linhaInicio || 0);
-    // 🆕 NÃO limitar pelo template.linhaFim se o dinâmico for maior
-    const end = Math.max(template.linhaFim || linhas.length, linhaFimDinamico);
-    console.log(`🔍 [TEMPLATE] Range: ${start} a ${end} (template: ${template.linhaFim}, dinâmico: ${linhaFimDinamico}, total: ${linhas.length})`);
+    // 🆕 SEMPRE usar o fim dinâmico (última linha com código + 1 ou marcador)
+    const end = Math.min(linhas.length, linhaFimDinamico + 5); // +5 margem de segurança
+    
+    console.log(`🔍 [TEMPLATE] Range: ${start} a ${end}`);
+    console.log(`🔍 [TEMPLATE] Última linha com código: ${ultimaLinhaComCodigo} ("${linhas[ultimaLinhaComCodigo]?.substring(0, 50)}...")`);
+    console.log(`🔍 [TEMPLATE] (template.linhaFim ignorado: ${template.linhaFim})`);
     
     const blacklist = template.blacklist || [];
     
@@ -5414,6 +5428,12 @@ void 0;
     }
     
     console.log(`🔍 [TEMPLATE] ${linhasProdutos.length} produtos detectados (${linhasIgnoradasBlacklist} ignorados por blacklist)`);
+    
+    // 🆕 DEBUG: Listar últimos 5 produtos
+    console.log('🔍 [TEMPLATE] Últimos 5 produtos:');
+    linhasProdutos.slice(-5).forEach((p, i) => {
+      console.log(`   ${linhasProdutos.length - 4 + i}. ${p.nomeProduto}`);
+    });
     
     return linhasProdutos;
   };
