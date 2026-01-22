@@ -9981,14 +9981,33 @@ void 0;
       { pattern: /^(nif|nipc|vat|contribuinte|tax id)[\s:]/i, motivo: 'nif' },
       { pattern: /^(data|date)[\s:]/i, motivo: 'data' },
       
-      // Empresa info
-      { pattern: /(lda|limitada|s\.a\.|unipessoal|ltda|sa\s)/i, motivo: 'empresa' },
+      // NOVO: Nomes de empresas e headers comerciais
+      { pattern: /^(recheio|osco|cash|carry|boost)$/i, motivo: 'header-empresa' },
+      
+      // NOVO: Campos de tabela e cabeçalhos
+      { pattern: /^(cód|codigo|artigo|descrição|local|documento|original|pag|página)[\s\.:]/i, motivo: 'header-tabela' },
+      { pattern: /^(qt\.total|preço\s+uni|valor\s+mercadoria|vol\.|contribuinte)$/i, motivo: 'header-campo' },
+      
+      // NOVO: Frases comerciais e lixo
+      { pattern: /^(loja\s+de|operador|códigos?\s+internos|zona|cliente|carga|vended)/i, motivo: 'frase-comercial' },
+      { pattern: /^(pt|g|ce|locals|kora)$/i, motivo: 'sigla-isolada' },
+      { pattern: /^(horta|vale|sebastiao|lagos|bensafrim|postal)/i, motivo: 'localidade' },
+      { pattern: /\bmercadorias\s+viajam\b/i, motivo: 'clausula-comercial' },
+      { pattern: /^[A-Z]{2,}\s+[A-Z]{2,}\s+[A-Z]{1}\s+[A-Z]{1}\s+[A-Z]{2,}/i, motivo: 'nome-proprio' }, // CATIA ALEXANDRA M C SANTOS
+      { pattern: /zona.*cliente.*vended/i, motivo: 'info-zona' }, // Zona : 099 - Cliente: 7.431...
+      
+      // Empresa info - CORRIGIDO: usar word boundaries para não filtrar "MASSA", "SALOIO"
+      { pattern: /\b(lda|limitada|s\.a\.|unipessoal|ltda)\b/i, motivo: 'empresa' },
+      { pattern: /\bsa\s+(Cash|Carrier|Unipessoal)/i, motivo: 'empresa-sa' }, // SA só se seguido de nome de empresa
       { pattern: /^(rua|avenida|av\.|praça|largo|estrada|morada|address)/i, motivo: 'morada' },
       { pattern: /^\d{4}-\d{3}\s/i, motivo: 'codigo-postal' },
       { pattern: /(email|e-mail|tel|telefone|phone|fax|telef|www\.)[\s:]/i, motivo: 'contacto' },
       
       // Footer info
       { pattern: /^(total|subtotal|sub-total)[\s:]/i, motivo: 'total' },
+      { pattern: /^(iva|vat|tax|imposto)$/i, motivo: 'iva' }, // NOVO: filtrar IVA sozinho
+      { pattern: /^(totais|incidências|imposto|transporte|assinatura|obs)$/i, motivo: 'footer-palavra' }, // NOVO
+      { pattern: /^(peso\s+total|total\s+volumes|data|hora|kora)[\s:]/i, motivo: 'footer-campo' }, // NOVO
       { pattern: /^(método|metodo|forma|pagamento|payment)/i, motivo: 'pagamento' },
       { pattern: /(iban|nib|swift|bic)[\s:]/i, motivo: 'iban' },
       { pattern: /^(referência|reference|ref)[\s:]/i, motivo: 'referencia' },
@@ -10155,9 +10174,12 @@ void 0;
       .replace(/\s+/g, ' ')  // Espaços múltiplos
       .replace(/^[\d\s,\.]+/, '')  // Números/símbolos no início
       .replace(/[*]+/g, '')  // Asteriscos
+      .replace(/\d{6}\.\d+/g, '')  // NOVO: Remover códigos de produto que ainda apareçam (6 dígitos + ponto)
       .replace(/\s+[Ajl]\s*$/, '')  // Remove A, j, l no final
-      .replace(/\s+(TN|PA|UN|UNI|EMB|CX)\s*$/i, '')  // Remove siglas no final
+      .replace(/\s+(TN|PA|UN|UNI|EMB|CX|GR|ML|KG|LT)\s*$/i, '')  // Remove siglas no final (EXPANDIDO)
       .replace(/[\d\s,\.€]+$/, '')  // Remove números/preços no final
+      .replace(/\s+R\s*$/, '')  // NOVO: Remove "R" sozinho no final (resíduo de "GR")
+      .replace(/\s+/g, ' ')  // Limpar espaços duplicados novamente
       .trim();
     
     OCR_DEBUG.log('PARSE', 'Nome produto extraído', { nomeProduto });
@@ -10165,8 +10187,15 @@ void 0;
     // 7. Validar se nome é válido (mínimo 2 caracteres alfabéticos)
     const temLetras = /[a-zA-ZÀ-ÿ]{2,}/.test(nomeProduto);
     
-    if (!nomeProduto || nomeProduto.length < 2 || !temLetras) {
-      OCR_DEBUG.log('PARSE', '✗ INVÁLIDO - nome muito curto ou sem letras', { nomeProduto });
+    // NOVO: Rejeitar nomes muito genéricos ou que contenham lixo
+    const nomeGenerico = /^(data|pag|obs|pt|iva|imposto|totais|original|boost|recheio|cash|carry|osco)$/i.test(nomeProduto);
+    const temFaturaRecibo = /fatura|recibo|\/vol|telef/i.test(nomeProduto);
+    
+    if (!nomeProduto || nomeProduto.length < 2 || !temLetras || nomeGenerico || temFaturaRecibo) {
+      OCR_DEBUG.log('PARSE', '✗ INVÁLIDO - nome genérico/lixo ou muito curto', { 
+        nomeProduto, 
+        motivo: nomeGenerico ? 'genérico' : temFaturaRecibo ? 'frase-comercial' : !temLetras ? 'sem-letras' : 'muito-curto'
+      });
       return {
         textoOriginal: linha,
         nomeProduto: null, // INVÁLIDO
