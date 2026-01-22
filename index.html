@@ -5355,7 +5355,18 @@ void 0;
     if (!template) return parseLinhasProdutos(texto, template?.nifFornecedor); // 🚫 CORRIGIDO: Passar NIF mesmo sem template
     
     void 0;
-    const linhas = texto.split('\n').map(l => l.trim());
+    let linhas = texto.split('\n').map(l => l.trim());
+    
+    // 🆕 CORRIGIDO: Separar produtos colados ANTES de processar!
+    console.log(`🔍 [TEMPLATE+SEPARACAO] Iniciando separação de ${linhas.length} linhas`);
+    const linhasSeparadas = [];
+    for (const linha of linhas) {
+      const produtos = separarProdutosColados(linha);
+      linhasSeparadas.push(...produtos);
+    }
+    linhas = linhasSeparadas;
+    console.log(`🔍 [TEMPLATE+SEPARACAO] Após separação: ${linhas.length} linhas`);
+    
     const start = Math.max(0, template.linhaInicio);
     const end = Math.min(linhas.length, template.linhaFim);
     const blacklist = template.blacklist || [];
@@ -5384,6 +5395,15 @@ void 0;
       const parsed = parseLinha(linha);
       if (parsed && parsed.nomeProduto) linhasProdutos.push(parsed);
     }
+    
+    // LOG FINAL (como parseLinhasProdutos)
+    console.log('\n' + '='.repeat(60));
+    console.log('🎯 PRODUTOS DETECTADOS (TEMPLATE):', linhasProdutos.length);
+    console.log('='.repeat(60));
+    linhasProdutos.forEach((p, idx) => {
+      console.log(`${idx + 1}. ${p.nomeProduto}`);
+    });
+    console.log('='.repeat(60) + '\n');
     
     void 0;
     if (linhasIgnoradasBlacklist > 0) {
@@ -9814,6 +9834,7 @@ void 0;
     const codigos = linha.match(/\d{6}\.\d+/g);
     
     if (codigos && codigos.length > 1) {
+      console.log(`🔍 [SEPARACAO] ${codigos.length} códigos detectados na linha:`, linha.substring(0, 80));
       OCR_DEBUG.log('SEPARACAO', `${codigos.length} códigos detectados`, { codigos });
       
       const produtos = [];
@@ -9836,6 +9857,7 @@ void 0;
         }
       });
       
+      console.log(`🔍 [SEPARACAO] Separados em ${produtos.length} produtos:`, produtos.map(p => p.substring(0, 40)));
       OCR_DEBUG.log('SEPARACAO', `Separados em ${produtos.length} produtos`, { produtos });
       return produtos;
     }
@@ -9845,6 +9867,7 @@ void 0;
     const matches = [...linha.matchAll(padraoItem)];
     
     if (matches && matches.length > 1) {
+      console.log(`🔍 [SEPARACAO] ${matches.length} produtos detectados por padrão qtd+preço`);
       OCR_DEBUG.log('SEPARACAO', `${matches.length} produtos por padrão qtd+preço`, { matches: matches.map(m => m[0]) });
       return matches.map(m => m[0]);
     }
@@ -10207,6 +10230,7 @@ void 0;
     let linhas = textoLimpo.split('\n').map(l => l.trim()).filter(l => l.length > 0);
     
     // 3. NOVO: Separar produtos colados na mesma linha usando a nova função
+    console.log(`🔍 [SEPARACAO] Iniciando separação de ${linhas.length} linhas`);
     const linhasSeparadas = [];
     for (const linha of linhas) {
       const produtos = separarProdutosColados(linha);
@@ -10214,6 +10238,7 @@ void 0;
     }
     
     linhas = linhasSeparadas;
+    console.log(`🔍 [SEPARACAO] Total após separação: ${linhas.length} linhas (eram ${linhas.length - linhasSeparadas.length + textoLimpo.split('\n').filter(l => l.trim()).length})`);
     OCR_DEBUG.log('SEPARACAO', `Total após separação: ${linhas.length} linhas`, {
       original: linhas.length - (linhasSeparadas.length - textoLimpo.split('\n').filter(l => l.trim()).length),
       separadas: linhas.length
