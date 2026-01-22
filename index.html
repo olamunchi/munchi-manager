@@ -9773,11 +9773,16 @@ void 0;
     // 2. Remover "* CARRO No." que aparece em Recheio
     cleaned = cleaned.replace(/\*\s*CARRO\s+No\.\s*\d*/gi, '');
     
-    // 3. Remover frases padrão OCR ruins (footer)
-    cleaned = cleaned.replace(/Produto proveniente de.*$/gm, '');
-    cleaned = cleaned.replace(/No\. de registo.*$/gm, '');
-    cleaned = cleaned.replace(/Valido como recibo.*$/gm, '');
-    cleaned = cleaned.replace(/eGGF-Processado por programa.*$/gm, '');
+    // 3. Remover frases padrão OCR ruins (footer) - SÓ LINHAS COMPLETAS
+    // Usar ^ para garantir que só remove se a linha COMEÇA com esse texto
+    cleaned = cleaned.replace(/^Produto proveniente de.*$/gm, '');
+    cleaned = cleaned.replace(/^No\. de registo.*$/gm, '');
+    cleaned = cleaned.replace(/^Valido como recibo.*$/gm, '');
+    cleaned = cleaned.replace(/^eGGF-Processado por programa.*$/gm, '');
+    cleaned = cleaned.replace(/^GMM-Processado por programa.*$/gm, '');
+    cleaned = cleaned.replace(/^AS MERCADORIAS VIAJAM.*$/gm, '');
+    cleaned = cleaned.replace(/^IVA\s+Incidências.*$/gm, '');
+    cleaned = cleaned.replace(/^Total Volumes.*$/gm, '');
     
     // 4. Limpar caracteres repetidos sem sentido (ão ão ão → ão)
     // MAS só se forem palavras CURTAS repetidas 3+ vezes
@@ -9801,37 +9806,66 @@ void 0;
    * NOVA FUNÇÃO: Separar produtos que estão colados na mesma linha
    * Mesmo SEM códigos de produto, tenta separar por padrões
    */
+  /**
+   * NOVA FUNÇÃO: Separar produtos que estão colados na mesma linha
+   * Mesmo SEM códigos de produto, tenta separar por padrões
+   */
   const separarProdutosColados = (linha) => {
-    OCR_DEBUG.log('SEPARACAO', 'Analisando linha', { linha });
+    // Ignorar linhas muito curtas
+    if (!linha || linha.length < 15) {
+      OCR_DEBUG.log('SEPARACAO', 'Linha muito curta', { linha });
+      return [linha];
+    }
     
-    // MÉTODO 1: Por códigos de produto (6 dígitos + ponto)
+    // MÉTODO 1: Por códigos de produto (6 dígitos + ponto + dígito(s))
+    // Padrão Recheio: 118971.1, 141407.1, 170245.0, 262503.0, etc.
     const codigos = linha.match(/\d{6}\.\d+/g);
     
+    // DEBUG: Sempre logar o que encontrou
+    console.log(`🔍 [SEPARACAO] Linha: "${linha.substring(0, 60)}..." | Códigos: ${codigos ? codigos.join(', ') : 'nenhum'}`);
+    
     if (codigos && codigos.length > 1) {
-      OCR_DEBUG.log('SEPARACAO', `${codigos.length} códigos detectados`, { codigos });
+      console.log(`🔍 [SEPARACAO] ✅ SEPARANDO ${codigos.length} produtos!`);
+      OCR_DEBUG.log('SEPARACAO', `${codigos.length} códigos detectados - SEPARANDO`, { codigos, linha: linha.substring(0, 80) });
       
       const produtos = [];
-      let resto = linha;
+      let textoRestante = linha;
       
-      codigos.forEach((codigo, idx) => {
-        const pos = resto.indexOf(codigo);
-        if (pos === -1) return;
+      for (let i = 0; i < codigos.length; i++) {
+        const codigoAtual = codigos[i];
+        const proximoCodigo = codigos[i + 1];
         
-        const proximoCodigo = codigos[idx + 1];
+        const posAtual = textoRestante.indexOf(codigoAtual);
+        if (posAtual === -1) {
+          console.log(`🔍 [SEPARACAO] ⚠️ Código ${codigoAtual} não encontrado no texto restante`);
+          continue;
+        }
         
         if (proximoCodigo) {
-          const proxPos = resto.indexOf(proximoCodigo);
-          const fragmento = resto.substring(pos, proxPos).trim();
-          produtos.push(fragmento);
-          resto = resto.substring(proxPos);
+          // Há mais um código depois - cortar até ele
+          const posProximo = textoRestante.indexOf(proximoCodigo);
+          if (posProximo > posAtual) {
+            const fragmento = textoRestante.substring(posAtual, posProximo).trim();
+            if (fragmento.length > 5) {
+              produtos.push(fragmento);
+              console.log(`🔍 [SEPARACAO] Produto ${i+1}: "${fragmento.substring(0, 50)}..."`);
+            }
+            textoRestante = textoRestante.substring(posProximo);
+          }
         } else {
-          const fragmento = resto.substring(pos).trim();
-          produtos.push(fragmento);
+          // É o último código - pegar até ao fim
+          const fragmento = textoRestante.substring(posAtual).trim();
+          if (fragmento.length > 5) {
+            produtos.push(fragmento);
+            console.log(`🔍 [SEPARACAO] Produto ${i+1} (último): "${fragmento.substring(0, 50)}..."`);
+          }
         }
-      });
+      }
       
-      OCR_DEBUG.log('SEPARACAO', `Separados em ${produtos.length} produtos`, { produtos });
-      return produtos;
+      console.log(`🔍 [SEPARACAO] ✅ Resultado: ${produtos.length} produtos separados`);
+      OCR_DEBUG.log('SEPARACAO', `Separados em ${produtos.length} produtos`, { produtos: produtos.map(p => p.substring(0, 40)) });
+      
+      return produtos.length > 0 ? produtos : [linha];
     }
     
     // MÉTODO 2: Por padrões de quantidade/preço (fallback)
@@ -9839,12 +9873,13 @@ void 0;
     const matches = [...linha.matchAll(padraoItem)];
     
     if (matches && matches.length > 1) {
+      console.log(`🔍 [SEPARACAO] ${matches.length} produtos por padrão qtd+preço`);
       OCR_DEBUG.log('SEPARACAO', `${matches.length} produtos por padrão qtd+preço`, { matches: matches.map(m => m[0]) });
       return matches.map(m => m[0]);
     }
     
-    // Se não conseguiu separar, retorna linha original
-    OCR_DEBUG.log('SEPARACAO', 'Nenhuma separação necessária', null);
+    // Não conseguiu separar
+    OCR_DEBUG.log('SEPARACAO', 'Nenhuma separação necessária', { codigos: codigos ? codigos.length : 0 });
     return [linha];
   };
   
@@ -10203,6 +10238,15 @@ void 0;
       nifFornecedor
     });
     
+    // 🆕 DEBUG: Mostrar texto completo recebido
+    console.log('='.repeat(80));
+    console.log('🔍 [OCR DEBUG] TEXTO COMPLETO RECEBIDO:');
+    console.log('='.repeat(80));
+    console.log(texto);
+    console.log('='.repeat(80));
+    console.log(`🔍 [OCR DEBUG] Total: ${texto.length} caracteres, ${texto.split('\n').length} linhas`);
+    console.log('='.repeat(80));
+    
     // 🚫 CORRIGIDO: Carregar blacklist do fornecedor (se existir)
     let blacklist = [];
     if (nifFornecedor) {
@@ -10224,7 +10268,17 @@ void 0;
     let linhas = textoLimpo.split('\n').map(l => l.trim()).filter(l => l.length > 0);
     OCR_DEBUG.log('SPLIT', `${linhas.length} linhas após split`, null);
     
+    // 🆕 DEBUG: Mostrar linhas que contêm códigos de produto
+    console.log('🔍 [OCR DEBUG] Linhas com códigos de produto (6 dígitos):');
+    linhas.forEach((l, i) => {
+      const codigos = l.match(/\d{6}\.\d+/g);
+      if (codigos && codigos.length > 0) {
+        console.log(`  Linha ${i}: [${codigos.length} códigos] ${l.substring(0, 80)}...`);
+      }
+    });
+    
     // 3. NOVO: Separar produtos colados na mesma linha usando a nova função
+    console.log('🔍 [OCR DEBUG] Iniciando separação de produtos colados...');
     const linhasSeparadas = [];
     for (const linha of linhas) {
       const produtos = separarProdutosColados(linha);
@@ -10232,6 +10286,7 @@ void 0;
     }
     
     linhas = linhasSeparadas;
+    console.log(`🔍 [OCR DEBUG] Após separação: ${linhas.length} linhas (eram ${textoLimpo.split('\n').filter(l => l.trim()).length})`);
     OCR_DEBUG.log('SEPARACAO', `${linhas.length} linhas após separação`, null);
     
     // 4. Processar cada linha
