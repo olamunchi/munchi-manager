@@ -10196,6 +10196,7 @@ void 0;
       const template = buscarTemplateOCR(nifFornecedor);
       if (template && template.blacklist) {
         blacklist = template.blacklist;
+        console.log('🔍 [BLACKLIST] Carregada:', blacklist.length, 'palavras', blacklist);
       }
     }
     
@@ -10236,12 +10237,14 @@ void 0;
         
         if (temPalavraBlacklist) {
           stats.blacklist++;
+          console.log(`🔍 [BLACKLIST] Linha bloqueada #${stats.blacklist}:`, linha);
           continue;
         }
       }
       
       if (shouldIgnoreLine(linha)) {
         stats.ignoradas++;
+        console.log(`🔍 [FILTRO] Linha ignorada #${stats.ignoradas}:`, linha);
         continue;
       }
       
@@ -10252,11 +10255,15 @@ void 0;
         stats.validas++;
       } else {
         stats.semNome++;
+        console.log(`🔍 [PARSE] Linha SEM NOME #${stats.semNome}:`, linha, parsed);
       }
     }
     
     // 5. Resumo final
     const produtosNomes = linhasProdutos.map(p => p.nomeProduto);
+    
+    console.log(`🔍 [PARSE FINAL] ${linhasProdutos.length} produtos válidos detectados`);
+    console.log('🔍 [PARSE FINAL] Lista:', produtosNomes);
     
     OCR_DEBUG.log('RESUMO', '=== PROCESSAMENTO CONCLUÍDO ===', {
       stats,
