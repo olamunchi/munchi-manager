@@ -1356,6 +1356,10 @@ const Tooltip = ({ children, text, position = 'top' }) => {
 
 // ===== MODAL CONFIRMAÇÃO OCR =====
 const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCancelar, fornecedores }) => {
+  // DEBUG: Ver quantas linhas chegam
+  console.log('🔍 [MODAL] Linhas recebidas:', linhas.length);
+  console.log('🔍 [MODAL] Produtos:', linhas.map((l, i) => `${i+1}. ${l.nomeProduto}`));
+  
   const [linhasEditadas, setLinhasEditadas] = useState(linhas);
   const [stats, setStats] = useState(null);
   const [ingredientesLocais, setIngredientesLocais] = useState(ingredientes); // Lista local que pode crescer
@@ -1700,8 +1704,9 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
                 return (
                   <tr key={index} className="hover:bg-gray-50">
                     <td className="border p-2 text-sm">
-                      <div className="font-mono text-xs text-gray-600 mb-1">{linha.textoOriginal}</div>
+                      {/* CORRIGIDO: Mostrar nomeProduto em vez de textoOriginal */}
                       <div className="text-sm font-semibold">{linha.nomeProduto}</div>
+                      <div className="font-mono text-xs text-gray-500 mt-1">{linha.textoLimpo || linha.textoOriginal}</div>
                     </td>
                     
                     {/* 🆕 Só mostrar colunas de ingrediente se categoria = compras */}
@@ -4008,12 +4013,14 @@ const RestauranteGestor = () => {
         ? parseComTemplate(metadataOCR.textoCompleto, template)
         : parseLinhasProdutos(metadataOCR.textoCompleto, nifConfirmado);
       
-      void 0;
+      console.log('🔍 [REPARSE] Produtos após parseLinhasProdutos:', linhasReparsed.length);
       
       // Fazer matching dos ingredientes COM sistema de aprendizagem
       const linhasComMatch = linhasReparsed.length > 0 
         ? matchIngredientes(linhasReparsed, ingredientes)
         : [];
+      
+      console.log('🔍 [MATCH] Produtos após matchIngredientes:', linhasComMatch.length);
       
       // 🧠 Aplicar sistema de aprendizagem IMEDIATAMENTE
       const linhasComAprendizagem = linhasComMatch.map(linha => {
@@ -4059,6 +4066,9 @@ const RestauranteGestor = () => {
         
         return linha;
       });
+      
+      console.log('🔍 [APRENDIZAGEM] Produtos após aplicar aprendizagem:', linhasComAprendizagem.length);
+      console.log('🔍 [APRENDIZAGEM] Lista:', linhasComAprendizagem.map((l, i) => `${i+1}. ${l.nomeProduto}`));
       
       // Atualizar linhas com blacklist aplicada E aprendizagem
       setLinhasOCR(linhasComAprendizagem);
@@ -10409,12 +10419,14 @@ void 0;
   };
   
   const matchIngredientes = (linhas, ingredientes) => {
-    void 0;
+    console.log('🔍 [MATCH] Recebeu', linhas.length, 'produtos para fazer match');
     setProgressoOCR('Relacionando...');
-    return linhas.map(linha => ({
+    const resultado = linhas.map(linha => ({
       ...linha,
       ingredienteSugerido: findBestMatch(linha.nomeProduto, ingredientes)
     }));
+    console.log('🔍 [MATCH] Retornou', resultado.length, 'produtos após match');
+    return resultado;
   };
   
   const calculateMatchingStats = (linhas) => {
