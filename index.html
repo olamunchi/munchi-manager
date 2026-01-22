@@ -5359,10 +5359,32 @@ void 0;
     linhas = linhasSeparadas;
     console.log(`🔍 [TEMPLATE] ${linhas.length} linhas após separação de produtos colados`);
     
-    // 3. Aplicar range do template (com limites seguros)
+    // 🆕 3. DETECTAR FIM DINÂMICO - procurar marcadores de fim no texto
+    const marcadoresFim = [
+      /^IVA\s+Incidências/i,
+      /^Produto\s+proveniente/i,
+      /^Total\s+Volumes/i,
+      /^AS\s+MERCADORIAS/i,
+      /^Data:\s*$/i,
+      /^Assinatura:\s*$/i,
+      /^Obs:\s*$/i,
+      /^Totais\s*$/i
+    ];
+    
+    let linhaFimDinamico = linhas.length;
+    for (let i = 0; i < linhas.length; i++) {
+      if (marcadoresFim.some(m => m.test(linhas[i]))) {
+        linhaFimDinamico = i;
+        console.log(`🔍 [TEMPLATE] Fim dinâmico detectado na linha ${i}: "${linhas[i]}"`);
+        break;
+      }
+    }
+    
+    // 4. Aplicar range - usar o MAIOR entre template.linhaFim e detecção dinâmica
     const start = Math.max(0, template.linhaInicio || 0);
-    const end = Math.min(linhas.length, template.linhaFim || linhas.length);
-    console.log(`🔍 [TEMPLATE] Range: ${start} a ${end}`);
+    // 🆕 NÃO limitar pelo template.linhaFim se o dinâmico for maior
+    const end = Math.max(template.linhaFim || linhas.length, linhaFimDinamico);
+    console.log(`🔍 [TEMPLATE] Range: ${start} a ${end} (template: ${template.linhaFim}, dinâmico: ${linhaFimDinamico}, total: ${linhas.length})`);
     
     const blacklist = template.blacklist || [];
     
