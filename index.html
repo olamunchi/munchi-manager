@@ -5344,14 +5344,30 @@ void 0;
   const parseComTemplate = (texto, template) => {
     if (!template) return parseLinhasProdutos(texto, template?.nifFornecedor); // 🚫 CORRIGIDO: Passar NIF mesmo sem template
     
-    void 0;
-    const linhas = texto.split('\n').map(l => l.trim());
-    const start = Math.max(0, template.linhaInicio);
-    const end = Math.min(linhas.length, template.linhaFim);
+    console.log('🔍 [TEMPLATE] Usando parseComTemplate com template:', template.nifFornecedor);
+    
+    // 1. Split inicial
+    let linhas = texto.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    console.log(`🔍 [TEMPLATE] ${linhas.length} linhas após split`);
+    
+    // 🆕 2. SEPARAR PRODUTOS COLADOS (como no parseLinhasProdutos)
+    const linhasSeparadas = [];
+    for (const linha of linhas) {
+      const produtos = separarProdutosColados(linha);
+      linhasSeparadas.push(...produtos);
+    }
+    linhas = linhasSeparadas;
+    console.log(`🔍 [TEMPLATE] ${linhas.length} linhas após separação de produtos colados`);
+    
+    // 3. Aplicar range do template (com limites seguros)
+    const start = Math.max(0, template.linhaInicio || 0);
+    const end = Math.min(linhas.length, template.linhaFim || linhas.length);
+    console.log(`🔍 [TEMPLATE] Range: ${start} a ${end}`);
+    
     const blacklist = template.blacklist || [];
     
     if (blacklist.length > 0) {
-      void 0;
+      console.log('🔍 [TEMPLATE] Blacklist:', blacklist);
     }
     
     const linhasProdutos = [];
@@ -5359,13 +5375,13 @@ void 0;
     
     for (let i = start; i < end; i++) {
       const linha = linhas[i];
+      if (!linha) continue;
       
       // Verificar se linha contém palavra da blacklist
       const linhaLower = linha.toLowerCase();
       const temPalavraBlacklist = blacklist.some(palavra => linhaLower.includes(palavra));
       
       if (temPalavraBlacklist) {
-        void 0;
         linhasIgnoradasBlacklist++;
         continue;
       }
@@ -5375,10 +5391,8 @@ void 0;
       if (parsed && parsed.nomeProduto) linhasProdutos.push(parsed);
     }
     
-    void 0;
-    if (linhasIgnoradasBlacklist > 0) {
-      void 0;
-    }
+    console.log(`🔍 [TEMPLATE] ${linhasProdutos.length} produtos detectados (${linhasIgnoradasBlacklist} ignorados por blacklist)`);
+    
     return linhasProdutos;
   };
 
