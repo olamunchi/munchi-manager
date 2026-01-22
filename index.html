@@ -1878,34 +1878,18 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
                         placeholder="--"
                       />
                       
-                      {/* 🆕 SUGESTÃO DE PREÇO DO HISTÓRICO */}
+                      {/* 🆕 SUGESTÃO DE PREÇO ATUAL DO INGREDIENTE */}
                       {linha.precoSugerido && linha.precoSugerido > 0 && (
                         <div className="mt-1 p-2 bg-blue-50 border border-blue-200 rounded text-xs">
                           <div className="flex items-center gap-1 text-blue-700 font-semibold mb-1">
-                            💡 Histórico
+                            💡 Auto-preenchido
                           </div>
                           <div className="text-blue-600">
-                            Última compra: €{linha.precoSugerido.toFixed(2)}/{linha.unidade}
+                            Preço atual: €{linha.precoSugerido.toFixed(2)}/{linha.unidade}
                           </div>
-                          {linha.dataUltimaCompra && (
-                            <div className="text-blue-500 text-xs">
-                              em {new Date(linha.dataUltimaCompra).toLocaleDateString('pt-PT')}
-                            </div>
-                          )}
-                          {linha.estatisticasHistorico && linha.estatisticasHistorico.numeroCompras > 1 && (
-                            <div className="mt-1 text-gray-600">
-                              <div>Média: €{linha.estatisticasHistorico.precoMedio.toFixed(2)}</div>
-                              <div className="text-xs text-gray-500">
-                                {linha.estatisticasHistorico.numeroCompras} compras • 
-                                Variação: {linha.estatisticasHistorico.variacaoPercentual.toFixed(1)}%
-                              </div>
-                            </div>
-                          )}
-                          {linha.preenchidoComHistorico && (
-                            <div className="mt-1 text-green-600 font-semibold text-xs">
-                              ✓ Auto-preenchido
-                            </div>
-                          )}
+                          <div className="text-blue-500 text-xs mt-1">
+                            Unidade da última compra deste fornecedor
+                          </div>
                         </div>
                       )}
                       
@@ -2406,6 +2390,15 @@ const ModalDespesaSimples = ({ dadosDespesa, onConfirmar, onCancelar }) => {
 const ModalConfirmacaoFatura = ({ dadosFatura, onConfirmar, onCancelar, fornecedores = [] }) => {
   const [tipoSelecionado, setTipoSelecionado] = React.useState(dadosFatura.tipo);
   const [categoriaSelecionada, setCategoriaSelecionada] = React.useState(dadosFatura.categoria || 'compras'); // 🆕 CATEGORIA
+  const [dataCorrigida, setDataCorrigida] = React.useState(dadosFatura.data || '');
+  const [mostrarModalNovoFornecedor, setMostrarModalNovoFornecedor] = React.useState(false);
+  const [fornecedoresLocais, setFornecedoresLocais] = React.useState(fornecedores);
+  const [novoFornecedor, setNovoFornecedor] = React.useState({
+    nome: '',
+    nif: dadosFatura.fornecedor?.nif || '',
+    contacto: '',
+    email: ''
+  });
   
   // ✅ MATCH INTELIGENTE: NOME primeiro (mais confiável), depois NIF
   const [fornecedorSelecionado, setFornecedorSelecionado] = React.useState(() => {
@@ -2482,6 +2475,7 @@ const ModalConfirmacaoFatura = ({ dadosFatura, onConfirmar, onCancelar, forneced
       tipo: tipoSelecionado,
       categoria: categoriaSelecionada, // 🆕 PASSAR CATEGORIA
       numero: numeroFatura || dadosFatura.numero,
+      data: dataCorrigida || dadosFatura.data, // 🆕 PASSAR DATA CORRIGIDA
       fornecedor: fornecedorSelecionado ? {
         nome: fornecedorSelecionado.nome,
         nif: fornecedorSelecionado.nif,
@@ -2552,20 +2546,42 @@ const ModalConfirmacaoFatura = ({ dadosFatura, onConfirmar, onCancelar, forneced
                   void 0;
                   void 0;
                   
-                  // ✅ FIX: Comparar como string (e.target.value sempre retorna string)
-                  const forn = fornecedores.find(f => String(f.id) === String(idSelecionado));
-                  void 0;
-                  setFornecedorSelecionado(forn || null);
+                  // ✅ Verificar se é "novo" para abrir modal
+                  if (idSelecionado === 'novo') {
+                    setMostrarModalNovoFornecedor(true);
+                  } else {
+                    // ✅ FIX: Comparar como string (e.target.value sempre retorna string)
+                    const forn = fornecedoresLocais.find(f => String(f.id) === String(idSelecionado));
+                    void 0;
+                    setFornecedorSelecionado(forn || null);
+                  }
                 }}
                 className="w-full p-2 border rounded-lg"
               >
                 <option value="">Desconhecido</option>
-                {fornecedores.map(f => (
+                {fornecedoresLocais.map(f => (
                   <option key={f.id} value={f.id}>
                     {f.nome} {f.nif ? `(NIF: ${f.nif})` : ''}
                   </option>
                 ))}
+                <option value="novo" className="font-bold">➕ Criar Novo</option>
               </select>
+            </div>
+            
+            {/* 🆕 Campo Data Corrigível */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Data da Fatura:
+              </label>
+              <input
+                type="date"
+                value={dataCorrigida}
+                onChange={(e) => setDataCorrigida(e.target.value)}
+                className="w-full p-2 border rounded-lg"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                💡 Detectada: {dadosFatura.data}
+              </p>
             </div>
             
             {/* Campo Número Fatura */}
@@ -2659,6 +2675,109 @@ const ModalConfirmacaoFatura = ({ dadosFatura, onConfirmar, onCancelar, forneced
           </button>
         </div>
       </div>
+      
+      {/* Modal Criar Fornecedor */}
+      {mostrarModalNovoFornecedor && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-[60]">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <h3 className="text-xl font-bold mb-4">➕ Criar Novo Fornecedor</h3>
+            
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-semibold mb-1">Nome *</label>
+                <input
+                  type="text"
+                  value={novoFornecedor.nome}
+                  onChange={(e) => setNovoFornecedor({...novoFornecedor, nome: e.target.value})}
+                  placeholder="Ex: Pingo Doce"
+                  className="w-full px-3 py-2 border rounded"
+                  autoFocus
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-semibold mb-1">NIF</label>
+                <input
+                  type="text"
+                  value={novoFornecedor.nif}
+                  onChange={(e) => setNovoFornecedor({...novoFornecedor, nif: e.target.value})}
+                  placeholder="9 dígitos"
+                  maxLength="9"
+                  className="w-full px-3 py-2 border rounded"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-semibold mb-1">Contacto</label>
+                <input
+                  type="text"
+                  value={novoFornecedor.contacto}
+                  onChange={(e) => setNovoFornecedor({...novoFornecedor, contacto: e.target.value})}
+                  placeholder="Telefone"
+                  className="w-full px-3 py-2 border rounded"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-semibold mb-1">Email</label>
+                <input
+                  type="email"
+                  value={novoFornecedor.email}
+                  onChange={(e) => setNovoFornecedor({...novoFornecedor, email: e.target.value})}
+                  placeholder="email@exemplo.com"
+                  className="w-full px-3 py-2 border rounded"
+                />
+              </div>
+            </div>
+            
+            <div className="flex gap-2 mt-6">
+              <button
+                onClick={() => {
+                  setMostrarModalNovoFornecedor(false);
+                  setNovoFornecedor({ nome: '', nif: dadosFatura.fornecedor?.nif || '', contacto: '', email: '' });
+                }}
+                className="flex-1 px-4 py-2 bg-gray-300 rounded-lg hover:bg-gray-400"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  if (!novoFornecedor.nome.trim()) {
+                    alert('Nome é obrigatório!');
+                    return;
+                  }
+                  
+                  // Criar fornecedor temporário
+                  const novoFornTemp = {
+                    id: 'temp_' + Date.now(),
+                    nome: novoFornecedor.nome.trim(),
+                    nif: novoFornecedor.nif.trim(),
+                    contacto: novoFornecedor.contacto.trim(),
+                    email: novoFornecedor.email.trim()
+                  };
+                  
+                  // Adicionar à lista LOCAL (aparece no dropdown imediatamente)
+                  setFornecedoresLocais([...fornecedoresLocais, novoFornTemp]);
+                  
+                  // Adicionar ao metadata para ser processado depois
+                  if (!window._novosFornecedores) window._novosFornecedores = [];
+                  window._novosFornecedores.push(novoFornTemp);
+                  
+                  // Selecionar o fornecedor recém-criado
+                  setFornecedorSelecionado(novoFornTemp);
+                  
+                  // Fechar modal
+                  setMostrarModalNovoFornecedor(false);
+                  setNovoFornecedor({ nome: '', nif: dadosFatura.fornecedor?.nif || '', contacto: '', email: '' });
+                }}
+                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold"
+              >
+                ✨ Criar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -4458,28 +4577,63 @@ const extrairATCUD = (texto) => {
 const extrairDataFatura = (texto) => {
   if (!texto) return new Date().toISOString().split('T')[0];
   
+  // Patterns melhorados para capturar datas em vários formatos
   const patterns = [
-    /Data\s+de\s+Emissão:\s*(\d{2}-\d{2}-\d{4})/,
-    /Data:\s*(\d{2}-\d{2}-\d{4})/,
-    /(\d{2}-\d{2}-\d{4})/,
-    /(\d{4})-(\d{2})-(\d{2})/,
-    /2026[-\s](\d{2})[-\s](\d{2})/
+    /Data\s+de\s+Emissão:\s*(\d{2})[-\/](\d{2})[-\/](\d{4})/i,
+    /Data:\s*(\d{2})[-\/](\d{2})[-\/](\d{4})/i,
+    /(\d{2})[-\/](\d{2})[-\/](\d{4})/,
+    /(\d{4})[-\/](\d{2})[-\/](\d{2})/
   ];
   
   for (const pattern of patterns) {
     const match = texto.match(pattern);
     if (match) {
-      let dateStr = match[0];
-      // Normalizar para YYYY-MM-DD
-      if (/\d{2}-\d{2}-\d{4}/.test(dateStr)) {
-        const parts = dateStr.split('-');
-        dateStr = `${parts[2]}-${parts[1]}-${parts[0]}`;
+      let year, month, day;
+      
+      // Detectar formato baseado no comprimento do primeiro grupo
+      if (match[1].length === 4) {
+        // Formato YYYY-MM-DD ou YYYY/MM/DD
+        year = match[1];
+        month = match[2];
+        day = match[3];
+      } else {
+        // Formato DD-MM-YYYY ou DD/MM/YYYY (padrão PT)
+        day = match[1];
+        month = match[2];
+        year = match[3];
       }
+      
+      // Validar data
+      const anoAtual = new Date().getFullYear();
+      const monthNum = parseInt(month);
+      const dayNum = parseInt(day);
+      const yearNum = parseInt(year);
+      
+      // Validações críticas
+      if (yearNum < 2020 || yearNum > anoAtual + 1) {
+        continue; // Data inválida (ano fora do range razoável)
+      }
+      
+      if (monthNum < 1 || monthNum > 12 || dayNum < 1 || dayNum > 31) {
+        continue; // Data inválida (mês/dia impossível)
+      }
+      
+      // Verificar se dia e mês não estão trocados (ex: 25/13/2025 -> trocar para 13/25/2025)
+      if (monthNum > 12 && dayNum <= 12) {
+        // Trocar dia e mês
+        const temp = month;
+        month = day;
+        day = temp;
+      }
+      
+      // Retornar em formato ISO (YYYY-MM-DD)
+      const dataFormatada = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
       void 0;
-      return dateStr;
+      return dataFormatada;
     }
   }
   
+  // Se não encontrou data válida, usar data atual
   return new Date().toISOString().split('T')[0];
 };
 
@@ -7715,8 +7869,10 @@ void 0;
       quantidadeBase = quantidade;
     }
     
-    // CALCULAR preço por unidade base
-    const precoPorUnidadeBase = precoTotal / quantidadeBase;
+    // CALCULAR preço por unidade base SEM IVA
+    // O precoTotal INCLUI IVA, então primeiro removemos o IVA
+    const subtotalSemIva = precoTotal / (1 + iva / 100);
+    const precoPorUnidadeBase = subtotalSemIva / quantidadeBase;
     
     void 0;
     
@@ -7809,10 +7965,7 @@ void 0;
         : ing
     ));
     
-    // Calcular subtotal sem IVA (preço já inclui IVA)
-    const subtotalSemIva = precoTotal / (1 + iva / 100);
-    
-    // ADICIONAR item à fatura
+    // ADICIONAR item à fatura (subtotalSemIva já foi calculado acima)
     const novoItem = {
       id: Date.now(),
       ingredienteId: itemFatura.ingredienteId,
@@ -8402,48 +8555,59 @@ void 0;
     }
     
     // Verificar se algum item tem preço muito diferente
+    // IMPORTANTE: Só verificar se o preço do item mudou em relação à fatura original
+    const faturaOriginal = faturas.find(f => f.id === faturaEditando);
+    
     let temAlertaPreco = false;
     for (const item of novaFatura.itens) {
       const ingrediente = ingredientes.find(i => i.id == item.ingredienteId);
       if (ingrediente) {
-        const precoAtual = ingrediente.custoUnitario;
-        const precoNovo = item.precoUnitario;
-        const diferenca = Math.abs(precoNovo - precoAtual);
-        const diferencaPerc = precoAtual > 0 ? (diferenca / precoAtual) * 100 : 0;
+        // Buscar o item original da fatura
+        const itemOriginal = faturaOriginal?.itens.find(i => i.ingredienteId === item.ingredienteId);
         
-        if (diferencaPerc > 5) {
-          // Mostrar alerta para o primeiro item com diferença > 5%
-          const produtosAfetados = produtos.filter(p => 
-            p.receita && p.receita.some(r => r.ingredienteId == item.ingredienteId)
-          ).map(p => {
-            const receitaItem = p.receita.find(r => r.ingredienteId == item.ingredienteId);
-            const custoAntes = receitaItem.quantidade * precoAtual;
-            const custoDepois = receitaItem.quantidade * precoNovo;
-            const margemAntes = p.precoVenda - (p.receita || []).reduce((s, r) => {
-              const ing = ingredientes.find(i => i.id == r.ingredienteId);
-              return s + (r.quantidade * (ing?.custoUnitario || 0));
-            }, 0);
-            const margemDepois = margemAntes - (custoDepois - custoAntes);
-            
-            return {
-              nome: p.nome,
-              margemDif: margemDepois - margemAntes
-            };
-          });
+        // Só mostrar alerta se o item não existia antes OU se o preço unitário mudou
+        const precoMudou = !itemOriginal || Math.abs(item.precoUnitario - itemOriginal.precoUnitario) > 0.001;
+        
+        if (precoMudou) {
+          const precoAtual = ingrediente.custoUnitario;
+          const precoNovo = item.precoUnitario;
+          const diferenca = Math.abs(precoNovo - precoAtual);
+          const diferencaPerc = precoAtual > 0 ? (diferenca / precoAtual) * 100 : 0;
           
-          setPriceAlertData({
-            ingrediente,
-            precoAtual,
-            precoNovo,
-            diferencaPerc,
-            produtosAfetados,
-            faturaData: novaFatura,
-            faturaEditandoId: faturaEditando, // Guardar ID da fatura em edição
-            tipoFatura: 'edicao' // Marcar como edição
-          });
-          setShowPriceAlert(true);
-          temAlertaPreco = true;
-          return; // Não atualiza ainda
+          if (diferencaPerc > 5) {
+            // Mostrar alerta para o primeiro item com diferença > 5%
+            const produtosAfetados = produtos.filter(p => 
+              p.receita && p.receita.some(r => r.ingredienteId == item.ingredienteId)
+            ).map(p => {
+              const receitaItem = p.receita.find(r => r.ingredienteId == item.ingredienteId);
+              const custoAntes = receitaItem.quantidade * precoAtual;
+              const custoDepois = receitaItem.quantidade * precoNovo;
+              const margemAntes = p.precoVenda - (p.receita || []).reduce((s, r) => {
+                const ing = ingredientes.find(i => i.id == r.ingredienteId);
+                return s + (r.quantidade * (ing?.custoUnitario || 0));
+              }, 0);
+              const margemDepois = margemAntes - (custoDepois - custoAntes);
+              
+              return {
+                nome: p.nome,
+                margemDif: margemDepois - margemAntes
+              };
+            });
+            
+            setPriceAlertData({
+              ingrediente,
+              precoAtual,
+              precoNovo,
+              diferencaPerc,
+              produtosAfetados,
+              faturaData: novaFatura,
+              faturaEditandoId: faturaEditando, // Guardar ID da fatura em edição
+              tipoFatura: 'edicao' // Marcar como edição
+            });
+            setShowPriceAlert(true);
+            temAlertaPreco = true;
+            return; // Não atualiza ainda
+          }
         }
       }
     }
@@ -9454,6 +9618,55 @@ void 0;
   // ===== FUNÇÕES OCR =====
   const fuzz = window.fuzzball || window.fuzz;
   
+  // ===== SISTEMA DE LOGGING OCR (NOVO) =====
+  const OCR_DEBUG = {
+    enabled: true, // Mudar para false em produção
+    logs: [],
+    
+    log(etapa, mensagem, dados = null) {
+      if (!this.enabled) return;
+      
+      const logEntry = {
+        timestamp: new Date().toISOString(),
+        etapa,
+        mensagem,
+        dados
+      };
+      
+      this.logs.push(logEntry);
+      console.log(`[OCR ${etapa}] ${mensagem}`, dados || '');
+    },
+    
+    clear() {
+      this.logs = [];
+    },
+    
+    exportLogs() {
+      return JSON.stringify(this.logs, null, 2);
+    },
+    
+    showSummary() {
+      console.log('\n=== RESUMO PROCESSAMENTO OCR ===');
+      const etapas = {};
+      
+      this.logs.forEach(log => {
+        if (!etapas[log.etapa]) {
+          etapas[log.etapa] = [];
+        }
+        etapas[log.etapa].push(log);
+      });
+      
+      Object.keys(etapas).forEach(etapa => {
+        console.log(`\n${etapa}: ${etapas[etapa].length} eventos`);
+        etapas[etapa].slice(0, 3).forEach(log => {
+          console.log(`  - ${log.mensagem}`);
+        });
+      });
+    }
+  };
+  
+  window.OCR_DEBUG = OCR_DEBUG;
+  
   // Normalização
   const normalizeForMatching = (text) => {
     return text
@@ -9546,10 +9759,16 @@ void 0;
   const cleanOCRText = (text) => {
     if (!text) return '';
     
+    OCR_DEBUG.log('LIMPEZA', 'Texto original', { tamanho: text.length });
+    
     let cleaned = text;
     
     // 1. Remover ATCUD (não é produto)
+    const atcudRemovidos = (cleaned.match(/ATCUD:[A-Z0-9-]+/gi) || []).length;
     cleaned = cleaned.replace(/ATCUD:[A-Z0-9-]+/gi, '');
+    if (atcudRemovidos > 0) {
+      OCR_DEBUG.log('LIMPEZA', `${atcudRemovidos} ATCUDs removidos`);
+    }
     
     // 2. Remover "* CARRO No." que aparece em Recheio
     cleaned = cleaned.replace(/\*\s*CARRO\s+No\.\s*\d*/gi, '');
@@ -9558,6 +9777,7 @@ void 0;
     cleaned = cleaned.replace(/Produto proveniente de.*$/gm, '');
     cleaned = cleaned.replace(/No\. de registo.*$/gm, '');
     cleaned = cleaned.replace(/Valido como recibo.*$/gm, '');
+    cleaned = cleaned.replace(/eGGF-Processado por programa.*$/gm, '');
     
     // 4. Limpar caracteres repetidos sem sentido (ão ão ão → ão)
     // MAS só se forem palavras CURTAS repetidas 3+ vezes
@@ -9569,7 +9789,63 @@ void 0;
     // 6. Remover linhas vazias múltiplas (mais de 2)
     cleaned = cleaned.replace(/\n\s*\n\s*\n+/g, '\n\n');
     
+    OCR_DEBUG.log('LIMPEZA', 'Texto limpo', { 
+      tamanho: cleaned.length,
+      reduzido: text.length - cleaned.length
+    });
+    
     return cleaned.trim();
+  };
+  
+  /**
+   * NOVA FUNÇÃO: Separar produtos que estão colados na mesma linha
+   * Mesmo SEM códigos de produto, tenta separar por padrões
+   */
+  const separarProdutosColados = (linha) => {
+    OCR_DEBUG.log('SEPARACAO', 'Analisando linha', { linha });
+    
+    // MÉTODO 1: Por códigos de produto (6 dígitos + ponto)
+    const codigos = linha.match(/\d{6}\.\d+/g);
+    
+    if (codigos && codigos.length > 1) {
+      OCR_DEBUG.log('SEPARACAO', `${codigos.length} códigos detectados`, { codigos });
+      
+      const produtos = [];
+      let resto = linha;
+      
+      codigos.forEach((codigo, idx) => {
+        const pos = resto.indexOf(codigo);
+        if (pos === -1) return;
+        
+        const proximoCodigo = codigos[idx + 1];
+        
+        if (proximoCodigo) {
+          const proxPos = resto.indexOf(proximoCodigo);
+          const fragmento = resto.substring(pos, proxPos).trim();
+          produtos.push(fragmento);
+          resto = resto.substring(proxPos);
+        } else {
+          const fragmento = resto.substring(pos).trim();
+          produtos.push(fragmento);
+        }
+      });
+      
+      OCR_DEBUG.log('SEPARACAO', `Separados em ${produtos.length} produtos`, { produtos });
+      return produtos;
+    }
+    
+    // MÉTODO 2: Por padrões de quantidade/preço (fallback)
+    const padraoItem = /([A-Z][A-Z\s]+?)(\d+(?:G|ML|L|KG|UN|CL))\s*€?\s*(\d+[.,]\d{2})/gi;
+    const matches = [...linha.matchAll(padraoItem)];
+    
+    if (matches && matches.length > 1) {
+      OCR_DEBUG.log('SEPARACAO', `${matches.length} produtos por padrão qtd+preço`, { matches: matches.map(m => m[0]) });
+      return matches.map(m => m[0]);
+    }
+    
+    // Se não conseguiu separar, retorna linha original
+    OCR_DEBUG.log('SEPARACAO', 'Nenhuma separação necessária', null);
+    return [linha];
   };
   
   // Extração nativa
@@ -9698,49 +9974,65 @@ void 0;
   const shouldIgnoreLine = (linha) => {
     const lower = linha.toLowerCase();
     
-    // Filtrar APENAS lixo óbvio
+    // Lista de padrões a ignorar (REDUZIDA - menos agressiva)
     const ignorePatterns = [
-      /^(fatura|factura|invoice|recibo|receipt|talao|talão)/i,
-      /^(nif|nipc|vat|contribuinte|tax id)[\s:]/i,
-      /^(data|date)[\s:]/i,
-      /(lda|limitada|s\.a\.|unipessoal|ltda|sa\s)/i,
-      /^(rua|avenida|av\.|praça|largo|estrada|morada|address)/i,
-      /^\d{4}-\d{3}\s/i, // Código postal
-      /(email|e-mail|tel|telefone|phone|fax|telef|www\.)[\s:]/i,
-      /^(total|subtotal|sub-total|iva|vat|tax|imposto|desconto)[\s:]/i,
-      /^(método|metodo|forma|pagamento|payment)/i,
-      /(iban|nib|swift|bic)[\s:]/i,
-      /^(referência|reference|ref)[\s:]/i,
-      /(processado|emitido|certificado)\s+por/i,
-      /(conservatória|registo|matricula|capital social)/i,
-      /^atcud/i,
-      /^pt\d{2}\s*\d{4}/i, // IBAN
-      /^\d{9}$/,  // NIF sozinho
-      /^\d+\/\d+\/\d+$/, // Data sozinha
-      /^[\s\-\+\.€%]+$/, // Só símbolos
+      // Headers óbvios
+      { pattern: /^(fatura|factura|invoice|recibo|receipt|talao|talão)/i, motivo: 'header-fatura' },
+      { pattern: /^(nif|nipc|vat|contribuinte|tax id)[\s:]/i, motivo: 'nif' },
+      { pattern: /^(data|date)[\s:]/i, motivo: 'data' },
+      
+      // Empresa info
+      { pattern: /(lda|limitada|s\.a\.|unipessoal|ltda|sa\s)/i, motivo: 'empresa' },
+      { pattern: /^(rua|avenida|av\.|praça|largo|estrada|morada|address)/i, motivo: 'morada' },
+      { pattern: /^\d{4}-\d{3}\s/i, motivo: 'codigo-postal' },
+      { pattern: /(email|e-mail|tel|telefone|phone|fax|telef|www\.)[\s:]/i, motivo: 'contacto' },
+      
+      // Footer info
+      { pattern: /^(total|subtotal|sub-total)[\s:]/i, motivo: 'total' },
+      { pattern: /^(método|metodo|forma|pagamento|payment)/i, motivo: 'pagamento' },
+      { pattern: /(iban|nib|swift|bic)[\s:]/i, motivo: 'iban' },
+      { pattern: /^(referência|reference|ref)[\s:]/i, motivo: 'referencia' },
+      { pattern: /(processado|emitido|certificado)\s+por/i, motivo: 'processado' },
+      { pattern: /(conservatória|registo|matricula|capital social)/i, motivo: 'registo' },
+      { pattern: /^atcud/i, motivo: 'atcud' },
+      
+      // Apenas números/códigos
+      { pattern: /^pt\d{2}\s*\d{4}/i, motivo: 'iban' },
+      { pattern: /^\d{9}$/, motivo: 'nif-numero' },
+      { pattern: /^\d+\/\d+\/\d+$/, motivo: 'data-numero' },
+      { pattern: /^[\s\-\+\.€%]+$/, motivo: 'simbolos' },
     ];
     
-    // Se algum pattern matchar, ignorar
-    if (ignorePatterns.some(p => p.test(linha))) {
-      return true;
+    // Verificar padrões
+    for (const { pattern, motivo } of ignorePatterns) {
+      if (pattern.test(linha)) {
+        OCR_DEBUG.log('FILTRO', `Linha ignorada: ${motivo}`, { linha });
+        return true;
+      }
     }
     
     // Ignorar linhas muito curtas (< 3 caracteres)
     if (linha.length < 3) {
+      OCR_DEBUG.log('FILTRO', 'Linha muito curta', { linha });
       return true;
     }
     
-    // Ignorar se é SÓ números/símbolos (ex: "34", "1,000", "€4.50")
-    if (/^[\d\s,\.€%\-\+]+$/.test(linha)) {
+    // REMOVIDO: Filtro agressivo "só números/símbolos"
+    // NOVO: Só ignorar se NÃO tem letras
+    if (!/[a-zA-ZÀ-ÿ]/.test(linha)) {
+      OCR_DEBUG.log('FILTRO', 'Sem letras', { linha });
       return true;
     }
     
-    // ACEITAR todo o resto - fuzzy matching vai filtrar
+    // ACEITAR todo o resto
+    OCR_DEBUG.log('FILTRO', '✓ Linha aceite', { linha });
     return false;
   };
   
   // Extrair qtd/unidade - MELHORADO
   const extractQuantidadeUnidade = (texto) => {
+    OCR_DEBUG.log('EXTRACAO', 'Extraindo qtd/unidade', { texto });
+    
     // Patterns mais específicos para quantidade + unidade
     const patterns = [
       // Formato Recheio: "1 1 1,000" ou "2 1 2,000"
@@ -9774,6 +10066,7 @@ void 0;
           else if (/ml/i.test(texto)) unidade = 'ml';
           else if (/\bl\b/i.test(texto)) unidade = 'L';
           
+          OCR_DEBUG.log('EXTRACAO', 'Qtd/Un extraída (recheio)', { qtd, unidade, match: full });
           return { quantidade: qtd, unidade, match: full };
         }
         
@@ -9806,11 +10099,13 @@ void 0;
           // Se ficou sem unidade, usar 'un'
           if (!unidade) unidade = 'un';
           
+          OCR_DEBUG.log('EXTRACAO', 'Qtd/Un extraída', { qtd, unidade, match: full });
           return { quantidade: qtd, unidade, match: full };
         }
       }
     }
     
+    OCR_DEBUG.log('EXTRACAO', 'Nenhuma qtd/un encontrada', null);
     return { quantidade: null, unidade: null, match: '' };
   };
   
@@ -9820,22 +10115,31 @@ void 0;
     if (match) {
       const last = match[match.length - 1];
       const valor = parseFloat(last.replace(/[^\d.,]/g, '').replace(',', '.'));
+      OCR_DEBUG.log('EXTRACAO', 'Preço extraído', { valor, match: last });
       return { valor, match: last };
     }
+    OCR_DEBUG.log('EXTRACAO', 'Nenhum preço encontrado', null);
     return { valor: null, match: '' };
   };
   
   // Parse linha
   const parseLinha = (linha) => {
+    OCR_DEBUG.log('PARSE', '>>> Iniciando parse', { linha });
+    
     // 1. CORRIGIR erros de OCR PRIMEIRO
     let linhaCorrigida = corrigirErrosOCR(linha);
+    OCR_DEBUG.log('PARSE', 'Após correção OCR', { linhaCorrigida });
     
     // 2. LIMPAR linha
     let linhaLimpa = linhaCorrigida.trim();
     
     // 3. Remover código de produto no INÍCIO se existir (6 dígitos + ponto)
     // Ex: "125019.1 AROMA VAHINE..." → "AROMA VAHINE..."
-    linhaLimpa = linhaLimpa.replace(/^\d{6}\.\d+\s+/, '');
+    const codigoMatch = linhaLimpa.match(/^\d{6}\.\d+/);
+    if (codigoMatch) {
+      OCR_DEBUG.log('PARSE', 'Código produto removido', { codigo: codigoMatch[0] });
+      linhaLimpa = linhaLimpa.replace(/^\d{6}\.\d+\s+/, '');
+    }
     
     // 4. Extrair quantidade e preço
     const qtdUnidade = extractQuantidadeUnidade(linhaLimpa);
@@ -9856,18 +10160,29 @@ void 0;
       .replace(/[\d\s,\.€]+$/, '')  // Remove números/preços no final
       .trim();
     
+    OCR_DEBUG.log('PARSE', 'Nome produto extraído', { nomeProduto });
+    
     // 7. Validar se nome é válido (mínimo 2 caracteres alfabéticos)
     const temLetras = /[a-zA-ZÀ-ÿ]{2,}/.test(nomeProduto);
     
     if (!nomeProduto || nomeProduto.length < 2 || !temLetras) {
+      OCR_DEBUG.log('PARSE', '✗ INVÁLIDO - nome muito curto ou sem letras', { nomeProduto });
       return {
         textoOriginal: linha,
         nomeProduto: null, // INVÁLIDO
         quantidade: qtdUnidade.quantidade,
         unidade: qtdUnidade.unidade,
-        preco: preco.valor
+        preco: preco.valor,
+        invalido: true
       };
     }
+    
+    OCR_DEBUG.log('PARSE', '✓ Parse completo', {
+      nome: nomeProduto,
+      qtd: qtdUnidade.quantidade,
+      unidade: qtdUnidade.unidade,
+      preco: preco.valor
+    });
     
     return {
       textoOriginal: linha,
@@ -9884,9 +10199,11 @@ void 0;
   
   // Parse produtos
   const parseLinhasProdutos = (texto, nifFornecedor = null) => {
-    void 0;
-    void 0;
-    setProgressoOCR('Identificando produtos...');
+    OCR_DEBUG.clear(); // Limpar logs anteriores
+    OCR_DEBUG.log('INICIO', '=== INICIANDO PROCESSAMENTO OCR ===', {
+      tamanhoTexto: texto.length,
+      nifFornecedor
+    });
     
     // 🚫 CORRIGIDO: Carregar blacklist do fornecedor (se existir)
     let blacklist = [];
@@ -9894,61 +10211,40 @@ void 0;
       const template = buscarTemplateOCR(nifFornecedor);
       if (template && template.blacklist) {
         blacklist = template.blacklist;
-        void 0;
+        OCR_DEBUG.log('BLACKLIST', `${blacklist.length} palavras carregadas`, { blacklist });
       }
     }
     
     // 1. LIMPAR texto completo ANTES de split
     const textoLimpo = cleanOCRText(texto);
-    void 0;
+    OCR_DEBUG.log('LIMPEZA', 'Texto limpo completo', {
+      linhasOriginais: texto.split('\n').length,
+      linhasLimpas: textoLimpo.split('\n').length
+    });
     
     // 2. Split em linhas
     let linhas = textoLimpo.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    OCR_DEBUG.log('SPLIT', `${linhas.length} linhas após split`, null);
     
-    // 🔧 NOVO: Separar produtos juntos na mesma linha
+    // 3. NOVO: Separar produtos colados na mesma linha usando a nova função
     const linhasSeparadas = [];
     for (const linha of linhas) {
-      // Detectar múltiplos códigos de produto (padrão: 6 dígitos + ponto)
-      const codigos = linha.match(/\d{6}\.\d+/g);
-      
-      if (codigos && codigos.length > 1) {
-        void 0;
-        
-        // Separar por cada código
-        let resto = linha;
-        codigos.forEach((codigo, idx) => {
-          const pos = resto.indexOf(codigo);
-          if (pos === -1) return;
-          
-          // Próximo código (se existir)
-          const proximoCodigo = codigos[idx + 1];
-          
-          if (proximoCodigo) {
-            const proxPos = resto.indexOf(proximoCodigo);
-            const fragmento = resto.substring(pos, proxPos).trim();
-            linhasSeparadas.push(fragmento);
-            void 0;
-            resto = resto.substring(proxPos);
-          } else {
-            // Último produto
-            const fragmento = resto.substring(pos).trim();
-            linhasSeparadas.push(fragmento);
-            void 0;
-          }
-        });
-      } else {
-        // Linha normal
-        linhasSeparadas.push(linha);
-      }
+      const produtos = separarProdutosColados(linha);
+      linhasSeparadas.push(...produtos);
     }
     
     linhas = linhasSeparadas;
-    void 0;
+    OCR_DEBUG.log('SEPARACAO', `${linhas.length} linhas após separação`, null);
     
+    // 4. Processar cada linha
     const linhasProdutos = [];
-    let linhasIgnoradas = 0;
-    let linhasSemNome = 0;
-    let linhasIgnoradasBlacklist = 0; // 🚫 NOVO: Contador de blacklist
+    const stats = {
+      total: linhas.length,
+      ignoradas: 0,
+      semNome: 0,
+      blacklist: 0,
+      validas: 0
+    };
     
     for (const linha of linhas) {
       // 🚫 CORRIGIDO: Verificar blacklist ANTES de qualquer outra validação
@@ -9957,31 +10253,43 @@ void 0;
         const temPalavraBlacklist = blacklist.some(palavra => linhaLower.includes(palavra));
         
         if (temPalavraBlacklist) {
-          void 0;
-          linhasIgnoradasBlacklist++;
+          OCR_DEBUG.log('BLACKLIST', 'Linha rejeitada por blacklist', { linha });
+          stats.blacklist++;
           continue;
         }
       }
       
       if (shouldIgnoreLine(linha)) {
-        linhasIgnoradas++;
+        stats.ignoradas++;
         continue;
       }
+      
       const parsed = parseLinha(linha);
+      
       if (parsed && parsed.nomeProduto) {
-        void 0;
         linhasProdutos.push(parsed);
+        stats.validas++;
       } else {
-        linhasSemNome++;
+        stats.semNome++;
+        OCR_DEBUG.log('PARSE', 'Linha sem nome válido', { linha, parsed });
       }
     }
     
-    void 0;
-    void 0;
-    if (linhasIgnoradasBlacklist > 0) {
-      void 0;
-    }
-    void 0;
+    // 5. Resumo final
+    OCR_DEBUG.log('RESUMO', '=== PROCESSAMENTO CONCLUÍDO ===', {
+      stats,
+      produtosDetectados: linhasProdutos.length
+    });
+    
+    OCR_DEBUG.showSummary();
+    
+    // 6. Guardar logs no window para análise
+    window.lastOCRLogs = OCR_DEBUG.logs;
+    window.lastOCRText = texto;
+    
+    console.log('\n💡 DICA: Para ver logs detalhados, execute no console:');
+    console.log('   window.lastOCRLogs');
+    console.log('   OCR_DEBUG.exportLogs()');
     
     if (linhasProdutos.length === 0) {
       void 0;
@@ -10298,41 +10606,40 @@ void 0;
             if (confianca >= 80) {
               void 0;
               
-              // 🆕 APLICAR HISTÓRICO DE COMPRAS
-              const linhaBase = {
+              const ingrediente = ingredientes.find(i => i.id === ingredienteId);
+              
+              // 🆕 BUSCAR ÚLTIMA UNIDADE USADA do histórico
+              const historico = buscarHistoricoIngrediente(ingredienteId, nifFornecedor);
+              const unidadeUltimaVez = historico?.unidade || ingrediente?.unidade || 'kg';
+              
+              // 🆕 AUTO-PREENCHER COM PREÇO ATUAL DO INGREDIENTE + UNIDADE DA ÚLTIMA VEZ
+              return {
                 ...linha,
-                ingredienteConfirmado: ingredienteId, // Auto-preencher
-                ingredienteSugerido: ingredienteId,   // ✅ FIX: Guardar ID da sugestão
+                ingredienteConfirmado: ingredienteId, // Auto-preencher nome
+                ingredienteSugerido: ingredienteId,   // Guardar ID da sugestão
                 confiancaSugestao: confianca,
                 similaridadeSugestao: similaridade,
-                historicoSugestao: { confirmacoes, correcoes }
+                historicoSugestao: { confirmacoes, correcoes },
+                // Usar PREÇO ATUAL do ingrediente
+                precoSugerido: ingrediente?.custoUnitario || null,
+                // Usar UNIDADE da última compra deste fornecedor
+                unidade: linha.unidade || unidadeUltimaVez,
+                // Quantidade vem do OCR ou fica vazia para utilizador preencher
+                quantidade: linha.quantidade || null
               };
-              
-              // Aplicar dados do histórico (quantidade, unidade, preço sugerido)
-              const linhaComHistorico = aplicarHistoricoAoMatch(linhaBase, ingredienteId, nifFornecedor);
-              
-              if (linhaComHistorico.preenchidoComHistorico) {
-                void 0;
-              }
-              
-              return linhaComHistorico;
             } else {
               // Confiança baixa - só sugerir, não auto-preencher
               void 0;
               
-              // 🆕 MESMO COM BAIXA CONFIANÇA, BUSCAR HISTÓRICO PARA SUGESTÕES
-              const linhaSugestao = {
+              // SÓ SUGERIR O NOME - sem preencher quantidade/preço
+              return {
                 ...linha,
-                ingredienteSugerido: ingredienteId, // ✅ FIX: ID do sugerido
+                ingredienteSugerido: ingredienteId, // Sugestão do nome
                 confiancaSugestao: confianca,
                 similaridadeSugestao: similaridade,
                 historicoSugestao: { confirmacoes, correcoes }
+                // Não preencher quantidade/preço/unidade
               };
-              
-              // Aplicar histórico apenas como sugestão (não preenche automaticamente)
-              const linhaComSugestaoHistorico = aplicarHistoricoAoMatch(linhaSugestao, ingredienteId, nifFornecedor);
-              
-              return linhaComSugestaoHistorico;
             }
           }
         }
