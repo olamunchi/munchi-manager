@@ -3760,6 +3760,116 @@ const RestauranteGestor = () => {
     }
   }, []);
   
+  // 🔍 DEBUG: Expor variáveis globalmente para Console
+  useEffect(() => {
+    window.DEBUG_MUNCHI = {
+      produtos,
+      ingredientes,
+      vendas,
+      despesas,
+      fornecedores,
+      faturas,
+      diagnosticar: () => {
+        console.log('🔍 DIAGNÓSTICO MUNCHI MANAGER');
+        console.log('═'.repeat(50));
+        
+        // 1. Produtos com custo alto
+        const produtosAltos = produtos.filter(p => p.custoReceita > 50);
+        if (produtosAltos.length > 0) {
+          console.log('\n⚠️ PRODUTOS COM CUSTO > €50:');
+          console.table(produtosAltos.map(p => ({
+            nome: p.nome,
+            custoReceita: p.custoReceita,
+            precoVenda: p.precoVenda,
+            margem: p.precoVenda - p.custoReceita
+          })));
+        } else {
+          console.log('\n✅ Nenhum produto com custo > €50');
+        }
+        
+        // 2. Vendas com quantidade alta
+        const vendasAltas = vendas.filter(v => v.quantidade > 1000);
+        if (vendasAltas.length > 0) {
+          console.log('\n⚠️ VENDAS COM QUANTIDADE > 1000:');
+          console.table(vendasAltas.slice(0, 10).map(v => ({
+            data: v.data,
+            produto: v.produto || v.produtoId,
+            quantidade: v.quantidade,
+            valor: v.valor || v.total
+          })));
+        } else {
+          console.log('\n✅ Nenhuma venda com quantidade > 1000');
+        }
+        
+        // 3. Categorias das faturas
+        const categorias = {};
+        faturas.forEach(f => {
+          const cat = f.categoria || 'SEM_CATEGORIA';
+          categorias[cat] = (categorias[cat] || 0) + 1;
+        });
+        console.log('\n📊 FATURAS POR CATEGORIA:');
+        console.table(categorias);
+        
+        // 4. Faturas sem categoria
+        const semCategoria = faturas.filter(f => !f.categoria);
+        if (semCategoria.length > 0) {
+          console.log('\n⚠️ FATURAS SEM CATEGORIA (' + semCategoria.length + '):');
+          console.table(semCategoria.map(f => ({
+            numero: f.numero || f.id,
+            fornecedor: f.fornecedorNome,
+            valor: (f.totais?.total || f.total || 0).toFixed(2),
+            data: f.data
+          })));
+          console.log('💡 Edite essas faturas e defina a categoria (compras, luz, renda, agua, etc.)');
+        } else {
+          console.log('\n✅ Todas as faturas têm categoria');
+        }
+        
+        console.log('\n' + '═'.repeat(50));
+        
+        // 5. Sugestão de correção automática
+        if (produtosAltos.length > 0) {
+          console.log('\n🔧 PROBLEMA DETECTADO: Custos muito altos!');
+          console.log('Execute este comando para corrigir automaticamente:');
+          console.log('  window.DEBUG_MUNCHI.corrigirCustos()');
+        }
+      },
+      corrigirCustos: () => {
+        console.log('🔧 Corrigindo custos automaticamente...\n');
+        
+        let corrigidos = 0;
+        const novoProdutos = produtos.map(p => {
+          if (p.custoReceita > 50) {
+            const custoAntigo = p.custoReceita;
+            const custoNovo = p.custoReceita / 100;
+            console.log(`✅ ${p.nome}: €${custoAntigo.toFixed(2)} → €${custoNovo.toFixed(2)}`);
+            corrigidos++;
+            return { ...p, custoReceita: custoNovo };
+          }
+          return p;
+        });
+        
+        console.log(`\n📊 ${corrigidos} produtos corrigidos!`);
+        console.log('💾 Aplicando correções...');
+        
+        setProdutos(novoProdutos);
+        
+        setTimeout(() => {
+          console.log('✅ CORREÇÃO COMPLETA!');
+          console.log('As métricas devem estar corretas agora.');
+          console.log('Verifique o Dashboard.');
+        }, 500);
+      }
+    };
+    
+    console.log('💡 Variáveis disponíveis no Console:');
+    console.log('  - window.DEBUG_MUNCHI.produtos');
+    console.log('  - window.DEBUG_MUNCHI.vendas');
+    console.log('  - window.DEBUG_MUNCHI.faturas');
+    console.log('  - window.DEBUG_MUNCHI.diagnosticar() ← Execute isto!');
+    console.log('  - window.DEBUG_MUNCHI.corrigirCustos() ← Correção automática!');
+  }, [produtos, vendas, despesas, faturas, ingredientes, fornecedores]);
+  
   const [fornecedoresExpanded, setFornecedoresExpanded] = useState(false);
   const [deliveryAppsExpanded, setDeliveryAppsExpanded] = useState(false);
   const [editandoFornecedor, setEditandoFornecedor] = useState(false);
@@ -5016,15 +5126,35 @@ const calcularIndiceDesperdicio = (comprasPeriodo, vendasPeriodo, produtos) => {
       // Formato 1: Array de itens
       venda.itens.forEach(item => {
         const produto = produtos.find(p => p.id === item.produtoId);
-        if (produto) {
-          custoVendas += (produto.custoReceita || 0) * (item.quantidade || 1);
+        if (produto && produto.custoReceita && produto.custoReceita > 0) {
+          // ✅ VALIDAÇÕES DE SEGURANÇA
+          const custo = produto.custoReceita;
+          const qtd = item.quantidade || 1;
+          
+          // Validar valores razoáveis
+          if (custo > 0 && custo < 500 && qtd > 0 && qtd < 10000) {
+            const custoItem = custo * qtd;
+            if (custoItem < 5000) {
+              custoVendas += custoItem;
+            }
+          }
         }
       });
     } else if (venda.produtoId) {
       // Formato 2: Venda direta
       const produto = produtos.find(p => p.id === venda.produtoId);
-      if (produto) {
-        custoVendas += (produto.custoReceita || 0) * (venda.quantidade || 1);
+      if (produto && produto.custoReceita && produto.custoReceita > 0) {
+        // ✅ VALIDAÇÕES DE SEGURANÇA
+        const custo = produto.custoReceita;
+        const qtd = venda.quantidade || 1;
+        
+        // Validar valores razoáveis
+        if (custo > 0 && custo < 500 && qtd > 0 && qtd < 10000) {
+          const custoItem = custo * qtd;
+          if (custoItem < 5000) {
+            custoVendas += custoItem;
+          }
+        }
       }
     }
   });
@@ -9386,7 +9516,7 @@ void 0;
     valor: f.totais?.total || f.total || 0,
     iva: f.totalIva || 0,
     ivaPercentagem: f.itens?.[0]?.iva || 23, // Taxa de IVA percentual para cálculos
-    categoria: f.categoria || 'compras', // ✅ MANTÉM CATEGORIA ORIGINAL (renda, eletricidade, etc.)
+    categoria: f.categoria || 'outros', // ✅ Se não tem categoria, marca como 'outros' (não 'compras')
     tipo: f.tipo || 'FT', // FT/FR (FS excluído)
     fornecedor: f.fornecedorNome || '',
     origem: 'fatura' // Flag para identificar
@@ -9463,7 +9593,38 @@ void 0;
   void 0;
   
   // 🆕 CALCULAR ÍNDICE DE DESPERDÍCIO
-  const comprasPeriodo = filteredFaturas.filter(f => f.categoria === 'compras' || !f.categoria);
+  // ✅ FILTRO RESTRITO: Apenas faturas EXPLICITAMENTE marcadas como 'compras'
+  // Faturas sem categoria são IGNORADAS (em vez de assumidas como compras)
+  const comprasPeriodo = filteredFaturas.filter(f => {
+    const cat = f.categoria;
+    // APENAS aceitar se categoria é explicitamente 'compras'
+    return cat === 'compras';
+  });
+  
+  // 🔍 DEBUG: Mostrar categorias das faturas para diagnóstico
+  if (filteredFaturas.length > 0) {
+    const categoriasFaturas = {};
+    const faturaSemCategoria = [];
+    filteredFaturas.forEach(f => {
+      const cat = f.categoria || 'SEM_CATEGORIA';
+      categoriasFaturas[cat] = (categoriasFaturas[cat] || 0) + 1;
+      if (!f.categoria) {
+        faturaSemCategoria.push({
+          numero: f.numero || f.id,
+          fornecedor: f.fornecedorNome,
+          valor: f.totais?.total || f.total || 0
+        });
+      }
+    });
+    console.log('📊 Faturas por Categoria:', categoriasFaturas);
+    console.log('🛒 Faturas consideradas COMPRAS:', comprasPeriodo.length, 'de', filteredFaturas.length, 'totais');
+    if (faturaSemCategoria.length > 0) {
+      console.warn('⚠️ ATENÇÃO: ' + faturaSemCategoria.length + ' faturas SEM CATEGORIA (sendo ignoradas no Food Cost)');
+      console.table(faturaSemCategoria);
+      console.log('💡 Solução: Edite essas faturas e defina a categoria correta (luz, renda, agua, gas, etc.)');
+    }
+  }
+  
   const indiceDesperdicio = calcularIndiceDesperdicio(comprasPeriodo, filteredVendas, produtos);
   
   void 0;
@@ -9582,14 +9743,36 @@ void 0;
     if (venda.itens && venda.itens.length > 0) {
       venda.itens.forEach(item => {
         const produto = produtos.find(p => p.id === item.produtoId);
-        if (produto) {
-          custoRealVendas += (produto.custoReceita || 0) * (item.quantidade || 1);
+        if (produto && produto.custoReceita && produto.custoReceita > 0) {
+          // ✅ VALIDAÇÕES DE SEGURANÇA
+          const custo = produto.custoReceita;
+          const qtd = item.quantidade || 1;
+          
+          // Validar valores razoáveis
+          if (custo > 0 && custo < 500 && qtd > 0 && qtd < 10000) {
+            const custoItem = custo * qtd;
+            // Custo por venda não pode passar de €5000
+            if (custoItem < 5000) {
+              custoRealVendas += custoItem;
+            }
+          }
         }
       });
     } else if (venda.produtoId) {
       const produto = produtos.find(p => p.id === venda.produtoId);
-      if (produto) {
-        custoRealVendas += (produto.custoReceita || 0) * (venda.quantidade || 1);
+      if (produto && produto.custoReceita && produto.custoReceita > 0) {
+        // ✅ VALIDAÇÕES DE SEGURANÇA
+        const custo = produto.custoReceita;
+        const qtd = venda.quantidade || 1;
+        
+        // Validar valores razoáveis
+        if (custo > 0 && custo < 500 && qtd > 0 && qtd < 10000) {
+          const custoItem = custo * qtd;
+          // Custo por venda não pode passar de €5000
+          if (custoItem < 5000) {
+            custoRealVendas += custoItem;
+          }
+        }
       }
     }
   });
@@ -9597,6 +9780,23 @@ void 0;
   const foodCostPercentage = totV > 0 ? (custoRealVendas / totV) * 100 : 0;
   const primeCostPercentage = foodCostPercentage + laborCostPercentage;
   const primeCostTotal = custoRealVendas + totalSalarios;
+  
+  // 🔍 DEBUG AUTOMÁTICO - Alertas no console se métricas estiverem erradas
+  if (foodCostPercentage > 100 || foodCostPercentage < 0) {
+    console.error('🚨 FOOD COST ANORMAL DETECTADO!');
+    console.table({
+      'Food Cost %': foodCostPercentage.toFixed(2) + '%',
+      'Custo Real Vendas': '€' + custoRealVendas.toFixed(2),
+      'Total Vendas': '€' + totV.toFixed(2),
+      'Vendas Analisadas': vendasFiltradas.length
+    });
+    console.log('💡 Possíveis causas:');
+    console.log('  1. Produtos com custoReceita muito alto (>€100)');
+    console.log('  2. Vendas com quantidades absurdas (>1000)');
+    console.log('  3. Dados corrompidos no JSON');
+    console.log('\n📊 Execute isto para ver produtos suspeitos:');
+    console.log('  produtos.filter(p => p.custoReceita > 50).forEach(p => console.log(p.nome, p.custoReceita))');
+  }
   
   // ============================================
   // BREAK-EVEN COMPLETO - Todos os Custos
@@ -11085,28 +11285,44 @@ void 0;
     const produtosAtualizados = produtos.map(produto => {
       if (!produto.receita || produto.receita.length === 0) return produto;
       
-      // Calcular novo custo
+      // Calcular novo custo (usando a mesma lógica do calcCusto)
       const novoCusto = produto.receita.reduce((total, item) => {
         const ing = ingredientesAtualizados.find(i => i.id === item.ingredienteId);
         if (!ing) return total;
         
-        const quantidade = parseFloat(item.quantidade) || 0;
+        let quantidade = parseFloat(item.quantidade) || 0;
         const precoUnit = parseFloat(ing.custoUnitario) || 0;
         
-        return total + (quantidade * precoUnit);
+        // ✅ CONVERSÃO DE UNIDADES (igual ao calcCusto)
+        const unidadeReceita = item.unidade || ing.unidade;
+        if (ing.unidade === 'kg' && unidadeReceita === 'g') quantidade = quantidade / 1000;
+        if (ing.unidade === 'L' && unidadeReceita === 'ml') quantidade = quantidade / 1000;
+        if (ing.unidade === 'g' && unidadeReceita === 'kg') quantidade = quantidade * 1000;
+        if (ing.unidade === 'ml' && unidadeReceita === 'L') quantidade = quantidade * 1000;
+        
+        // ✅ APLICAR DESPERDÍCIO (igual ao calcCusto)
+        const percentagemDesperdicio = getPercentagemDesperdicio(ing);
+        const custoComDesperdicio = precoUnit * (1 + percentagemDesperdicio / 100);
+        
+        return total + (quantidade * custoComDesperdicio);
       }, 0);
+      
+      // ✅ DIVIDIR POR PORÇÕES (igual ao calcCusto)
+      const custoFinal = (produto.porcoes && produto.porcoes > 1) 
+        ? novoCusto / produto.porcoes 
+        : novoCusto;
       
       // Calcular nova margem
       const precoVenda = parseFloat(produto.precoVenda) || 0;
-      const novaMargemLucro = precoVenda > 0 ? ((precoVenda - novoCusto) / precoVenda) * 100 : 0;
+      const novaMargemLucro = precoVenda > 0 ? ((precoVenda - custoFinal) / precoVenda) * 100 : 0;
       
       // Só atualizar se mudou
-      if (Math.abs(novoCusto - (produto.custoReceita || 0)) > 0.01) {
+      if (Math.abs(custoFinal - (produto.custoReceita || 0)) > 0.01) {
         void 0;
         
         return {
           ...produto,
-          custoReceita: novoCusto,
+          custoReceita: custoFinal,
           margemLucro: novaMargemLucro
         };
       }
@@ -11853,122 +12069,7 @@ void 0;
               })()}
             </div>
             
-            {/* 🆕 ANÁLISE DETALHADA DE DESPERDÍCIO */}
-            {indiceDesperdicio.compras > 0 && (
-              <div className="bg-white rounded-lg shadow p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-lg font-bold flex items-center gap-2">
-                    🗑️ Análise de Desperdício
-                  </h3>
-                  <Tooltip text="Desperdício = Total Compras - Custo Real das Vendas. Inclui stock não vendido, perdas por deterioração e erros de preparação. Ideal para restauração: 5-10%" position="left">
-                    <span className="text-gray-400 cursor-help">ⓘ</span>
-                  </Tooltip>
-                </div>
-                
-                <div className="space-y-3">
-                  {/* Resumo Visual */}
-                  <div className={`rounded-lg p-4 ${
-                    indiceDesperdicio.desperdicioPercent > 15 ? 'bg-red-50 border border-red-200' :
-                    indiceDesperdicio.desperdicioPercent > 10 ? 'bg-yellow-50 border border-yellow-200' :
-                    'bg-green-50 border border-green-200'
-                  }`}>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="font-semibold text-sm">Taxa de Desperdício</span>
-                      <span className={`text-2xl font-bold ${
-                        indiceDesperdicio.desperdicioPercent > 15 ? 'text-red-600' :
-                        indiceDesperdicio.desperdicioPercent > 10 ? 'text-yellow-600' :
-                        'text-green-600'
-                      }`}>
-                        {indiceDesperdicio.desperdicioPercent.toFixed(1)}%
-                      </span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-3">
-                      <div 
-                        className={`h-3 rounded-full ${
-                          indiceDesperdicio.desperdicioPercent > 15 ? 'bg-red-500' :
-                          indiceDesperdicio.desperdicioPercent > 10 ? 'bg-yellow-500' :
-                          'bg-green-500'
-                        }`}
-                        style={{ width: `${Math.min(indiceDesperdicio.desperdicioPercent, 100)}%` }}
-                      ></div>
-                    </div>
-                    <div className="flex justify-between text-xs text-gray-500 mt-1">
-                      <span>0%</span>
-                      <span>5%</span>
-                      <span>10%</span>
-                      <span>15%</span>
-                      <span>20%</span>
-                    </div>
-                  </div>
-                  
-                  {/* Breakdown dos Valores */}
-                  <div className="grid grid-cols-3 gap-3">
-                    <Tooltip text="Total gasto em compras de ingredientes no período selecionado" position="top">
-                      <div className="bg-blue-50 rounded-lg p-3 cursor-help">
-                        <p className="text-xs text-gray-600 mb-1">Total Compras</p>
-                        <p className="text-lg font-bold text-blue-600">€{indiceDesperdicio.compras.toFixed(2)}</p>
-                      </div>
-                    </Tooltip>
-                    <Tooltip text="Custo teórico dos ingredientes usados nos produtos vendidos (baseado nas receitas)" position="top">
-                      <div className="bg-green-50 rounded-lg p-3 cursor-help">
-                        <p className="text-xs text-gray-600 mb-1">Custo Vendas</p>
-                        <p className="text-lg font-bold text-green-600">€{indiceDesperdicio.custoVendas.toFixed(2)}</p>
-                      </div>
-                    </Tooltip>
-                    <Tooltip text="Diferença entre compras e vendas. Representa stock não vendido, perdas e erros." position="top">
-                      <div className={`rounded-lg p-3 cursor-help ${
-                        indiceDesperdicio.desperdicioPercent > 10 ? 'bg-red-50' : 'bg-purple-50'
-                      }`}>
-                        <p className="text-xs text-gray-600 mb-1">Desperdício</p>
-                        <p className={`text-lg font-bold ${
-                          indiceDesperdicio.desperdicioPercent > 10 ? 'text-red-600' : 'text-purple-600'
-                        }`}>
-                          €{indiceDesperdicio.desperdicio.toFixed(2)}
-                        </p>
-                      </div>
-                    </Tooltip>
-                  </div>
-                  
-                  {/* Status e Recomendações - Compacto */}
-                  {indiceDesperdicio.custoVendas > 0 && indiceDesperdicio.desperdicioPercent > 10 && (
-                    <div className={`rounded-lg p-3 flex items-start gap-2 ${
-                      indiceDesperdicio.desperdicioPercent > 15 ? 'bg-red-50 border-l-4 border-red-500' :
-                      'bg-yellow-50 border-l-4 border-yellow-500'
-                    }`}>
-                      <span className="text-xl flex-shrink-0">
-                        {indiceDesperdicio.desperdicioPercent > 15 ? '🚨' : '⚠️'}
-                      </span>
-                      <div className="flex-1">
-                        <p className="text-xs font-semibold mb-1">
-                          {indiceDesperdicio.desperdicioPercent > 15 ? 'Desperdício Alto - Ação Urgente' : 'Desperdício Elevado - Melhorias Possíveis'}
-                        </p>
-                        <Tooltip 
-                          text={
-                            indiceDesperdicio.desperdicioPercent > 15 
-                              ? "Sugestões: Rever processos de compra (compras excessivas?), verificar controlo de porções nas receitas, implementar FIFO (First In, First Out), treinar equipa em redução de desperdício"
-                              : "Sugestões: Monitorizar stock mais regularmente, otimizar quantidades de compra, rever datas de validade dos produtos"
-                          } 
-                          position="bottom"
-                        >
-                          <p className="text-xs text-gray-600 cursor-help hover:text-gray-800 underline decoration-dotted">
-                            Ver recomendações →
-                          </p>
-                        </Tooltip>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {indiceDesperdicio.custoVendas > 0 && indiceDesperdicio.desperdicioPercent <= 10 && (
-                    <div className="bg-green-50 border-l-4 border-green-500 rounded-lg p-3 flex items-center gap-2">
-                      <span className="text-xl">✅</span>
-                      <p className="text-xs text-gray-700">
-                        <span className="font-semibold">Desperdício Controlado!</span> Continue o bom trabalho mantendo as práticas atuais.
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
+            {/* 🆕 ANÁLISE DE DESPERDÍCIO - REMOVIDA */}
                 
                 {/* Simulador de IVA Trimestral */}
                 <div className="bg-white rounded-lg shadow p-4">
@@ -12366,12 +12467,20 @@ void 0;
                       </p>
                     </Tooltip>
                     <p className={`text-2xl font-bold ${
+                      foodCostPercentage > 100 ? 'text-red-700 animate-pulse' :
                       foodCostPercentage > 40 ? 'text-red-700' :
                       foodCostPercentage > 35 ? 'text-orange-700' : 'text-purple-900'
                     }`}>
-                      {foodCostPercentage.toFixed(1)}%
+                      {foodCostPercentage > 100 ? '⚠️ ERRO' : `${foodCostPercentage.toFixed(1)}%`}
                     </p>
-                    <p className="text-xs text-purple-600 mt-1">Ideal: 25-35%</p>
+                    {foodCostPercentage > 100 && (
+                      <p className="text-xs text-red-600 mt-1 font-bold">
+                        Dados inválidos! Abra Console (F12)
+                      </p>
+                    )}
+                    {foodCostPercentage <= 100 && (
+                      <p className="text-xs text-purple-600 mt-1">Ideal: 25-35%</p>
+                    )}
                   </div>
                   
                   {/* Labor Cost % */}
@@ -12852,48 +12961,8 @@ void 0;
               </div>
 
               {/* ============================================ */}
-              {/* SECTION 3: MÉDIA DIÁRIA (movido para cá) */}
+              {/* SECTION 3: MÉDIA DIÁRIA - REMOVIDA */}
               {/* ============================================ */}
-              <div className="bg-white rounded-lg shadow p-4 mb-3">
-                <h2 className="text-xl font-bold mb-3 flex items-center gap-2">
-                  📅 Desempenho Diário
-                </h2>
-                
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                  {/* Daily Average */}
-                  <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg p-4 border-2 border-purple-300">
-                    <Tooltip text="Faturação média por dia útil. Calculado como: Faturação Total ÷ Número de Dias com Vendas. Este indicador ajuda a prever receitas futuras e a identificar dias de baixo desempenho. Compare com o teu break-even diário." position="bottom">
-                      <p className="text-xs text-purple-700 mb-2 font-bold flex items-center gap-1">
-                        📊 Média Diária
-                        <span className="text-purple-400 text-sm">ⓘ</span>
-                      </p>
-                    </Tooltip>
-                    <p className="text-3xl font-bold text-purple-900 mb-1">
-                      €{medFat.toFixed(0)}
-                    </p>
-                    <p className="text-xs text-purple-700 mb-2">Faturação média por dia</p>
-                    
-                    <div className="bg-white rounded p-2 text-xs space-y-1">
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Dias ativos:</span>
-                        <span className="font-semibold">{dias}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Vendas/Dia:</span>
-                        <span className="font-semibold">
-                          {dias > 0 ? (filteredVendas.length / dias).toFixed(1) : '0'}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Produtos/Dia:</span>
-                        <span className="font-semibold">
-                          {dias > 0 ? (filteredVendas.reduce((s, v) => s + v.quantidade, 0) / dias).toFixed(1) : '0'}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
 
               {/* ============================================ */}
               {/* SECTION: ANÁLISE MENSAL COMPARATIVA */}
