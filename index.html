@@ -5342,7 +5342,7 @@ void 0;
   };
   
   const parseComTemplate = (texto, template) => {
-    if (!template) return parseLinhasProdutos(texto, template?.nifFornecedor); // 🚫 CORRIGIDO: Passar NIF mesmo sem template
+    if (!template) return parseLinhasProdutos(texto, template?.nifFornecedor);
     
     console.log('🔍 [TEMPLATE] Usando parseComTemplate com template:', template.nifFornecedor);
     
@@ -5350,7 +5350,7 @@ void 0;
     let linhas = texto.split('\n').map(l => l.trim()).filter(l => l.length > 0);
     console.log(`🔍 [TEMPLATE] ${linhas.length} linhas após split`);
     
-    // 🆕 2. SEPARAR PRODUTOS COLADOS (como no parseLinhasProdutos)
+    // 2. SEPARAR PRODUTOS COLADOS
     const linhasSeparadas = [];
     for (const linha of linhas) {
       const produtos = separarProdutosColados(linha);
@@ -5359,81 +5359,42 @@ void 0;
     linhas = linhasSeparadas;
     console.log(`🔍 [TEMPLATE] ${linhas.length} linhas após separação de produtos colados`);
     
-    // 🆕 3. DETECTAR FIM DINÂMICO - procurar marcadores de fim no texto
-    // PROCURAR DO FIM PARA O INÍCIO para encontrar o ÚLTIMO marcador
-    const marcadoresFim = [
-      /^IVA\s+Incidências/i,
-      /^Produto\s+proveniente/i,
-      /^Total\s+Volumes/i,
-      /^AS\s+MERCADORIAS/i,
-      /^Totais\s*$/i,
-      /^TRANSPORTE\s*$/i,
-      /^Imposto\s*$/i
-    ];
-    
-    // 🆕 PROCURAR MARCADORES DE FIM - mas DEPOIS do último produto com código
-    let ultimaLinhaComCodigo = 0;
-    for (let i = 0; i < linhas.length; i++) {
-      if (/\d{6}\.\d+/.test(linhas[i])) {
-        ultimaLinhaComCodigo = i;
-      }
-    }
-    
-    // O fim é DEPOIS da última linha com código de produto
-    let linhaFimDinamico = ultimaLinhaComCodigo + 1;
-    
-    // Mas também verificar se há marcadores de fim DEPOIS
-    for (let i = ultimaLinhaComCodigo + 1; i < linhas.length; i++) {
-      if (marcadoresFim.some(m => m.test(linhas[i]))) {
-        linhaFimDinamico = i;
-        console.log(`🔍 [TEMPLATE] Marcador de fim encontrado na linha ${i}: "${linhas[i]}"`);
-        break;
-      }
-    }
-    
-    // 4. Aplicar range - IGNORAR template.linhaFim, usar apenas dinâmico
-    const start = Math.max(0, template.linhaInicio || 0);
-    // 🆕 SEMPRE usar o fim dinâmico (última linha com código + 1 ou marcador)
-    const end = Math.min(linhas.length, linhaFimDinamico + 5); // +5 margem de segurança
-    
-    console.log(`🔍 [TEMPLATE] Range: ${start} a ${end}`);
-    console.log(`🔍 [TEMPLATE] Última linha com código: ${ultimaLinhaComCodigo} ("${linhas[ultimaLinhaComCodigo]?.substring(0, 50)}...")`);
-    console.log(`🔍 [TEMPLATE] (template.linhaFim ignorado: ${template.linhaFim})`);
-    
+    // 3. PROCESSAR TODAS AS LINHAS (sem linhaFim - confiar na blacklist!)
     const blacklist = template.blacklist || [];
-    
-    if (blacklist.length > 0) {
-      console.log('🔍 [TEMPLATE] Blacklist:', blacklist);
-    }
+    console.log(`🔍 [TEMPLATE] Blacklist tem ${blacklist.length} palavras`);
     
     const linhasProdutos = [];
     let linhasIgnoradasBlacklist = 0;
+    let linhasIgnoradasFiltro = 0;
     
-    for (let i = start; i < end; i++) {
+    for (let i = 0; i < linhas.length; i++) {
       const linha = linhas[i];
       if (!linha) continue;
       
-      // Verificar se linha contém palavra da blacklist
+      // Verificar blacklist
       const linhaLower = linha.toLowerCase();
-      const temPalavraBlacklist = blacklist.some(palavra => linhaLower.includes(palavra));
+      const temPalavraBlacklist = blacklist.some(palavra => linhaLower.includes(palavra.toLowerCase()));
       
       if (temPalavraBlacklist) {
         linhasIgnoradasBlacklist++;
         continue;
       }
       
-      if (shouldIgnoreLine(linha)) continue;
+      // Verificar filtro geral
+      if (shouldIgnoreLine(linha)) {
+        linhasIgnoradasFiltro++;
+        continue;
+      }
+      
+      // Parsear linha
       const parsed = parseLinha(linha);
-      if (parsed && parsed.nomeProduto) linhasProdutos.push(parsed);
+      if (parsed && parsed.nomeProduto) {
+        linhasProdutos.push(parsed);
+      }
     }
     
-    console.log(`🔍 [TEMPLATE] ${linhasProdutos.length} produtos detectados (${linhasIgnoradasBlacklist} ignorados por blacklist)`);
-    
-    // 🆕 DEBUG: Listar últimos 5 produtos
-    console.log('🔍 [TEMPLATE] Últimos 5 produtos:');
-    linhasProdutos.slice(-5).forEach((p, i) => {
-      console.log(`   ${linhasProdutos.length - 4 + i}. ${p.nomeProduto}`);
-    });
+    console.log(`🔍 [TEMPLATE] ${linhasProdutos.length} produtos detectados`);
+    console.log(`🔍 [TEMPLATE] ${linhasIgnoradasBlacklist} ignorados por blacklist, ${linhasIgnoradasFiltro} por filtro`);
     
     return linhasProdutos;
   };
