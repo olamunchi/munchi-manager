@@ -3263,104 +3263,139 @@ void 0;
     const criticos = ingredientesComStatus.filter(i => i.statusInfo.status === 'CRITICO');
     const baixos = ingredientesComStatus.filter(i => i.statusInfo.status === 'BAIXO');
     const atencao = ingredientesComStatus.filter(i => i.statusInfo.status === 'ATENCAO');
+    const totalAlertas = criticos.length + baixos.length + atencao.length;
     
-    if (criticos.length === 0 && baixos.length === 0 && atencao.length === 0) {
+    if (totalAlertas === 0) {
       return (
-        <div className="bg-green-50 border-2 border-green-300 rounded-lg p-4 mb-4">
-          <div className="flex items-center gap-3">
-            <span className="text-3xl">✅</span>
-            <div>
-              <p className="font-bold text-green-800">Stocks OK!</p>
-              <p className="text-sm text-green-700">Todos os ingredientes em níveis adequados</p>
+        <div className="bg-green-50 border border-green-300 rounded-lg p-3 mb-4">
+          <button
+            onClick={() => setExpandido(!expandido)}
+            className="w-full flex items-center justify-between"
+          >
+            <div className="flex items-center gap-2">
+              <span className="text-xl">✅</span>
+              <div className="text-left">
+                <p className="font-bold text-green-800 text-sm">Stocks OK!</p>
+                <p className="text-xs text-green-700">Todos os ingredientes em níveis adequados</p>
+              </div>
             </div>
-          </div>
+            {expandido ? <ChevronUp className="w-5 h-5 text-green-600" /> : <ChevronDown className="w-5 h-5 text-green-600" />}
+          </button>
+          {expandido && (
+            <div className="mt-3 pt-3 border-t border-green-300">
+              <button 
+                onClick={() => {
+                  setActiveTab('gestao');
+                  setGestaoSubTab('ingredientes');
+                }}
+                className="w-full bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 text-sm font-semibold"
+              >
+                📋 Ver Inventário Completo
+              </button>
+            </div>
+          )}
         </div>
       );
     }
     
     return (
-      <div className="bg-white rounded-lg shadow-lg border-2 border-red-300 p-4 mb-4">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <AlertCircle className="w-6 h-6 text-red-600" />
-            <h3 className="text-lg font-bold text-red-800">Alertas de Stock</h3>
-          </div>
-          <button 
-            onClick={() => setExpandido(!expandido)}
-            className="text-blue-600 hover:text-blue-800 text-sm font-semibold px-3 py-1 rounded hover:bg-blue-50"
-          >
-            {expandido ? '📊 Minimizar' : '📈 Expandir'}
-          </button>
-        </div>
-        
-        <div className="grid grid-cols-3 gap-3 mb-4">
-          <div className={`rounded-lg p-3 border-2 ${criticos.length > 0 ? 'bg-red-50 border-red-300' : 'bg-gray-50 border-gray-300'}`}>
-            <p className="text-sm font-semibold text-gray-700">🔴 Críticos</p>
-            <p className="text-3xl font-bold text-red-600">{criticos.length}</p>
-          </div>
-          <div className={`rounded-lg p-3 border-2 ${baixos.length > 0 ? 'bg-orange-50 border-orange-300' : 'bg-gray-50 border-gray-300'}`}>
-            <p className="text-sm font-semibold text-gray-700">🟠 Baixos</p>
-            <p className="text-3xl font-bold text-orange-600">{baixos.length}</p>
-          </div>
-          <div className={`rounded-lg p-3 border-2 ${atencao.length > 0 ? 'bg-yellow-50 border-yellow-300' : 'bg-gray-50 border-gray-300'}`}>
-            <p className="text-sm font-semibold text-gray-700">🟡 Atenção</p>
-            <p className="text-3xl font-bold text-yellow-600">{atencao.length}</p>
-          </div>
-        </div>
-        
-        {criticos.length > 0 && (
-          <div className="mb-3">
-            <h4 className="font-bold text-red-700 mb-2 text-sm">🔴 URGENTE - Stock Esgotado:</h4>
-            <div className="space-y-2">
-              {criticos.slice(0, expandido ? criticos.length : 3).map(ing => (
-                <div key={ing.id} className="bg-red-50 border border-red-300 rounded p-2">
-                  <p className="font-semibold text-sm">{ing.nome}</p>
-                  <p className="text-xs text-gray-600">
-                    Stock: <span className="text-red-600 font-bold">{ing.stockAtual || 0} {ing.unidade}</span> | 
-                    Mínimo: {ing.stockMinimo || 0} {ing.unidade}
-                  </p>
-                </div>
-              ))}
-              {!expandido && criticos.length > 3 && (
-                <button onClick={() => setExpandido(true)} className="text-sm text-red-600 hover:text-red-800 font-semibold">
-                  + Ver mais {criticos.length - 3}
-                </button>
-              )}
-            </div>
-          </div>
-        )}
-        
-        {expandido && baixos.length > 0 && (
-          <div className="mb-3">
-            <h4 className="font-bold text-orange-700 mb-2 text-sm">🟠 BAIXOS - Planejar Compra:</h4>
-            <div className="space-y-1">
-              {baixos.map(ing => (
-                <div key={ing.id} className="bg-orange-50 border border-orange-200 rounded p-2 flex justify-between items-center">
-                  <div>
-                    <p className="font-semibold text-sm">{ing.nome}</p>
-                    <p className="text-xs text-gray-600">{ing.stockAtual || 0} / {ing.stockMinimo || 0} {ing.unidade}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-        
-        <button 
-          onClick={() => {
-            setActiveTab('gestao');
-            setGestaoSubTab('ingredientes');
-          }}
-          className="w-full bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 text-sm font-semibold"
+      <div className="bg-white rounded-lg shadow border border-gray-200 mb-4">
+        {/* Header Colapsável */}
+        <button
+          onClick={() => setExpandido(!expandido)}
+          className="w-full p-3 flex items-center justify-between hover:bg-gray-50 transition rounded-lg"
         >
-          📋 Ver Inventário Completo
+          <div className="flex items-center gap-2">
+            <AlertCircle className={`w-5 h-5 ${criticos.length > 0 ? 'text-red-600' : 'text-orange-600'}`} />
+            <div className="text-left">
+              <h3 className="text-sm font-bold text-gray-800">Alertas de Stock</h3>
+              <p className="text-xs text-gray-600">
+                {totalAlertas} alerta{totalAlertas !== 1 ? 's' : ''} • 
+                <span className="text-red-600 font-semibold"> {criticos.length} crítico{criticos.length !== 1 ? 's' : ''}</span>
+                {baixos.length > 0 && <span className="text-orange-600"> • {baixos.length} baixo{baixos.length !== 1 ? 's' : ''}</span>}
+              </p>
+            </div>
+          </div>
+          {expandido ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
         </button>
+        
+        {/* Conteúdo Expandido */}
+        {expandido && (
+          <div className="px-3 pb-3">
+            <div className="grid grid-cols-3 gap-2 mb-3">
+              <div className={`rounded p-2 border ${criticos.length > 0 ? 'bg-red-50 border-red-300' : 'bg-gray-50 border-gray-300'}`}>
+                <p className="text-xs font-semibold text-gray-700">🔴 Críticos</p>
+                <p className="text-2xl font-bold text-red-600">{criticos.length}</p>
+              </div>
+              <div className={`rounded p-2 border ${baixos.length > 0 ? 'bg-orange-50 border-orange-300' : 'bg-gray-50 border-gray-300'}`}>
+                <p className="text-xs font-semibold text-gray-700">🟠 Baixos</p>
+                <p className="text-2xl font-bold text-orange-600">{baixos.length}</p>
+              </div>
+              <div className={`rounded p-2 border ${atencao.length > 0 ? 'bg-yellow-50 border-yellow-300' : 'bg-gray-50 border-gray-300'}`}>
+                <p className="text-xs font-semibold text-gray-700">🟡 Atenção</p>
+                <p className="text-2xl font-bold text-yellow-600">{atencao.length}</p>
+              </div>
+            </div>
+            
+            {criticos.length > 0 && (
+              <div className="mb-2">
+                <h4 className="font-bold text-red-700 mb-1 text-xs">🔴 URGENTE - Stock Esgotado:</h4>
+                <div className="space-y-1">
+                  {criticos.map(ing => (
+                    <div key={ing.id} className="bg-red-50 border border-red-300 rounded p-2">
+                      <p className="font-semibold text-xs">{ing.nome}</p>
+                      <p className="text-xs text-gray-600">
+                        Stock: <span className="text-red-600 font-bold">{ing.stockAtual || 0} {ing.unidade}</span> | 
+                        Mínimo: {ing.stockMinimo || 0} {ing.unidade}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            {baixos.length > 0 && (
+              <div className="mb-2">
+                <h4 className="font-bold text-orange-700 mb-1 text-xs">🟠 BAIXOS - Planejar Compra:</h4>
+                <div className="space-y-1">
+                  {baixos.slice(0, 3).map(ing => (
+                    <div key={ing.id} className="bg-orange-50 border border-orange-200 rounded p-1.5 flex justify-between items-center">
+                      <div>
+                        <p className="font-semibold text-xs">{ing.nome}</p>
+                        <p className="text-xs text-gray-600">{ing.stockAtual || 0} / {ing.stockMinimo || 0} {ing.unidade}</p>
+                      </div>
+                    </div>
+                  ))}
+                  {baixos.length > 3 && (
+                    <p className="text-xs text-gray-500 italic">+ {baixos.length - 3} mais...</p>
+                  )}
+                </div>
+              </div>
+            )}
+            
+            <button 
+              onClick={() => {
+                setActiveTab('gestao');
+                setGestaoSubTab('ingredientes');
+              }}
+              className="w-full bg-blue-600 text-white px-3 py-2 rounded hover:bg-blue-700 text-xs font-semibold mt-2"
+            >
+              📋 Ver Inventário Completo
+            </button>
+          </div>
+        )}
       </div>
     );
   };
 
 const RestauranteGestor = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
+
+  // 🆕 Função helper para mudar de aba e fazer scroll para o topo
+  const mudarParaAba = (aba) => {
+    setActiveTab(aba);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   const [isSyncing, setIsSyncing] = React.useState(false);
   const [lastSync, setLastSync] = React.useState(GitHubSync.getLastSync());
@@ -3379,6 +3414,8 @@ const RestauranteGestor = () => {
   const [dashboardSubTab, setDashboardSubTab] = useState('resumo');
   const [dateFilter, setDateFilter] = useState('all'); // all, today, week, month, custom
   const [showBreakEvenDetails, setShowBreakEvenDetails] = useState(false); // Estado para dropdown do break-even
+  const [showIVADetails, setShowIVADetails] = useState(false); // Estado para dropdown do IVA
+  const [showDespesasDetails, setShowDespesasDetails] = useState(false); // Estado para dropdown de despesas
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
   const [gestaoSubTab, setGestaoSubTab] = useState('ingredientes');
@@ -3547,6 +3584,7 @@ const RestauranteGestor = () => {
   const [mostrarImportacao, setMostrarImportacao] = useState(false);
   const [fonteImportacao, setFonteImportacao] = useState('moloni');
   const [fornecedoresExpandidos, setFornecedoresExpandidos] = useState({});
+  const [mostrarBreakdownFinanceiro, setMostrarBreakdownFinanceiro] = useState(false);
   
   // Importar vendas CSV
   const importarVendasCSV = (event) => {
@@ -3769,6 +3807,63 @@ const RestauranteGestor = () => {
       despesas,
       fornecedores,
       faturas,
+      diagnosticarPDFs: () => {
+        console.log('🔍 DIAGNÓSTICO DE PDFs NAS FATURAS');
+        console.log('═'.repeat(60));
+        
+        const faturasComPDF = faturas.filter(f => f.documentoPDF);
+        const faturasSemPDF = faturas.filter(f => !f.documentoPDF);
+        
+        console.log(`\n📊 RESUMO:`);
+        console.log(`Total de faturas: ${faturas.length}`);
+        console.log(`✅ Com PDF: ${faturasComPDF.length}`);
+        console.log(`❌ Sem PDF: ${faturasSemPDF.length}`);
+        
+        if (faturasComPDF.length > 0) {
+          console.log(`\n📄 ANÁLISE DOS PDFs:`);
+          
+          const analise = faturasComPDF.map(f => {
+            const pdfData = f.documentoPDF || '';
+            const hasPrefix = pdfData.includes('data:application/pdf;base64,');
+            const base64 = hasPrefix ? pdfData.split(',')[1] : pdfData;
+            const size = base64.length;
+            const isValid = size > 100; // PDFs válidos têm pelo menos 100 chars
+            
+            return {
+              numero: f.numero || f.id,
+              fornecedor: f.fornecedorNome || 'N/A',
+              data: f.data,
+              temPrefixo: hasPrefix ? '✅' : '❌',
+              tamanhoBase64: size,
+              valido: isValid ? '✅' : '❌ VAZIO',
+              tipo: f.tipo || 'FT'
+            };
+          });
+          
+          console.table(analise);
+          
+          const pdfsInvalidos = analise.filter(a => a.valido === '❌ VAZIO');
+          if (pdfsInvalidos.length > 0) {
+            console.log(`\n⚠️ ${pdfsInvalidos.length} PDF(s) VAZIO(S) OU CORROMPIDO(S):`);
+            console.log('Estas faturas têm a propriedade documentoPDF mas o conteúdo está vazio.');
+            console.log('Solução: Apague e volte a fazer upload do PDF correto.');
+          }
+        }
+        
+        if (faturasSemPDF.length > 0) {
+          console.log(`\n⚠️ FATURAS SEM PDF (${faturasSemPDF.length}):`);
+          console.table(faturasSemPDF.map(f => ({
+            numero: f.numero || f.id,
+            fornecedor: f.fornecedorNome || 'N/A',
+            data: f.data,
+            tipo: f.tipo || 'FT',
+            valor: (f.totais?.total || f.total || 0).toFixed(2) + '€'
+          })));
+          console.log('💡 Estas faturas precisam de ter o PDF anexado para dedução de IVA.');
+        }
+        
+        console.log('\n' + '═'.repeat(60));
+      },
       diagnosticar: () => {
         console.log('🔍 DIAGNÓSTICO MUNCHI MANAGER');
         console.log('═'.repeat(50));
@@ -3945,6 +4040,7 @@ const RestauranteGestor = () => {
     console.log('  - window.DEBUG_MUNCHI.vendas');
     console.log('  - window.DEBUG_MUNCHI.faturas');
     console.log('  - window.DEBUG_MUNCHI.diagnosticar() ← Execute isto!');
+    console.log('  - window.DEBUG_MUNCHI.diagnosticarPDFs() ← Verificar PDFs das faturas');
     console.log('  - window.DEBUG_MUNCHI.corrigirCustos() ← Corrigir produtos');
     console.log('  - window.DEBUG_MUNCHI.corrigirIngredientes() ← Corrigir ingredientes!');
     console.log('  - window.DEBUG_MUNCHI.recalcularTudo() ← Recalcular tudo');
@@ -5748,6 +5844,12 @@ void 0;
           if (dados.contagens) setContagens(dados.contagens); // 🆕 Contagens de inventário
           
           showNotification('Dados importados com sucesso!', 'success');
+          // Navegar para dashboard com subtab resumo
+          setActiveTab('dashboard');
+          setDashboardSubTab('resumo');
+          setTimeout(() => {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }, 100);
           event.target.value = '';
         }
       } catch (error) {
@@ -6117,9 +6219,29 @@ void 0;
   // Os PDFs das faturas são OBRIGATÓRIOS e devem ser enviados separadamente.
   const exportarRelatorioCompletoCSV = () => {
     const filteredVendas = getExportFilteredData(vendas || []);
-    const filteredDespesas = getExportFilteredData(despesas || []);
     
-    if (filteredVendas.length === 0 && filteredDespesas.length === 0) {
+    // ⚠️ USAR FATURAS (sistema novo) em vez de despesas (sistema antigo)
+    const filteredFaturasTemp = getExportFilteredData(faturas || []);
+    
+    // Filtrar: apenas faturas (não recibos)
+    const filteredFaturasSemRecibos = filteredFaturasTemp.filter(f => 
+      f.tipoDocumento === 'fatura' || !f.tipoDocumento
+    );
+    
+    // ⚠️ FILTRAR: Excluir FS (Faturas Simplificadas) - apenas FT e FR para contabilista
+    const filteredFaturas = filteredFaturasSemRecibos.filter(f => f.tipo !== 'FS');
+    
+    const recibosIgnorados = filteredFaturasTemp.length - filteredFaturasSemRecibos.length;
+    const fsIgnoradas = filteredFaturasSemRecibos.length - filteredFaturas.length;
+    
+    if (recibosIgnorados > 0 || fsIgnoradas > 0) {
+      let msg = 'ℹ️ Documentos excluídos da exportação: ';
+      if (recibosIgnorados > 0) msg += `${recibosIgnorados} recibo(s) `;
+      if (fsIgnoradas > 0) msg += `${fsIgnoradas} FS `;
+      void 0;
+    }
+    
+    if (filteredVendas.length === 0 && filteredFaturas.length === 0) {
       showNotification('Nenhum dado para exportar no período selecionado!', 'error');
       return;
     }
@@ -6146,10 +6268,10 @@ void 0;
       `Telefone: ${dadosEmpresa.telefone || 'N/A'}`,
       '',
       '===== INFORMAÇÃO DO RELATÓRIO =====',
-      `Período: ${filteredVendas.length > 0 || filteredDespesas.length > 0 ? new Date(Math.min(...[...filteredVendas, ...filteredDespesas].map(x => new Date(x.data)))).toLocaleDateString('pt-PT') : ''} a ${filteredVendas.length > 0 || filteredDespesas.length > 0 ? new Date(Math.max(...[...filteredVendas, ...filteredDespesas].map(x => new Date(x.data)))).toLocaleDateString('pt-PT') : ''}`,
+      `Período: ${filteredVendas.length > 0 || filteredFaturas.length > 0 ? new Date(Math.min(...[...filteredVendas, ...filteredFaturas].map(x => new Date(x.data)))).toLocaleDateString('pt-PT') : ''} a ${filteredVendas.length > 0 || filteredFaturas.length > 0 ? new Date(Math.max(...[...filteredVendas, ...filteredFaturas].map(x => new Date(x.data)))).toLocaleDateString('pt-PT') : ''}`,
       `Data de Emissão: ${new Date().toLocaleString('pt-PT')}`,
       `Total de Vendas: ${filteredVendas.length} registos`,
-      `Total de Despesas: ${filteredDespesas.length} registos`,
+      `Total de Faturas: ${filteredFaturas.length} registos`,
       '',
       ''
     ];
@@ -6240,137 +6362,128 @@ void 0;
     
     vendasSection.push('', '');
     
-    // ===== SECÇÃO 2: DESPESAS =====
-    const despesasSection = [
+    // ===== SECÇÃO 2: FATURAS DE FORNECEDORES =====
+    const faturasSection = [
       '='.repeat(80),
-      'SECÇÃO 2: DESPESAS E COMPRAS',
+      'SECÇÃO 2: FATURAS DE FORNECEDORES',
       '='.repeat(80),
       ''
     ];
     
-    if (filteredDespesas.length > 0) {
-      const despesasHeaders = [
+    if (filteredFaturas.length > 0) {
+      const faturasHeaders = [
         'Data',
         'Nº Doc',
-        'Tipo Doc',
+        'Tipo',
         'Fornecedor',
         'NIF Forn',
         'Categoria',
-        'Descrição',
         'Base (s/ IVA)',
         'Taxa IVA',
         'Valor IVA',
         'Total (c/ IVA)',
-        'Forma Pag',
-        'Dedutível',
+        'Tem PDF',
         'Notas'
       ];
       
-      const despesasRows = filteredDespesas.map((d, idx) => {
-        const valorBase = d.valor;
-        const valorIva = valorBase * (d.iva / 100);
-        const valorTotal = valorBase + valorIva;
+      const faturasRows = filteredFaturas.map((f, idx) => {
+        // Usar totais se existirem, caso contrário calcular
+        const valorBase = f.totais?.subtotal || f.subtotal || 0;
+        const valorIva = f.totais?.iva || f.totalIva || 0;
+        const valorTotal = f.totais?.total || f.total || 0;
         
-        let fornecedorObj = null;
-        if (d.fornecedor) {
-          fornecedorObj = fornecedores.find(f => 
-            (typeof f === 'object' && f.nome === d.fornecedor) || 
-            (typeof f === 'string' && f === d.fornecedor)
-          );
-        }
-        
-        const fornNif = fornecedorObj && typeof fornecedorObj === 'object' ? (fornecedorObj.nif || '') : '';
-        const dedutivelIVA = d.iva > 0 ? 'Sim' : 'N/A';
+        // IVA médio (simplificação)
+        const taxaIva = valorBase > 0 ? ((valorIva / valorBase) * 100).toFixed(0) : 0;
         
         return [
-          new Date(d.data).toISOString().split('T')[0],
-          d.numeroDocumento || `DSP-${new Date(d.data).getFullYear()}-${String(idx + 1).padStart(6, '0')}`,
-          d.tipoDocumento || 'Fatura',
-          `"${d.fornecedor || 'N/A'}"`,
-          fornNif,
-          `"${d.categoria}"`,
-          `"${d.descricao}"`,
+          new Date(f.data).toISOString().split('T')[0],
+          f.numero || `FAT-${new Date(f.data).getFullYear()}-${String(idx + 1).padStart(6, '0')}`,
+          f.tipo || 'FT',
+          `"${f.fornecedorNome || 'N/A'}"`,
+          f.fornecedorNif || '',
+          `"${f.categoria || 'compras'}"`,
           valorBase.toFixed(2),
-          `${d.iva}%`,
+          `${taxaIva}%`,
           valorIva.toFixed(2),
           valorTotal.toFixed(2),
-          d.formaPagamento || 'Transferência',
-          dedutivelIVA,
-          `"${d.notas || ''}"`
+          f.documentoPDF ? 'Sim' : 'Não',
+          `"${f.notas || ''}"`
         ].join(';');
       });
       
-      despesasSection.push(despesasHeaders.join(';'), ...despesasRows);
+      faturasSection.push(faturasHeaders.join(';'), ...faturasRows);
       
-      // Resumo de despesas por categoria
-      const resumoDespesasCat = {};
-      filteredDespesas.forEach(d => {
-        const cat = d.categoria || 'Sem Categoria';
-        if (!resumoDespesasCat[cat]) {
-          resumoDespesasCat[cat] = { base: 0, iva: 0, total: 0, count: 0 };
+      // Resumo de faturas por categoria
+      const resumoFaturasCat = {};
+      filteredFaturas.forEach(f => {
+        const cat = f.categoria || 'compras';
+        if (!resumoFaturasCat[cat]) {
+          resumoFaturasCat[cat] = { base: 0, iva: 0, total: 0, count: 0 };
         }
-        const valorBase = d.valor;
-        const valorIva = valorBase * (d.iva / 100);
-        resumoDespesasCat[cat].base += valorBase;
-        resumoDespesasCat[cat].iva += valorIva;
-        resumoDespesasCat[cat].total += valorBase + valorIva;
-        resumoDespesasCat[cat].count++;
+        const valorBase = f.totais?.subtotal || f.subtotal || 0;
+        const valorIva = f.totais?.iva || f.totalIva || 0;
+        resumoFaturasCat[cat].base += valorBase;
+        resumoFaturasCat[cat].iva += valorIva;
+        resumoFaturasCat[cat].total += valorBase + valorIva;
+        resumoFaturasCat[cat].count++;
       });
       
-      // Resumo de despesas por IVA
-      const resumoDespesasIVA = {};
-      filteredDespesas.forEach(d => {
-        const taxa = d.iva;
-        if (!resumoDespesasIVA[taxa]) {
-          resumoDespesasIVA[taxa] = { base: 0, iva: 0, total: 0, count: 0 };
+      // Resumo de faturas por taxa IVA (aproximado)
+      const resumoFaturasIVA = {};
+      filteredFaturas.forEach(f => {
+        const valorBase = f.totais?.subtotal || f.subtotal || 0;
+        const valorIva = f.totais?.iva || f.totalIva || 0;
+        // Calcular taxa média
+        const taxa = valorBase > 0 ? Math.round((valorIva / valorBase) * 100) : 0;
+        
+        if (!resumoFaturasIVA[taxa]) {
+          resumoFaturasIVA[taxa] = { base: 0, iva: 0, total: 0, count: 0 };
         }
-        const valorBase = d.valor;
-        const valorIva = valorBase * (taxa / 100);
-        resumoDespesasIVA[taxa].base += valorBase;
-        resumoDespesasIVA[taxa].iva += valorIva;
-        resumoDespesasIVA[taxa].total += valorBase + valorIva;
-        resumoDespesasIVA[taxa].count++;
+        resumoFaturasIVA[taxa].base += valorBase;
+        resumoFaturasIVA[taxa].iva += valorIva;
+        resumoFaturasIVA[taxa].total += valorBase + valorIva;
+        resumoFaturasIVA[taxa].count++;
       });
       
-      despesasSection.push(
+      faturasSection.push(
         '',
-        '--- RESUMO DE DESPESAS POR CATEGORIA ---',
+        '--- RESUMO DE FATURAS POR CATEGORIA ---',
         'Categoria;Nº Operações;Base;IVA;Total',
-        ...Object.entries(resumoDespesasCat)
+        ...Object.entries(resumoFaturasCat)
           .sort((a, b) => b[1].total - a[1].total)
           .map(([cat, v]) =>
             `"${cat}";${v.count};${v.base.toFixed(2)};${v.iva.toFixed(2)};${v.total.toFixed(2)}`
           ),
         '',
-        '--- RESUMO DE DESPESAS POR TAXA IVA ---',
+        '--- RESUMO DE FATURAS POR TAXA IVA ---',
         'Taxa IVA;Nº Operações;Base;IVA Suportado;Total',
-        ...Object.entries(resumoDespesasIVA).map(([taxa, v]) =>
+        ...Object.entries(resumoFaturasIVA).map(([taxa, v]) =>
           `${taxa}%;${v.count};${v.base.toFixed(2)};${v.iva.toFixed(2)};${v.total.toFixed(2)}`
         ),
         '',
-        '--- TOTAIS DE DESPESAS ---',
-        `Total Base (Despesas);${Object.values(resumoDespesasIVA).reduce((s, v) => s + v.base, 0).toFixed(2)}`,
-        `Total IVA Suportado;${Object.values(resumoDespesasIVA).reduce((s, v) => s + v.iva, 0).toFixed(2)}`,
-        `Total IVA Dedutível;${Object.values(resumoDespesasIVA).reduce((s, v) => s + v.iva, 0).toFixed(2)}`,
-        `Total Despesas;${Object.values(resumoDespesasIVA).reduce((s, v) => s + v.total, 0).toFixed(2)}`
+        '--- TOTAIS DE FATURAS ---',
+        `Total Base (Faturas);${Object.values(resumoFaturasIVA).reduce((s, v) => s + v.base, 0).toFixed(2)}`,
+        `Total IVA Suportado;${Object.values(resumoFaturasIVA).reduce((s, v) => s + v.iva, 0).toFixed(2)}`,
+        `Total IVA Dedutível;${Object.values(resumoFaturasIVA).reduce((s, v) => s + v.iva, 0).toFixed(2)}`,
+        `Total Faturas;${Object.values(resumoFaturasIVA).reduce((s, v) => s + v.total, 0).toFixed(2)}`
       );
     } else {
-      despesasSection.push('Nenhuma despesa registada no período selecionado.');
+      faturasSection.push('Nenhuma fatura registada no período selecionado.');
     }
     
-    despesasSection.push('', '');
+    faturasSection.push('', '');
     
     // ===== SECÇÃO 3: RESUMO FISCAL =====
     const totalVendasBase = filteredVendas.reduce((sum, v) => sum + v.valor, 0);
     const totalVendasIVA = filteredVendas.reduce((sum, v) => sum + (v.valor * v.iva / 100), 0);
     const totalVendas = totalVendasBase + totalVendasIVA;
     
-    const totalDespesasBase = filteredDespesas.reduce((sum, d) => sum + d.valor, 0);
-    const totalDespesasIVA = filteredDespesas.reduce((sum, d) => sum + (d.valor * d.iva / 100), 0);
-    const totalDespesas = totalDespesasBase + totalDespesasIVA;
+    const totalFaturasBase = filteredFaturas.reduce((sum, f) => sum + (f.totais?.subtotal || f.subtotal || 0), 0);
+    const totalFaturasIVA = filteredFaturas.reduce((sum, f) => sum + (f.totais?.iva || f.totalIva || 0), 0);
+    const totalFaturas = totalFaturasBase + totalFaturasIVA;
     
-    const saldoIVA = totalVendasIVA - totalDespesasIVA;
-    const resultadoLiquido = totalVendas - totalDespesas;
+    const saldoIVA = totalVendasIVA - totalFaturasIVA;
+    const resultadoLiquido = totalVendas - totalFaturas;
     
     const resumoFiscal = [
       '='.repeat(80),
@@ -6379,18 +6492,18 @@ void 0;
       '',
       '--- APURAMENTO DE IVA ---',
       `IVA Liquidado (Vendas);${totalVendasIVA.toFixed(2)}`,
-      `IVA Dedutível (Despesas);${totalDespesasIVA.toFixed(2)}`,
+      `IVA Dedutível (Faturas);${totalFaturasIVA.toFixed(2)}`,
       `Saldo de IVA;${saldoIVA.toFixed(2)};${saldoIVA >= 0 ? 'A ENTREGAR ao Estado' : 'A RECEBER do Estado'}`,
       '',
       '--- DEMONSTRAÇÃO DE RESULTADOS (SIMPLIFICADA) ---',
       `Total de Vendas (c/ IVA);${totalVendas.toFixed(2)}`,
-      `Total de Despesas (c/ IVA);${totalDespesas.toFixed(2)}`,
+      `Total de Faturas (c/ IVA);${totalFaturas.toFixed(2)}`,
       `Resultado Líquido;${resultadoLiquido.toFixed(2)};${resultadoLiquido >= 0 ? 'LUCRO' : 'PREJUÍZO'}`,
       '',
       '--- VALORES BASE (s/ IVA) ---',
       `Vendas (Base);${totalVendasBase.toFixed(2)}`,
-      `Despesas (Base);${totalDespesasBase.toFixed(2)}`,
-      `Margem Bruta;${(totalVendasBase - totalDespesasBase).toFixed(2)}`,
+      `Faturas (Base);${totalFaturasBase.toFixed(2)}`,
+      `Margem Bruta;${(totalVendasBase - totalFaturasBase).toFixed(2)}`,
       ''
     ];
     
@@ -6482,7 +6595,7 @@ void 0;
     const csvContent = [
       ...empresaInfo,
       ...vendasSection,
-      ...despesasSection,
+      ...faturasSection,
       ...resumoFiscal,
       ...rodape
     ].join('\n');
@@ -6495,7 +6608,7 @@ void 0;
     a.href = url;
     
     // Nome do ficheiro com período - APOIO CONTABILÍSTICO
-    const todasDatas = [...filteredVendas, ...filteredDespesas].map(x => new Date(x.data));
+    const todasDatas = [...filteredVendas, ...filteredFaturas].map(x => new Date(x.data));
     const dataInicio = todasDatas.length > 0 ? new Date(Math.min(...todasDatas)) : new Date();
     const dataFim = todasDatas.length > 0 ? new Date(Math.max(...todasDatas)) : new Date();
     const nomeArquivo = `APOIO_CONTABILISTICO_${dataInicio.getFullYear()}${String(dataInicio.getMonth() + 1).padStart(2, '0')}_${dataFim.getFullYear()}${String(dataFim.getMonth() + 1).padStart(2, '0')}.csv`;
@@ -6506,7 +6619,15 @@ void 0;
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
     
-    showNotification(`✅ Export para contabilista: ${filteredVendas.length} vendas + ${filteredDespesas.length} despesas. Não esquecer os PDFs das faturas!`, 'success');
+    let msg = `✅ Export para contabilista: ${filteredVendas.length} vendas + ${filteredFaturas.length} faturas`;
+    if (recibosIgnorados > 0 || fsIgnoradas > 0) {
+      msg += `\n\n⚠️ Excluídos: `;
+      if (recibosIgnorados > 0) msg += `${recibosIgnorados} recibo(s) `;
+      if (fsIgnoradas > 0) msg += `${fsIgnoradas} FS `;
+    }
+    msg += '\n\n📎 Não esquecer os PDFs das faturas!';
+    
+    showNotification(msg, 'success');
   };
 
   // ===== EXPORT COMPLETO: CSV + ZIP COM PDFs =====
@@ -6515,11 +6636,15 @@ void 0;
     const filteredFaturasCompletas = getExportFilteredData(faturas || []); // Todas
     
     // ⚠️ FILTRAR: Só FATURAS (não recibos) para contabilista
-    const filteredFaturas = filteredFaturasCompletas.filter(f => 
+    const filteredFaturasSemRecibos = filteredFaturasCompletas.filter(f => 
       f.tipoDocumento === 'fatura' || !f.tipoDocumento // Retrocompatibilidade
     );
     
-    const recibosIgnorados = filteredFaturasCompletas.length - filteredFaturas.length;
+    // ⚠️ FILTRAR: Excluir FS (Faturas Simplificadas) - apenas FT e FR para contabilista
+    const filteredFaturas = filteredFaturasSemRecibos.filter(f => f.tipo !== 'FS');
+    
+    const recibosIgnorados = filteredFaturasCompletas.length - filteredFaturasSemRecibos.length;
+    const fsIgnoradas = filteredFaturasSemRecibos.length - filteredFaturas.length;
     
     if (filteredVendas.length === 0 && filteredFaturas.length === 0) {
       showNotification('Nenhum dado para exportar no período selecionado!', 'error');
@@ -6530,20 +6655,32 @@ void 0;
     const faturasComPDF = filteredFaturas.filter(f => f.documentoPDF);
     const faturasSemPDF = filteredFaturas.filter(f => !f.documentoPDF);
     
-    // Aviso se há recibos ignorados
+    // Aviso se há recibos ou FS ignorados
+    let avisos = [];
     if (recibosIgnorados > 0) {
-      const msg = `ℹ️ Nota: ${recibosIgnorados} recibo(s) NÃO serão exportados (apenas faturas vão para contabilista)`;
+      avisos.push(`${recibosIgnorados} recibo(s)`);
+    }
+    if (fsIgnoradas > 0) {
+      avisos.push(`${fsIgnoradas} FS (Fatura Simplificada)`);
+    }
+    if (avisos.length > 0) {
+      const msg = `ℹ️ Nota: ${avisos.join(' e ')} NÃO serão exportados (apenas FT e FR vão para contabilista)`;
       void 0;
     }
     
     if (faturasSemPDF.length > 0) {
-      const confirmar = confirm(
-        `⚠️ ATENÇÃO!\n\n` +
-        `${faturasSemPDF.length} fatura(s) NÃO têm PDF anexado.\n` +
-        (recibosIgnorados > 0 ? `${recibosIgnorados} recibo(s) serão ignorados.\n\n` : '\n') +
-        `Sem PDFs, o contabilista não pode deduzir IVA!\n\n` +
-        `Deseja continuar mesmo assim?`
-      );
+      let mensagemAviso = `⚠️ ATENÇÃO!\n\n${faturasSemPDF.length} fatura(s) NÃO têm PDF anexado.\n`;
+      
+      if (recibosIgnorados > 0 || fsIgnoradas > 0) {
+        mensagemAviso += `\nExcluídos da exportação:\n`;
+        if (recibosIgnorados > 0) mensagemAviso += `• ${recibosIgnorados} recibo(s)\n`;
+        if (fsIgnoradas > 0) mensagemAviso += `• ${fsIgnoradas} FS - Fatura(s) Simplificada(s)\n`;
+        mensagemAviso += `\n`;
+      }
+      
+      mensagemAviso += `Sem PDFs, o contabilista não pode deduzir IVA!\n\nDeseja continuar mesmo assim?`;
+      
+      const confirmar = confirm(mensagemAviso);
       if (!confirmar) return;
     }
     
@@ -6568,30 +6705,52 @@ void 0;
       // 3. Adicionar PDFs ao ZIP (em pasta separada com data)
       const pdfFolder = zip.folder(`PDFs_Fornecedores_${periodoStr}`);
       
+      let pdfsAdicionados = 0;
+      let pdfsComErro = 0;
+      
       filteredFaturas.forEach((fatura, index) => {
         if (fatura.documentoPDF) {
-          // Extrair base64 puro (remover prefixo data:application/pdf;base64,)
-          const base64Data = fatura.documentoPDF.split(',')[1];
-          
-          // Nome do ficheiro PDF - LIMPAR BEM para evitar problemas no Windows
-          const dataStr = new Date(fatura.data).toISOString().split('T')[0].replace(/-/g, '');
-          const fornecedor = fatura.fornecedorNome || 'SemFornecedor';
-          // Limpar TODOS os caracteres especiais que o Windows não gosta
-          const fornecedorClean = fornecedor
-            .replace(/[\/\\:*?"<>|]/g, '') // Remove caracteres proibidos no Windows
-            .replace(/[^a-zA-Z0-9\s]/g, '_') // Substitui outros especiais por _
-            .replace(/\s+/g, '_') // Espaços viram _
-            .substring(0, 30); // Limita tamanho
-          
-          const numDoc = fatura.numero || `FAT${String(index + 1).padStart(4, '0')}`;
-          // Limpar número do documento (remove /, \, etc)
-          const numDocClean = numDoc
-            .replace(/[\/\\:*?"<>|]/g, '_')
-            .replace(/[^a-zA-Z0-9]/g, '_');
-          
-          const nomeArquivo = `${dataStr}_${fornecedorClean}_${numDocClean}.pdf`;
-          
-          pdfFolder.file(nomeArquivo, base64Data, {base64: true});
+          try {
+            // Extrair base64 puro (remover prefixo data:application/pdf;base64,)
+            let base64Data = fatura.documentoPDF;
+            
+            // Verificar se tem o prefixo data:
+            if (base64Data.includes(',')) {
+              base64Data = base64Data.split(',')[1];
+            }
+            
+            // Validar se o base64 não está vazio
+            if (!base64Data || base64Data.length < 100) {
+              void 0;
+              pdfsComErro++;
+              return; // Skip este PDF
+            }
+            
+            // Nome do ficheiro PDF - LIMPAR BEM para evitar problemas no Windows
+            const dataStr = new Date(fatura.data).toISOString().split('T')[0].replace(/-/g, '');
+            const fornecedor = fatura.fornecedorNome || 'SemFornecedor';
+            // Limpar TODOS os caracteres especiais que o Windows não gosta
+            const fornecedorClean = fornecedor
+              .replace(/[\/\\:*?"<>|]/g, '') // Remove caracteres proibidos no Windows
+              .replace(/[^a-zA-Z0-9\s]/g, '_') // Substitui outros especiais por _
+              .replace(/\s+/g, '_') // Espaços viram _
+              .substring(0, 30); // Limita tamanho
+            
+            const numDoc = fatura.numero || `FAT${String(index + 1).padStart(4, '0')}`;
+            // Limpar número do documento (remove /, \, etc)
+            const numDocClean = numDoc
+              .replace(/[\/\\:*?"<>|]/g, '_')
+              .replace(/[^a-zA-Z0-9]/g, '_');
+            
+            const nomeArquivo = `${dataStr}_${fornecedorClean}_${numDocClean}.pdf`;
+            
+            pdfFolder.file(nomeArquivo, base64Data, {base64: true});
+            pdfsAdicionados++;
+            
+          } catch (error) {
+            void 0;
+            pdfsComErro++;
+          }
         }
       });
       
@@ -6606,22 +6765,26 @@ void 0;
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
       
-      showNotification(
-        `✅ Pacote completo criado!\n\n` +
-        `📄 CSV: 1 ficheiro\n` +
-        `📎 PDFs: ${faturasComPDF.length} documento(s)\n` +
-        `⚠️ Sem PDF: ${faturasSemPDF.length} fatura(s)`,
-        'success'
-      );
+      let mensagemFinal = `✅ Pacote completo criado!\n\n📄 CSV: 1 ficheiro\n📎 PDFs: ${pdfsAdicionados} documento(s)`;
+      
+      if (pdfsComErro > 0) {
+        mensagemFinal += `\n⚠️ PDFs com erro: ${pdfsComErro} (vazios ou corrompidos)`;
+      }
+      
+      if (faturasSemPDF.length > 0) {
+        mensagemFinal += `\n⚠️ Sem PDF: ${faturasSemPDF.length} fatura(s)`;
+      }
+      
+      showNotification(mensagemFinal, pdfsComErro > 0 ? 'warning' : 'success');
       
     } catch (error) {
       void 0;
-      showNotification('❌ Erro ao criar pacote! Veja o console.', 'error');
+      showNotification('❌ Erro ao criar pacote! Veja o console (F12).', 'error');
     }
   };
   
   // Função auxiliar para gerar CSV (extrai lógica da função exportarRelatorioCompletoCSV)
-  const gerarCSVCompleto = (filteredVendas, filteredDespesas) => {
+  const gerarCSVCompleto = (filteredVendas, filteredFaturas) => {
     // Reutiliza toda a lógica da função exportarRelatorioCompletoCSV
     // mas retorna o CSV em vez de fazer download
     
@@ -6647,10 +6810,10 @@ void 0;
       `Telefone: ${dadosEmpresa.telefone || 'N/A'}`,
       '',
       '===== INFORMAÇÃO DO RELATÓRIO =====',
-      `Período: ${filteredVendas.length > 0 || filteredDespesas.length > 0 ? new Date(Math.min(...[...filteredVendas, ...filteredDespesas].map(x => new Date(x.data)))).toLocaleDateString('pt-PT') : ''} a ${filteredVendas.length > 0 || filteredDespesas.length > 0 ? new Date(Math.max(...[...filteredVendas, ...filteredDespesas].map(x => new Date(x.data)))).toLocaleDateString('pt-PT') : ''}`,
+      `Período: ${filteredVendas.length > 0 || filteredFaturas.length > 0 ? new Date(Math.min(...[...filteredVendas, ...filteredFaturas].map(x => new Date(x.data)))).toLocaleDateString('pt-PT') : ''} a ${filteredVendas.length > 0 || filteredFaturas.length > 0 ? new Date(Math.max(...[...filteredVendas, ...filteredFaturas].map(x => new Date(x.data)))).toLocaleDateString('pt-PT') : ''}`,
       `Data de Emissão: ${new Date().toLocaleString('pt-PT')}`,
       `Total de Vendas: ${filteredVendas.length} registos`,
-      `Total de Despesas: ${filteredDespesas.length} registos`,
+      `Total de Faturas: ${filteredFaturas.length} registos`,
       '',
       ''
     ];
@@ -6661,11 +6824,11 @@ void 0;
       ...empresaInfo,
       '',
       '='.repeat(80),
-      'VENDAS E DESPESAS',
+      'VENDAS E FATURAS',
       '='.repeat(80),
       '',
       `Total Vendas: ${filteredVendas.length}`,
-      `Total Despesas: ${filteredDespesas.length}`,
+      `Total Faturas: ${filteredFaturas.length}`,
       '',
       '(Relatório completo gerado automaticamente)',
       ''
@@ -6722,6 +6885,12 @@ void 0;
           loadUserInfo(response.access_token);
           loadFromDrive(response.access_token);
           showNotification('✅ Conectado ao Google Drive!', 'success');
+          // Navegar para dashboard com subtab resumo
+          setActiveTab('dashboard');
+          setDashboardSubTab('resumo');
+          setTimeout(() => {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }, 100);
         } else {
           setDriveError('Erro ao obter token');
           showNotification('❌ Erro ao conectar', 'error');
@@ -9709,31 +9878,60 @@ void 0;
   
   void 0;
   
-  // Limite IVA: SEMPRE calcular apenas vendas do ano atual (reset a 1 Janeiro)
+  // Limite IVA: TRIMESTRAL (reseta de 3 em 3 meses - regime trimestral português)
   const anoAtual = new Date().getFullYear();
+  
+  // 🆕 Calcular trimestre atual
+  const now = new Date();
+  const currentMonth = now.getMonth() + 1; // 1-12
+  const currentYear = now.getFullYear();
+  
+  let quarter, quarterStart, quarterEnd;
+  if (currentMonth >= 1 && currentMonth <= 3) {
+    quarter = 1;
+    quarterStart = new Date(currentYear, 0, 1);
+    quarterEnd = new Date(currentYear, 2, 31);
+  } else if (currentMonth >= 4 && currentMonth <= 6) {
+    quarter = 2;
+    quarterStart = new Date(currentYear, 3, 1);
+    quarterEnd = new Date(currentYear, 5, 30);
+  } else if (currentMonth >= 7 && currentMonth <= 9) {
+    quarter = 3;
+    quarterStart = new Date(currentYear, 6, 1);
+    quarterEnd = new Date(currentYear, 8, 30);
+  } else {
+    quarter = 4;
+    quarterStart = new Date(currentYear, 9, 1);
+    quarterEnd = new Date(currentYear, 11, 31);
+  }
+  
+  // ✅ Filtrar vendas e faturas APENAS do TRIMESTRE ATUAL (não ano)
   const vendasAnoAtual = vendas.filter(v => {
     const dataVenda = new Date(v.data);
-    return dataVenda.getFullYear() === anoAtual;
+    return dataVenda >= quarterStart && dataVenda <= quarterEnd;
   });
   const totalVendasAnoAtual = vendasAnoAtual.reduce((s, v) => s + (v.total || v.valor || 0), 0);
   
-  // Filtrar também faturas do ano atual para cálculo de IVA
+  // Filtrar também faturas do trimestre atual para cálculo de IVA
   const faturasAnoAtual = faturas.filter(f => {
     const dataFatura = new Date(f.data);
-    return dataFatura.getFullYear() === anoAtual;
+    return dataFatura >= quarterStart && dataFatura <= quarterEnd;
   });
   
-  // IVA Vendas (a receber do estado) - APENAS ANO ATUAL
+  // IVA Vendas (a receber do estado) - APENAS TRIMESTRE ATUAL
   const ivaV = vendasAnoAtual.reduce((s, v) => s + ((v.total || v.valor || 0) * v.iva / (100 + v.iva)), 0);
   
-  // IVA Compras (das faturas - a deduzir) - APENAS ANO ATUAL
-  const ivaComprasFaturas = faturasAnoAtual.reduce((s, f) => s + (f.totalIva || 0), 0);
+  // IVA Compras (das faturas - a deduzir) - APENAS TRIMESTRE ATUAL
+  // ⚠️ EXCLUIR Faturas Simplificadas (FS) - NÃO dão direito à dedução de IVA
+  const ivaComprasFaturas = faturasAnoAtual
+    .filter(f => f.tipo !== 'FS') // ✅ Só FT e FR deduzem IVA
+    .reduce((s, f) => s + (f.totalIva || 0), 0);
   
-  // IVA Compras (das despesas com categoria "compras") - APENAS ANO ATUAL
-  // ✅ TODAS as despesas com IVA do ano atual (não apenas compras)
+  // IVA Compras (das despesas com categoria "compras") - APENAS TRIMESTRE ATUAL
+  // ✅ TODAS as despesas com IVA do trimestre atual (não apenas compras)
   const despesasComIvaAnoAtual = despesas.filter(d => {
     const dataDespesa = new Date(d.data);
-    return dataDespesa.getFullYear() === anoAtual && d.iva && d.iva > 0;
+    return dataDespesa >= quarterStart && dataDespesa <= quarterEnd && d.iva && d.iva > 0;
   });
   
   const ivaComprasDespesas = despesasComIvaAnoAtual
@@ -9747,7 +9945,7 @@ void 0;
   // Total IVA Compras
   const ivaCompras = ivaComprasFaturas + ivaComprasDespesas;
   
-  // IVA a Pagar = IVA Vendas - IVA Compras
+  // IVA a Pagar = IVA Vendas - IVA Compras (reseta a cada trimestre)
   const ivaP = ivaV - ivaCompras;
   
   const ratioDespesaFaturacao = totV > 0 ? (totD / totV) * 100 : 0;
@@ -9778,7 +9976,10 @@ void 0;
   const ivaVendasPeriodo = vendasFiltradas.reduce((s, v) => s + ((v.total || v.valor || 0) * v.iva / (100 + v.iva)), 0);
   
   // IVA das faturas do período
-  const ivaFaturasPeriodo = filteredFaturas.reduce((s, f) => s + (f.totalIva || 0), 0);
+  // ⚠️ EXCLUIR Faturas Simplificadas (FS) - NÃO dão direito à dedução de IVA
+  const ivaFaturasPeriodo = filteredFaturas
+    .filter(f => f.tipo !== 'FS') // ✅ Só FT e FR deduzem IVA
+    .reduce((s, f) => s + (f.totalIva || 0), 0);
   
   // IVA das despesas manuais - INCLUI TODAS AS CATEGORIAS COM IVA DEDUTÍVEL
   // (compras, renda, eletricidade, agua, gas, internet, etc.)
@@ -9795,9 +9996,6 @@ void 0;
   
   // ℹ️ NOTA: IVA a pagar = IVA cobrado nas vendas - IVA dedutível das compras/despesas
   // Inclui TODAS as despesas com IVA (compras, renda, eletricidade, etc.)
-  
-  const lucroLiquido = totV - totD - ivaPagarPeriodo;
-  const margemLiquida = totV > 0 ? (lucroLiquido / totV) * 100 : 0;
   
   void 0;
   void 0;
@@ -9860,6 +10058,27 @@ void 0;
   const foodCostPercentage = totV > 0 ? (custoRealVendas / totV) * 100 : 0;
   const primeCostPercentage = foodCostPercentage + laborCostPercentage;
   const primeCostTotal = custoRealVendas + totalSalarios;
+  
+  // ============================================
+  // 💰 CÁLCULO CORRETO DO LUCRO LÍQUIDO
+  // ============================================
+  
+  // 1. Faturação SEM IVA (receita líquida)
+  const faturacaoSemIva = totV - ivaVendasPeriodo;
+  
+  // 2. Margem Bruta = Faturação sem IVA - Food Cost
+  const margemBruta = faturacaoSemIva - custoRealVendas;
+  const margemBrutaPercentage = totV > 0 ? (margemBruta / totV) * 100 : 0;
+  
+  // 3. Lucro Líquido = Margem Bruta - Despesas Operacionais
+  const lucroLiquido = margemBruta - totD;
+  const margemLiquida = totV > 0 ? (lucroLiquido / totV) * 100 : 0;
+  
+  void 0;
+  void 0;
+  void 0;
+  void 0;
+  void 0;
   
   // 🔍 DEBUG AUTOMÁTICO - Alertas no console se métricas estiverem erradas
   if (foodCostPercentage > 100 || foodCostPercentage < 0) {
@@ -11958,21 +12177,12 @@ void 0;
             </div>
 
             {/* KPI Cards - 2 filas de 2 */}
-            
-          {/* Painel de Alertas de Stock */}
-          <PainelAlertasStock 
-            ingredientes={ingredientes}
-            getStockStatus={getStockStatus}
-            setActiveTab={setActiveTab}
-            setGestaoSubTab={setGestaoSubTab}
-            showNotification={showNotification}
-          />
           
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-2">
+          <div className="grid grid-cols-2 lg:grid-cols-6 gap-2">
               <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg shadow p-3 text-white">
-                <Tooltip text="Total de vendas no período selecionado. Inclui todas as receitas antes de impostos e despesas." position="bottom">
+                <Tooltip text="Total de vendas no período (COM IVA). Este é o valor bruto antes de deduzir impostos e custos." position="bottom">
                   <p className="text-green-100 text-xs mb-1 flex items-center gap-1">
-                    Faturação
+                    Faturação Bruta
                     <span className="text-green-300 text-sm">ⓘ</span>
                   </p>
                 </Tooltip>
@@ -11981,23 +12191,54 @@ void 0;
               </div>
 
               <div className="bg-gradient-to-br from-red-500 to-pink-600 rounded-lg shadow p-3 text-white">
-                <Tooltip text="Total de todas as despesas: fixas (renda, salários) + variáveis (ingredientes, utilities). Quanto mais baixas, maior o lucro." position="bottom">
-                  <p className="text-red-100 text-xs mb-1 flex items-center gap-1">
-                    Despesas
-                    <span className="text-red-300 text-sm">ⓘ</span>
-                  </p>
-                </Tooltip>
+                <div className="flex items-center justify-between mb-1">
+                  <Tooltip text="Total de todas as despesas: fixas (renda, salários) + variáveis (ingredientes, utilities). Quanto mais baixas, maior o lucro." position="bottom">
+                    <p className="text-red-100 text-xs mb-0 flex items-center gap-1">
+                      Despesas
+                      <span className="text-red-300 text-sm">ⓘ</span>
+                    </p>
+                  </Tooltip>
+                  <div className="flex items-center gap-1">
+                    {(() => {
+                      const ratioDespesaFaturacao = totV > 0 ? (totD / totV) * 100 : 0;
+                      if (ratioDespesaFaturacao >= 40) {
+                        return (
+                          <Tooltip text="⚠️ ALERTA: As suas despesas representam mais de 40% da faturação. Considere passar para Contabilidade Organizada para recuperar todo o IVA das despesas e otimizar a carga fiscal." position="left">
+                            <span className="text-yellow-300 text-lg animate-pulse cursor-help">⚠️</span>
+                          </Tooltip>
+                        );
+                      }
+                      return null;
+                    })()}
+                    <button
+                      onClick={() => setShowDespesasDetails(!showDespesasDetails)}
+                      className="text-red-100 hover:text-white hover:bg-red-600 rounded p-1 transition"
+                      title={showDespesasDetails ? "Recolher detalhes" : "Ver detalhes"}
+                    >
+                      {showDespesasDetails ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                    </button>
+                  </div>
+                </div>
                 <p className="text-xl font-bold">€{totD.toFixed(2)}</p>
                 <p className="text-red-100 text-xs">Fixas: €{dFixas.toFixed(2)}</p>
               </div>
 
-              <div className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg shadow p-3 text-white">
-                <Tooltip text="Lucro Líquido = Receita - Todas as Despesas. É o dinheiro que realmente sobra no final." position="bottom">
-                  <p className="text-blue-100 text-xs mb-1 flex items-center gap-1">
-                    Lucro Líquido
-                    <span className="text-blue-300 text-sm">ⓘ</span>
-                  </p>
-                </Tooltip>
+              {/* 🆕 CARD EXPANSÍVEL DO LUCRO LÍQUIDO */}
+              <div 
+                className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg shadow p-3 text-white cursor-pointer hover:shadow-xl transition-all"
+                onClick={() => setMostrarBreakdownFinanceiro(!mostrarBreakdownFinanceiro)}
+              >
+                <div className="flex items-start justify-between">
+                  <Tooltip text="Clica para ver como é calculado. Faturação Líquida (sem IVA) - Food Cost - Despesas = Lucro Real." position="bottom">
+                    <p className="text-blue-100 text-xs mb-1 flex items-center gap-1">
+                      Lucro Líquido
+                      <span className="text-blue-300 text-sm">ⓘ</span>
+                    </p>
+                  </Tooltip>
+                  <div className="text-blue-200">
+                    {mostrarBreakdownFinanceiro ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                  </div>
+                </div>
                 <p className={`text-xl font-bold ${lucroLiquido >= 0 ? '' : 'text-red-200'}`}>
                   €{lucroLiquido.toFixed(2)}
                 </p>
@@ -12006,13 +12247,38 @@ void 0;
                 </p>
               </div>
 
-              <div className="bg-gradient-to-br from-orange-500 to-amber-600 rounded-lg shadow p-3 text-white">
-                <Tooltip text="IVA a pagar/receber no ano. Calculado como: IVA cobrado nas vendas - IVA pago nas compras. Valor positivo = tens de pagar ao estado." position="bottom">
-                  <p className="text-orange-100 text-xs mb-1 flex items-center gap-1">
-                    IVA {ivaP >= 0 ? 'Pagar' : 'Receber'} {anoAtual}
-                    <span className="text-orange-300 text-sm">ⓘ</span>
+              {/* 🆕 CARD DE MARGEM BRUTA */}
+              <div className="bg-gradient-to-br from-teal-500 to-cyan-600 rounded-lg shadow p-3 text-white">
+                <Tooltip text="Faturação Líquida (sem IVA) - Food Cost = Dinheiro disponível antes de pagar despesas operacionais." position="bottom">
+                  <p className="text-teal-100 text-xs mb-1 flex items-center gap-1">
+                    Margem Bruta
+                    <span className="text-teal-300 text-sm">ⓘ</span>
                   </p>
                 </Tooltip>
+                <p className="text-xl font-bold">
+                  €{margemBruta.toFixed(2)}
+                </p>
+                <p className="text-teal-100 text-xs">
+                  {margemBrutaPercentage.toFixed(1)}% da faturação
+                </p>
+              </div>
+
+              <div className="bg-gradient-to-br from-orange-500 to-amber-600 rounded-lg shadow p-3 text-white">
+                <div className="flex items-center justify-between mb-1">
+                  <Tooltip text="IVA a pagar/receber no ano. Calculado como: IVA cobrado nas vendas - IVA pago nas compras. Valor positivo = tens de pagar ao estado." position="bottom">
+                    <p className="text-orange-100 text-xs mb-0 flex items-center gap-1">
+                      IVA {ivaP >= 0 ? 'Pagar' : 'Receber'} Q{quarter}/{currentYear}
+                      <span className="text-orange-300 text-sm">ⓘ</span>
+                    </p>
+                  </Tooltip>
+                  <button
+                    onClick={() => setShowIVADetails(!showIVADetails)}
+                    className="text-orange-100 hover:text-white hover:bg-orange-600 rounded p-1 transition"
+                    title={showIVADetails ? "Recolher detalhes" : "Ver detalhes"}
+                  >
+                    {showIVADetails ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                  </button>
+                </div>
                 <p className="text-xl font-bold">€{Math.abs(ivaP).toFixed(2)}</p>
                 <p className="text-orange-100 text-xs">{ivaP >= 0 ? 'Entregar' : 'Crédito'}</p>
               </div>
@@ -12038,289 +12304,334 @@ void 0;
               </div>
             </div>
             
-            {/* 🆕 BREAKDOWN DE DESPESAS POR CATEGORIA */}
-            <div className="bg-white rounded-lg shadow p-4">
-              <h3 className="text-lg font-bold mb-3 flex items-center gap-2">
-                📊 Breakdown de Despesas
-              </h3>
-              
-              {(() => {
-                // Agrupar despesas por categoria
-                const despesasPorCategoria = {};
+            {/* 💰 BREAKDOWN FINANCEIRO EXPANSÍVEL */}
+            {mostrarBreakdownFinanceiro && (
+              <div className="backdrop-blur-lg bg-gradient-to-br from-blue-50/90 to-indigo-50/90 border-2 border-blue-300/50 rounded-2xl shadow-xl p-4 animate-fadeIn">
+                <h3 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
+                  💰 Como é Calculado o Lucro Real
+                </h3>
                 
-                todasDespesas.forEach(d => {
-                  const cat = d.categoria || 'outros';
-                  if (!despesasPorCategoria[cat]) {
-                    despesasPorCategoria[cat] = {
-                      total: 0,
-                      itens: 0
-                    };
-                  }
-                  despesasPorCategoria[cat].total += d.valor;
-                  despesasPorCategoria[cat].itens += 1;
-                });
+                <div className="space-y-2 text-xs">
+                  <div className="flex items-start gap-2">
+                    <span className="text-green-600 font-bold mt-0.5">1.</span>
+                    <div>
+                      <span className="font-semibold text-gray-700">Faturação Bruta:</span>
+                      <span className="text-gray-600"> €{totV.toFixed(2)} (com IVA)</span>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-start gap-2">
+                    <span className="text-blue-600 font-bold mt-0.5">2.</span>
+                    <div>
+                      <span className="font-semibold text-gray-700">Deduzir IVA das vendas:</span>
+                      <span className="text-gray-600"> -€{ivaVendasPeriodo.toFixed(2)}</span>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-start gap-2 pl-4 border-l-2 border-blue-300">
+                    <span className="text-blue-700 font-bold">→</span>
+                    <div>
+                      <span className="font-semibold text-blue-700">Faturação Líquida (sem IVA):</span>
+                      <span className="text-blue-800 font-bold"> €{faturacaoSemIva.toFixed(2)}</span>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-start gap-2 mt-3">
+                    <span className="text-orange-600 font-bold mt-0.5">3.</span>
+                    <div>
+                      <span className="font-semibold text-gray-700">Deduzir Food Cost:</span>
+                      <span className="text-gray-600"> -€{custoRealVendas.toFixed(2)} ({foodCostPercentage.toFixed(1)}%)</span>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-start gap-2 pl-4 border-l-2 border-teal-300">
+                    <span className="text-teal-700 font-bold">→</span>
+                    <div>
+                      <span className="font-semibold text-teal-700">Margem Bruta:</span>
+                      <span className="text-teal-800 font-bold"> €{margemBruta.toFixed(2)}</span>
+                      <span className="text-teal-600 text-xs"> ({margemBrutaPercentage.toFixed(1)}%)</span>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-start gap-2 mt-3">
+                    <span className="text-red-600 font-bold mt-0.5">4.</span>
+                    <div>
+                      <span className="font-semibold text-gray-700">Deduzir Despesas Operacionais:</span>
+                      <span className="text-gray-600"> -€{totD.toFixed(2)}</span>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-start gap-2 pl-4 border-l-2 border-green-400 bg-green-50 -mx-2 px-4 py-2 rounded">
+                    <span className="text-green-700 font-bold text-base">✓</span>
+                    <div>
+                      <span className="font-bold text-green-800 text-sm">Lucro Líquido Real:</span>
+                      <span className={`font-bold text-base ml-2 ${lucroLiquido >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                        €{lucroLiquido.toFixed(2)}
+                      </span>
+                      <span className="text-green-600 text-xs ml-1">({margemLiquida.toFixed(1)}% margem)</span>
+                    </div>
+                  </div>
+                </div>
                 
-                // Ordenar por valor (maior primeiro)
-                const categoriasOrdenadas = Object.entries(despesasPorCategoria)
-                  .sort(([, a], [, b]) => b.total - a.total);
+                <div className="mt-3 pt-3 border-t border-blue-200">
+                  <p className="text-xs text-gray-600 flex items-start gap-1">
+                    <span className="text-blue-600 font-bold">💡</span>
+                    <span>
+                      <span className="font-semibold">Nota:</span> Este é o dinheiro real que sobra para lucros, impostos sobre lucros (IRC), 
+                      e reinvestimento no negócio. O IVA não é incluído aqui porque é um imposto "neutro" - o que cobras dos clientes 
+                      entregas ao estado (deduzindo o IVA que já pagaste nas compras).
+                    </span>
+                  </p>
+                </div>
+              </div>
+            )}
+            
+            {/* 🧾 DETALHES DO IVA EXPANSÍVEL */}
+            {showIVADetails && (
+              <div className="backdrop-blur-lg bg-gradient-to-br from-orange-50/90 to-amber-50/90 border-2 border-orange-300/50 rounded-2xl shadow-xl p-4 animate-fadeIn">
+                <h3 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
+                  🧾 Próxima Entrega de IVA
+                </h3>
                 
-                const totalGeral = todasDespesas.reduce((s, d) => s + d.valor, 0);
+                <div className="space-y-3">
+                  {/* Resumo do Trimestre */}
+                  <div className="bg-white rounded-lg p-3 border border-orange-200">
+                    <p className="text-xs font-semibold text-gray-700 mb-2">
+                      Estimativa do IVA a pagar no próximo trimestre (regime trimestral)
+                    </p>
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center py-1 border-b border-gray-100">
+                        <span className="text-xs text-gray-600 font-medium">{quarter}º Trimestre {currentYear}</span>
+                      </div>
+                      <div className="flex justify-between items-center py-1">
+                        <span className="text-xs text-gray-600">IVA Vendas:</span>
+                        <span className="text-sm font-bold text-green-600">€{ivaV.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between items-center py-1">
+                        <span className="text-xs text-gray-600">IVA Dedutível:</span>
+                        <span className="text-sm font-bold text-blue-600">-€{ivaCompras.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between items-center py-2 border-t-2 border-orange-300 mt-2">
+                        <span className="text-sm font-bold text-gray-700">A {ivaP >= 0 ? 'Pagar' : 'Receber'}:</span>
+                        <span className={`text-lg font-bold ${ivaP >= 0 ? 'text-red-600' : 'text-green-600'}`}>
+                          €{ivaP >= 0 ? '' : '-'}{Math.abs(ivaP).toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Prazo de Entrega */}
+                  <div className="bg-gradient-to-br from-orange-100 to-amber-100 rounded-lg p-3 border border-orange-300">
+                    <p className="text-sm font-bold text-orange-900 mb-2 flex items-center gap-2">
+                      📅 Prazo de Entrega
+                    </p>
+                    <div className="space-y-1">
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs text-gray-700">Data limite:</span>
+                        <span className="text-sm font-bold text-orange-800">
+                          {(() => {
+                            // Calcular prazo baseado no trimestre atual
+                            let deadlineMonth, deadlineYear;
+                            if (quarter === 1) {
+                              deadlineMonth = 4; // 20 de maio (mês 4 = maio, 0-indexed)
+                              deadlineYear = currentYear;
+                            } else if (quarter === 2) {
+                              deadlineMonth = 7; // 20 de agosto
+                              deadlineYear = currentYear;
+                            } else if (quarter === 3) {
+                              deadlineMonth = 10; // 20 de novembro
+                              deadlineYear = currentYear;
+                            } else {
+                              deadlineMonth = 1; // 20 de fevereiro do ano seguinte
+                              deadlineYear = currentYear + 1;
+                            }
+                            const prazo = new Date(deadlineYear, deadlineMonth, 20);
+                            return prazo.toLocaleDateString('pt-PT', { day: 'numeric', month: 'long', year: 'numeric' });
+                          })()}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs text-gray-700">Tempo restante:</span>
+                        <span className="text-sm font-bold text-orange-800">
+                          {(() => {
+                            const hoje = new Date();
+                            let deadlineMonth, deadlineYear;
+                            if (quarter === 1) {
+                              deadlineMonth = 4;
+                              deadlineYear = currentYear;
+                            } else if (quarter === 2) {
+                              deadlineMonth = 7;
+                              deadlineYear = currentYear;
+                            } else if (quarter === 3) {
+                              deadlineMonth = 10;
+                              deadlineYear = currentYear;
+                            } else {
+                              deadlineMonth = 1;
+                              deadlineYear = currentYear + 1;
+                            }
+                            const prazo = new Date(deadlineYear, deadlineMonth, 20);
+                            const diffTime = prazo - hoje;
+                            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                            return diffDays > 0 ? `Faltam ${diffDays} dias` : 'PRAZO EXPIRADO!';
+                          })()}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="mt-3 pt-3 border-t border-orange-300">
+                      <p className="text-xs text-gray-600">
+                        <span className="font-semibold">Declaração até dia 20</span> • <span className="font-semibold">Pagamento até dia 25</span>
+                      </p>
+                    </div>
+                  </div>
+                  
+                  {/* Nota Informativa */}
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    <p className="text-xs text-blue-800 flex items-start gap-1">
+                      <span className="text-blue-600 font-bold">💡</span>
+                      <span>
+                        <span className="font-semibold">IVA Dedutível</span> inclui apenas despesas com Faturas (FT) ou Faturas-Recibo (FR): 
+                        compras de mercadorias, renda comercial, eletricidade, água, gás, internet, consumíveis, etc.
+                        <br/><br/>
+                        <span className="font-semibold text-red-600">⚠️ Importante:</span> Faturas Simplificadas (FS) <span className="font-semibold">NÃO</span> dão direito à dedução de IVA.
+                        <br/><br/>
+                        <span className="font-semibold">Regime Trimestral:</span> Empresas com volume de negócios inferior a €650.000 
+                        podem optar pelo regime trimestral de IVA, entregando a declaração periódica 4 vezes por ano. 
+                        O pagamento deve ser feito até ao dia 25 do segundo mês seguinte ao trimestre.
+                      </span>
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {/* 📊 BREAKDOWN DE DESPESAS EXPANSÍVEL */}
+            {showDespesasDetails && (
+              <div className="backdrop-blur-lg bg-gradient-to-br from-red-50/90 to-pink-50/90 border-2 border-red-300/50 rounded-2xl shadow-xl p-4 animate-fadeIn">
+                <h3 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
+                  📊 Breakdown de Despesas
+                </h3>
                 
-                // Labels em português
-                const labelsCategorias = {
-                  'compras': '🛒 Compras',
-                  'renda': '🏠 Renda',
-                  'salarios': '👥 Salários',
-                  'eletricidade': '⚡ Eletricidade',
-                  'agua': '💧 Água',
-                  'gas': '🔥 Gás',
-                  'internet': '🌐 Internet',
-                  'consumiveis': '📦 Consumíveis',
-                  'marketing': '📢 Marketing',
-                  'manutencao': '🔧 Manutenção',
-                  'outros': '📋 Outros'
-                };
-                
-                // Cores por categoria
-                const coresCategorias = {
-                  'compras': 'bg-blue-600',
-                  'renda': 'bg-purple-600',
-                  'salarios': 'bg-green-600',
-                  'eletricidade': 'bg-yellow-500',
-                  'agua': 'bg-cyan-500',
-                  'gas': 'bg-orange-500',
-                  'internet': 'bg-indigo-500',
-                  'consumiveis': 'bg-pink-500',
-                  'marketing': 'bg-red-500',
-                  'manutencao': 'bg-gray-600',
-                  'outros': 'bg-gray-400'
-                };
-                
-                return (
-                  <>
+                {(() => {
+                  // Agrupar despesas por categoria
+                  const despesasPorCategoria = {};
+                  
+                  todasDespesas.forEach(d => {
+                    const cat = d.categoria || 'outros';
+                    if (!despesasPorCategoria[cat]) {
+                      despesasPorCategoria[cat] = {
+                        total: 0,
+                        itens: 0
+                      };
+                    }
+                    despesasPorCategoria[cat].total += d.valor;
+                    despesasPorCategoria[cat].itens += 1;
+                  });
+                  
+                  // Ordenar por valor (maior primeiro)
+                  const categoriasOrdenadas = Object.entries(despesasPorCategoria)
+                    .sort(([, a], [, b]) => b.total - a.total);
+                  
+                  const totalGeral = todasDespesas.reduce((s, d) => s + d.valor, 0);
+                  
+                  // Labels em português
+                  const labelsCategorias = {
+                    'compras': '🛒 Compras',
+                    'renda': '🏠 Renda',
+                    'salarios': '👥 Salários',
+                    'eletricidade': '⚡ Eletricidade',
+                    'agua': '💧 Água',
+                    'gas': '🔥 Gás',
+                    'internet': '🌐 Internet',
+                    'consumiveis': '📦 Consumíveis',
+                    'marketing': '📢 Marketing',
+                    'manutencao': '🔧 Manutenção',
+                    'outros': '📋 Outros'
+                  };
+                  
+                  // Cores por categoria
+                  const coresCategorias = {
+                    'compras': 'bg-blue-600',
+                    'renda': 'bg-purple-600',
+                    'salarios': 'bg-green-600',
+                    'eletricidade': 'bg-yellow-500',
+                    'agua': 'bg-cyan-500',
+                    'gas': 'bg-orange-500',
+                    'internet': 'bg-indigo-500',
+                    'consumiveis': 'bg-pink-500',
+                    'marketing': 'bg-red-500',
+                    'manutencao': 'bg-gray-600',
+                    'outros': 'bg-gray-400'
+                  };
+                  
+                  return (
                     <div className="space-y-3">
-                      {categoriasOrdenadas.map(([categoria, dados]) => {
-                        const percentagem = totalGeral > 0 ? (dados.total / totalGeral) * 100 : 0;
-                        
-                        return (
-                          <div key={categoria} className="flex items-center gap-3">
-                            <div className="flex-1">
-                              <div className="flex justify-between items-center mb-1">
-                                <span className="text-sm font-medium">
-                                  {labelsCategorias[categoria] || categoria}
-                                </span>
-                                <span className="text-sm font-bold">
-                                  €{dados.total.toFixed(2)}
-                                </span>
-                              </div>
-                              <div className="w-full bg-gray-200 rounded-full h-2.5">
-                                <div 
-                                  className={`${coresCategorias[categoria] || 'bg-gray-400'} h-2.5 rounded-full transition-all`}
-                                  style={{ width: `${Math.min(percentagem, 100)}%` }}
-                                ></div>
-                              </div>
-                              <div className="flex justify-between mt-1">
-                                <span className="text-xs text-gray-500">
-                                  {dados.itens} {dados.itens === 1 ? 'item' : 'itens'}
-                                </span>
-                                <span className="text-xs text-gray-500">
-                                  {percentagem.toFixed(1)}%
-                                </span>
+                      <div className="space-y-3 bg-white rounded-lg p-3 border border-red-200">
+                        {categoriasOrdenadas.map(([categoria, dados]) => {
+                          const percentagem = totalGeral > 0 ? (dados.total / totalGeral) * 100 : 0;
+                          
+                          return (
+                            <div key={categoria} className="flex items-center gap-3">
+                              <div className="flex-1">
+                                <div className="flex justify-between items-center mb-1">
+                                  <span className="text-sm font-medium">
+                                    {labelsCategorias[categoria] || categoria}
+                                  </span>
+                                  <span className="text-sm font-bold">
+                                    €{dados.total.toFixed(2)}
+                                  </span>
+                                </div>
+                                <div className="w-full bg-gray-200 rounded-full h-2.5">
+                                  <div 
+                                    className={`${coresCategorias[categoria] || 'bg-gray-400'} h-2.5 rounded-full transition-all`}
+                                    style={{ width: `${Math.min(percentagem, 100)}%` }}
+                                  ></div>
+                                </div>
+                                <div className="flex justify-between mt-1">
+                                  <span className="text-xs text-gray-500">
+                                    {dados.itens} {dados.itens === 1 ? 'item' : 'itens'}
+                                  </span>
+                                  <span className="text-xs text-gray-500">
+                                    {percentagem.toFixed(1)}%
+                                  </span>
+                                </div>
                               </div>
                             </div>
+                          );
+                        })}
+                        
+                        <div className="pt-3 border-t border-gray-200">
+                          <div className="flex justify-between items-center">
+                            <span className="font-bold text-gray-800">Total Despesas</span>
+                            <span className="font-bold text-lg text-red-600">€{totalGeral.toFixed(2)}</span>
                           </div>
-                        );
-                      })}
-                    </div>
-                    
-                    <div className="mt-4 pt-3 border-t">
-                      <div className="flex justify-between items-center">
-                        <span className="font-bold">Total Despesas</span>
-                        <span className="font-bold text-lg">€{totalGeral.toFixed(2)}</span>
-                      </div>
-                      {dateFilter !== 'all' && dias > 0 && (
-                        <div className="text-xs text-gray-500 mt-1">
-                          Média diária: €{(totalGeral / dias).toFixed(2)}/dia
+                          {dateFilter !== 'all' && dias > 0 && (
+                            <div className="text-xs text-gray-500 mt-1">
+                              Média diária: €{(totalGeral / dias).toFixed(2)}/dia
+                            </div>
+                          )}
                         </div>
-                      )}
+                      </div>
+                      
+                      {/* Nota Informativa */}
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                        <p className="text-xs text-blue-800 flex items-start gap-1">
+                          <span className="text-blue-600 font-bold">💡</span>
+                          <span>
+                            <span className="font-semibold">Gestão de Despesas:</span> Controlar despesas fixas (renda, salários) 
+                            e variáveis (ingredientes, utilities) é essencial para aumentar a rentabilidade. As despesas fixas 
+                            devem representar no máximo 30-40% da faturação para um negócio saudável.
+                          </span>
+                        </p>
+                      </div>
                     </div>
-                  </>
-                );
-              })()}
-            </div>
+                  );
+                })()}
+              </div>
+            )}
+            
             
             {/* 🆕 ANÁLISE DE DESPERDÍCIO - REMOVIDA */}
                 
-                {/* Simulador de IVA Trimestral */}
-                <div className="bg-white rounded-lg shadow p-4">
-                  <h2 className="text-xl font-bold mb-3 flex items-center gap-2">
-                    🧾 Próxima Entrega de IVA
-                  </h2>
-                  <p className="text-sm text-gray-600 mb-4">
-                    Estimativa do IVA a pagar no próximo trimestre (regime trimestral)
-                  </p>
-                  
-                  {(() => {
-                    // Calculate current quarter
-                    const now = new Date();
-                    const currentMonth = now.getMonth() + 1; // 1-12
-                    const currentYear = now.getFullYear();
-                    
-                    // Determine quarter
-                    let quarter, quarterStart, quarterEnd, deadlineMonth, deadlineDay;
-                    if (currentMonth >= 1 && currentMonth <= 3) {
-                      quarter = 1;
-                      quarterStart = new Date(currentYear, 0, 1);
-                      quarterEnd = new Date(currentYear, 2, 31);
-                      deadlineMonth = 5; // May
-                      deadlineDay = 20;
-                    } else if (currentMonth >= 4 && currentMonth <= 6) {
-                      quarter = 2;
-                      quarterStart = new Date(currentYear, 3, 1);
-                      quarterEnd = new Date(currentYear, 5, 30);
-                      deadlineMonth = 8; // August
-                      deadlineDay = 20;
-                    } else if (currentMonth >= 7 && currentMonth <= 9) {
-                      quarter = 3;
-                      quarterStart = new Date(currentYear, 6, 1);
-                      quarterEnd = new Date(currentYear, 8, 30);
-                      deadlineMonth = 11; // November
-                      deadlineDay = 20;
-                    } else {
-                      quarter = 4;
-                      quarterStart = new Date(currentYear, 9, 1);
-                      quarterEnd = new Date(currentYear, 11, 31);
-                      deadlineMonth = 2; // February next year
-                      deadlineDay = 20;
-                    }
-                    
-                    // Calculate deadline
-                    const deadlineYear = quarter === 4 ? currentYear + 1 : currentYear;
-                    const deadline = new Date(deadlineYear, deadlineMonth - 1, deadlineDay);
-                    const daysUntil = Math.ceil((deadline - now) / (1000 * 60 * 60 * 24));
-                    
-                    // Filter sales and expenses for current quarter
-                    const quarterVendas = vendas.filter(v => {
-                      const vDate = new Date(v.data);
-                      return vDate >= quarterStart && vDate <= quarterEnd;
-                    });
-                    
-                    const quarterDespesas = despesas.filter(d => {
-                      const dDate = new Date(d.data);
-                      return dDate >= quarterStart && dDate <= quarterEnd;
-                    });
-                    
-                    // Calculate IVA
-                    const ivaVendas = quarterVendas.reduce((s, v) => {
-                      const prod = v.produtoId 
-                        ? produtos.find(p => p.id === v.produtoId)
-                        : produtos.find(p => p.nome.toLowerCase() === v.produto.toLowerCase());
-                      if (!prod) return s;
-                      const precoSemIva = prod.precoVenda / (1 + prod.iva / 100);
-                      return s + (prod.precoVenda - precoSemIva) * v.quantidade;
-                    }, 0);
-                    
-                    // IVA Compras das faturas
-                    const quarterFaturas = faturas.filter(f => {
-                      const fDate = new Date(f.data);
-                      return fDate >= quarterStart && fDate <= quarterEnd;
-                    });
-                    const ivaComprasFaturas = quarterFaturas.reduce((s, f) => s + (f.totalIva || 0), 0);
-                    
-                    // IVA Compras das despesas
-                    const ivaComprasDespesas = quarterDespesas.reduce((s, d) => {
-                      const valorSemIva = d.valor / (1 + d.iva / 100);
-                      return s + (d.valor - valorSemIva);
-                    }, 0);
-                    
-                    // Total IVA Compras
-                    const ivaCompras = ivaComprasFaturas + ivaComprasDespesas;
-                    
-                    const ivaPagar = ivaVendas - ivaCompras;
-                    
-                    return (
-                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                        <div className="space-y-3">
-                          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                            <p className="text-sm font-semibold text-blue-900 mb-2">
-                              {quarter}º Trimestre {currentYear}
-                            </p>
-                            <div className="space-y-2 text-sm">
-                              <div className="flex justify-between">
-                                <span className="text-gray-700">IVA Vendas:</span>
-                                <span className="font-semibold text-green-700">€{ivaVendas.toFixed(2)}</span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span className="text-gray-700">IVA Compras:</span>
-                                <span className="font-semibold text-blue-700">-€{ivaCompras.toFixed(2)}</span>
-                              </div>
-                              <div className="flex justify-between pt-2 border-t border-blue-300">
-                                <span className="font-bold text-gray-900">A Pagar:</span>
-                                <span className={`text-xl font-bold ${ivaPagar >= 0 ? 'text-orange-600' : 'text-green-600'}`}>
-                                  €{ivaPagar.toFixed(2)}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                          
-                          <div className={`border-2 rounded-lg p-4 ${
-                            daysUntil <= 7 ? 'bg-red-50 border-red-300' :
-                            daysUntil <= 30 ? 'bg-orange-50 border-orange-300' :
-                            'bg-green-50 border-green-300'
-                          }`}>
-                            <p className="text-sm font-semibold mb-2">
-                              📅 Prazo de Entrega
-                            </p>
-                            <p className="text-2xl font-bold">
-                              {deadline.toLocaleDateString('pt-PT', { day: '2-digit', month: 'long', year: 'numeric' })}
-                            </p>
-                            <p className={`text-sm mt-1 font-semibold ${
-                              daysUntil <= 7 ? 'text-red-700' :
-                              daysUntil <= 30 ? 'text-orange-700' :
-                              'text-green-700'
-                            }`}>
-                              {daysUntil > 0 ? `Faltam ${daysUntil} dias` : 'PRAZO EXPIRADO!'}
-                            </p>
-                          </div>
-                        </div>
-                        
-                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                          <p className="text-sm font-semibold text-yellow-900 mb-2">
-                            📋 Calendário IVA Trimestral
-                          </p>
-                          <div className="space-y-2 text-xs text-yellow-800">
-                            <div className="flex justify-between">
-                              <span>1º Trimestre (Jan-Mar):</span>
-                              <span className="font-semibold">20 Maio</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span>2º Trimestre (Abr-Jun):</span>
-                              <span className="font-semibold">20 Agosto</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span>3º Trimestre (Jul-Set):</span>
-                              <span className="font-semibold">20 Novembro</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span>4º Trimestre (Out-Dez):</span>
-                              <span className="font-semibold">20 Fevereiro</span>
-                            </div>
-                          </div>
-                          
-                          <div className="mt-3 pt-3 border-t border-yellow-300 text-xs text-yellow-800">
-                            <p className="font-semibold mb-1">💡 Dicas:</p>
-                            <ul className="space-y-1 ml-4">
-                              <li>• Declaração até dia 20</li>
-                              <li>• Pagamento até dia 25</li>
-                              <li>• Regime para faturação &lt;€650k/ano</li>
-                            </ul>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </div>
-
             {/* Todos os produtos e análises em colunas lado a lado */}
             <div className="grid grid-cols-5 gap-2 overflow-x-auto">
               {/* IVA Limit */}
@@ -12402,40 +12713,17 @@ void 0;
               </div>
             </div>
 
-            {/* Análise Financeira */}
-            {totV > 0 && (
-              <div className="backdrop-blur-lg bg-white/70 border-2 border-white/50 rounded-2xl shadow-xl p-4">
-                <h3 className="text-sm font-bold mb-2">💡 Análise Contabilidade</h3>
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-xs font-medium">Despesas vs Faturação</span>
-                  <span className="text-lg font-bold text-blue-600">{ratioDespesaFaturacao.toFixed(1)}%</span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-3 mb-1">
-                  <div className={`h-3 rounded-full ${
-                    ratioDespesaFaturacao >= 40 ? 'bg-red-500' : 
-                    ratioDespesaFaturacao >= 30 ? 'bg-orange-500' : 
-                    ratioDespesaFaturacao >= 20 ? 'bg-yellow-500' : 'bg-green-500'
-                  }`} style={{ width: `${Math.min(ratioDespesaFaturacao, 100)}%` }}></div>
-                </div>
-                <div className="flex justify-between text-xs text-gray-500">
-                  <span>0%</span><span>20%</span><span>30%</span><span>40%</span>
-                </div>
-                <div className={`mt-2 rounded p-2 text-xs ${
-                  ratioDespesaFaturacao >= 40 ? 'bg-red-50 text-red-700' :
-                  ratioDespesaFaturacao >= 30 ? 'bg-orange-50 text-orange-700' :
-                  ratioDespesaFaturacao >= 20 ? 'bg-yellow-50 text-yellow-700' : 'bg-green-50 text-green-700'
-                }`}>
-                  <p className="font-bold">
-                    {ratioDespesaFaturacao >= 40 ? '🚨 Passar Contab. Organizada!' :
-                     ratioDespesaFaturacao >= 30 ? '⚠️ Próximo limite!' :
-                     ratioDespesaFaturacao >= 20 ? '⚡ Monitorize!' : '✅ Normal'}
-                  </p>
-                  {ratioDespesaFaturacao >= 30 && <p className="mt-1">IVA recuperável: €{ivaCompras.toFixed(2)}</p>}
-                </div>
-              </div>
-            )}
+            {/* Análise Financeira - REMOVIDA (alerta movido para card de Despesas) */}
 
 
+          {/* Painel de Alertas de Stock - No final da página */}
+          <PainelAlertasStock 
+            ingredientes={ingredientes}
+            getStockStatus={getStockStatus}
+            setActiveTab={setActiveTab}
+            setGestaoSubTab={setGestaoSubTab}
+            showNotification={showNotification}
+          />
 
               </>
             )}
@@ -12599,15 +12887,7 @@ void 0;
                   </div>
                 </div>
                 
-                {/* Prime Cost Explanation */}
-                <div className="mt-3 bg-red-50 border border-red-200 rounded-lg p-3">
-                  <p className="text-xs text-red-800">
-                    <strong>⚡ Prime Cost</strong> = Food Cost + Labor Cost = 
-                    <strong> €{primeCostTotal.toFixed(2)}</strong> ({primeCostPercentage.toFixed(1)}%)
-                    <br/>
-                    É o indicador MAIS importante! Se &gt;65% = problemas graves. Se &lt;60% = excelente gestão! 🎯
-                  </p>
-                </div>
+                {/* Prime Cost Explanation - REMOVIDO */}
               </div>
 
               {/* ============================================ */}
@@ -13618,16 +13898,16 @@ void 0;
                   </div>
                   
                   <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-                    <p className="text-xs text-blue-700 mb-1 font-semibold">IVA Compras</p>
+                    <p className="text-xs text-blue-700 mb-1 font-semibold">IVA Dedutível</p>
                     <p className="text-xl font-bold text-blue-900">
                       €{ivaCompras.toFixed(2)}
                     </p>
-                    <p className="text-xs text-blue-600 mt-1">Dedutível (faturas)</p>
+                    <p className="text-xs text-blue-600 mt-1">Despesas dedutíveis</p>
                   </div>
                   
                   <div className={`rounded-lg p-4 border ${ivaP >= 0 ? 'bg-orange-50 border-orange-200' : 'bg-green-50 border-green-200'}`}>
                     <p className={`text-xs mb-1 font-semibold ${ivaP >= 0 ? 'text-orange-700' : 'text-green-700'}`}>
-                      {ivaP >= 0 ? 'IVA a Pagar' : 'IVA a Receber'} {anoAtual}
+                      {ivaP >= 0 ? 'IVA a Pagar' : 'IVA a Receber'} Q{quarter}/{currentYear}
                     </p>
                     <p className={`text-xl font-bold ${ivaP >= 0 ? 'text-orange-900' : 'text-green-900'}`}>
                       €{Math.abs(ivaP).toFixed(2)}
@@ -13639,10 +13919,11 @@ void 0;
                 </div>
                 
                 <div className={`rounded p-2 text-xs mb-3 ${ivaP >= 0 ? 'bg-blue-50 text-blue-800' : 'bg-green-50 text-green-800'}`}>
-                  💡 <strong>Cálculo:</strong> IVA {ivaP >= 0 ? 'a Pagar' : 'a Receber'} = IVA Vendas - IVA Compras
+                  💡 <strong>Cálculo:</strong> IVA {ivaP >= 0 ? 'a Pagar' : 'a Receber'} = IVA Vendas - IVA Dedutível
                   {ivaP < 0 && (
-                    <><br/>✅ Compraste mais que vendeste. O Estado deve-te este valor!</>
+                    <><br/>✅ As tuas despesas dedutíveis têm mais IVA que as tuas vendas. O Estado deve-te este valor!</>
                   )}
+                  <br/>📅 <strong>Regime Trimestral:</strong> Valores resetam de 3 em 3 meses (Q{quarter}/{currentYear})
                 </div>
                 
                 {/* IVA Breakdown */}
@@ -13661,9 +13942,9 @@ void 0;
                               return s + (d.valor - valorSemIva);
                             }, 0);
                           
-                          // IVA das faturas de COMPRAS apenas
+                          // IVA das faturas de COMPRAS apenas (excluir FS)
                           const ivaFaturasCompras = filteredFaturas
-                            .filter(f => f.categoria === 'compras')
+                            .filter(f => f.categoria === 'compras' && f.tipo !== 'FS')
                             .reduce((s, f) => s + (f.totalIva || 0), 0);
                           
                           return (ivaDespesas + ivaFaturasCompras).toFixed(2);
@@ -13697,9 +13978,9 @@ void 0;
                               return s + (d.valor - valorSemIva);
                             }, 0);
                           
-                          // IVA de faturas fixas
+                          // IVA de faturas fixas (excluir FS)
                           const ivaFaturasFixas = filteredFaturas
-                            .filter(f => ['renda', 'eletricidade', 'agua', 'gas', 'internet'].includes(f.categoria))
+                            .filter(f => ['renda', 'eletricidade', 'agua', 'gas', 'internet'].includes(f.categoria) && f.tipo !== 'FS')
                             .reduce((s, f) => s + (f.totalIva || 0), 0);
                           
                           return (ivaDespesasFixas + ivaFaturasFixas).toFixed(2);
@@ -13720,9 +14001,9 @@ void 0;
                               return s + (d.valor - valorSemIva);
                             }, 0);
                           
-                          // IVA de outras faturas
+                          // IVA de outras faturas (excluir FS)
                           const ivaOutrasFaturas = filteredFaturas
-                            .filter(f => !['compras', 'renda', 'eletricidade', 'agua', 'gas', 'internet', 'salarios'].includes(f.categoria))
+                            .filter(f => !['compras', 'renda', 'eletricidade', 'agua', 'gas', 'internet', 'salarios'].includes(f.categoria) && f.tipo !== 'FS')
                             .reduce((s, f) => s + (f.totalIva || 0), 0);
                           
                           return (ivaOutrasDespesas + ivaOutrasFaturas).toFixed(2);
@@ -17614,12 +17895,14 @@ void 0;
                           <div className="flex items-center gap-2 mb-2">
                             <h5 className="font-bold text-purple-900 text-sm">📄 Documentos no Período</h5>
                           </div>
-                          <div className="grid grid-cols-3 gap-2">
+                          <div className="grid grid-cols-3 gap-2 mb-3">
                             <div className="bg-white rounded-lg p-2 text-center border border-purple-200">
                               <p className="text-lg font-bold text-purple-600">{(() => {
-                                if (!exportDateStart && !exportDateEnd) return despesas.length;
-                                return despesas.filter(d => {
-                                  const dataFatura = d.data;
+                                // Usar FATURAS em vez de despesas
+                                if (!exportDateStart && !exportDateEnd) return faturas.filter(f => f.tipoDocumento === 'fatura' || !f.tipoDocumento).length;
+                                return faturas.filter(f => {
+                                  if (f.tipoDocumento === 'recibo') return false; // Excluir recibos
+                                  const dataFatura = f.data;
                                   if (!dataFatura) return false;
                                   if (exportDateStart && dataFatura < exportDateStart) return false;
                                   if (exportDateEnd && dataFatura > exportDateEnd) return false;
@@ -17630,30 +17913,84 @@ void 0;
                             </div>
                             <div className="bg-green-50 rounded-lg p-2 text-center border border-green-200">
                               <p className="text-lg font-bold text-green-600">{(() => {
-                                if (!exportDateStart && !exportDateEnd) return despesas.filter(d => d.documentoPDF).length;
-                                return despesas.filter(d => {
-                                  const dataFatura = d.data;
+                                if (!exportDateStart && !exportDateEnd) return faturas.filter(f => (f.tipoDocumento === 'fatura' || !f.tipoDocumento) && f.documentoPDF).length;
+                                return faturas.filter(f => {
+                                  if (f.tipoDocumento === 'recibo') return false;
+                                  const dataFatura = f.data;
                                   if (!dataFatura) return false;
                                   if (exportDateStart && dataFatura < exportDateStart) return false;
                                   if (exportDateEnd && dataFatura > exportDateEnd) return false;
-                                  return d.documentoPDF;
+                                  return f.documentoPDF;
                                 }).length;
                               })()}</p>
                               <p className="text-green-600 text-xs mt-1">✅ Com PDF</p>
                             </div>
                             <div className="bg-red-50 rounded-lg p-2 text-center border border-red-200">
                               <p className="text-lg font-bold text-red-600">{(() => {
-                                if (!exportDateStart && !exportDateEnd) return despesas.filter(d => !d.documentoPDF).length;
-                                return despesas.filter(d => {
-                                  const dataFatura = d.data;
+                                if (!exportDateStart && !exportDateEnd) return faturas.filter(f => (f.tipoDocumento === 'fatura' || !f.tipoDocumento) && !f.documentoPDF).length;
+                                return faturas.filter(f => {
+                                  if (f.tipoDocumento === 'recibo') return false;
+                                  const dataFatura = f.data;
                                   if (!dataFatura) return false;
                                   if (exportDateStart && dataFatura < exportDateStart) return false;
                                   if (exportDateEnd && dataFatura > exportDateEnd) return false;
-                                  return !d.documentoPDF;
+                                  return !f.documentoPDF;
                                 }).length;
                               })()}</p>
                               <p className="text-red-600 text-xs mt-1">⚠️ Sem PDF</p>
                             </div>
+                          </div>
+                          
+                          {/* Breakdown por tipo de fatura */}
+                          <div className="bg-blue-50 border-t border-blue-200 pt-2 mt-2">
+                            <p className="text-xs font-semibold text-blue-900 mb-2">Por Tipo de Documento:</p>
+                            <div className="grid grid-cols-3 gap-2 text-xs">
+                              <div className="bg-white rounded p-1.5 text-center">
+                                <p className="font-bold text-green-700">{(() => {
+                                  const filtered = faturas.filter(f => {
+                                    if (f.tipoDocumento === 'recibo') return false;
+                                    const dataFatura = f.data;
+                                    if (!dataFatura) return false;
+                                    if (exportDateStart && dataFatura < exportDateStart) return false;
+                                    if (exportDateEnd && dataFatura > exportDateEnd) return false;
+                                    return (f.tipo === 'FT' || !f.tipo);
+                                  });
+                                  return exportDateStart || exportDateEnd ? filtered.length : faturas.filter(f => (f.tipoDocumento === 'fatura' || !f.tipoDocumento) && (f.tipo === 'FT' || !f.tipo)).length;
+                                })()}</p>
+                                <p className="text-green-700">✅ FT</p>
+                              </div>
+                              <div className="bg-white rounded p-1.5 text-center">
+                                <p className="font-bold text-blue-700">{(() => {
+                                  const filtered = faturas.filter(f => {
+                                    if (f.tipoDocumento === 'recibo') return false;
+                                    const dataFatura = f.data;
+                                    if (!dataFatura) return false;
+                                    if (exportDateStart && dataFatura < exportDateStart) return false;
+                                    if (exportDateEnd && dataFatura > exportDateEnd) return false;
+                                    return f.tipo === 'FR';
+                                  });
+                                  return exportDateStart || exportDateEnd ? filtered.length : faturas.filter(f => (f.tipoDocumento === 'fatura' || !f.tipoDocumento) && f.tipo === 'FR').length;
+                                })()}</p>
+                                <p className="text-blue-700">✅ FR</p>
+                              </div>
+                              <div className="bg-white rounded p-1.5 text-center">
+                                <p className="font-bold text-orange-700">{(() => {
+                                  const filtered = faturas.filter(f => {
+                                    if (f.tipoDocumento === 'recibo') return false;
+                                    const dataFatura = f.data;
+                                    if (!dataFatura) return false;
+                                    if (exportDateStart && dataFatura < exportDateStart) return false;
+                                    if (exportDateEnd && dataFatura > exportDateEnd) return false;
+                                    return f.tipo === 'FS';
+                                  });
+                                  return exportDateStart || exportDateEnd ? filtered.length : faturas.filter(f => (f.tipoDocumento === 'fatura' || !f.tipoDocumento) && f.tipo === 'FS').length;
+                                })()}</p>
+                                <p className="text-orange-700">❌ FS</p>
+                              </div>
+                            </div>
+                            <p className="text-xs text-blue-800 mt-2 italic">
+                              * Apenas FT e FR serão exportadas para o contabilista
+                            </p>
                           </div>
                         </div>
                         
@@ -17688,6 +18025,7 @@ void 0;
                         <ul className="text-xs text-red-800 space-y-1">
                           <li>• CSV é APOIO, não substitui documentos fiscais</li>
                           <li>• PDFs das faturas são OBRIGATÓRIOS</li>
+                          <li>• <strong>Apenas FT e FR</strong> são exportadas (FS não pode ser deduzida)</li>
                           <li>• Conservar documentos 10 anos (Lei Geral Tributária)</li>
                         </ul>
                       </div>
