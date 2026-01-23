@@ -3211,9 +3211,10 @@ const FORNECEDORES_CONHECIDOS = {
     nome: 'Recheio Cash & Carry',
     patterns: [
       /Recheio\s+Cash\s+&\s+Carry/i,
-      /PT\s+HF\s+9568126/
+      /PT\s+HF\s+9568126/i,
+      /NIF[:\s]*500145415/i
     ],
-    nif: '9568126'
+    nif: '500145415'
   },
   mania: {
     nome: 'MANIA CERVEJEIRA',
@@ -3222,6 +3223,53 @@ const FORNECEDORES_CONHECIDOS = {
       /Stefan\s+Hunold/i
     ],
     nif: '278240160'
+  },
+  pingoDoce: {
+    nome: 'Pingo Doce',
+    patterns: [
+      /Pingo\s*Doce/i,
+      /JERONIMO\s+MARTINS/i,
+      /JMR\s*-/i,
+      /NIF[:\s]*500829993/i
+    ],
+    nif: '500829993'
+  },
+  continente: {
+    nome: 'Continente',
+    patterns: [
+      /MODELO\s+CONTINENTE/i,
+      /CONTINENTE\s+HIPERMERCADOS/i,
+      /SONAE\s+MC/i,
+      /NIF[:\s]*502011475/i
+    ],
+    nif: '502011475'
+  },
+  lidl: {
+    nome: 'Lidl',
+    patterns: [
+      /LIDL\s+&\s+CIA/i,
+      /LIDL\s+PORTUGAL/i,
+      /NIF[:\s]*500871029/i
+    ],
+    nif: '500871029'
+  },
+  auchan: {
+    nome: 'Auchan',
+    patterns: [
+      /AUCHAN\s+PORTUGAL/i,
+      /JUMBO/i,
+      /NIF[:\s]*500038191/i
+    ],
+    nif: '500038191'
+  },
+  makro: {
+    nome: 'Makro',
+    patterns: [
+      /MAKRO\s+CASH/i,
+      /MAKRO\s+PORTUGAL/i,
+      /NIF[:\s]*500576602/i
+    ],
+    nif: '500576602'
   }
 };
 
@@ -4476,16 +4524,32 @@ const detectarFornecedor = (texto, fornecedoresList = []) => {
     }
   }
   
-  // 2. Tentar encontrar qualquer NIF no texto
-  const nifMatch = texto.match(/(?:NIF|Contribuinte|NIPC)[:\s]+(\d{9})/i);
-  if (nifMatch) {
-    const nifEncontrado = nifMatch[1];
-    
+  // 2. Tentar encontrar qualquer NIF no texto (múltiplos padrões)
+  const padroesNIF = [
+    /(?:NIF|N\.?I\.?F\.?)[:\s]*(\d{9})/i,
+    /(?:Contribuinte)[:\s]*(\d{9})/i,
+    /(?:NIPC)[:\s]*(\d{9})/i,
+    /(?:N[°º]?\s*Contribuinte)[:\s]*(\d{9})/i,
+    /PT\s*(\d{9})/,  // Formato PT 500829993
+    /(\d{9})(?=\s*PT)/  // Formato 500829993 PT
+  ];
+  
+  let nifEncontrado = null;
+  for (const padrao of padroesNIF) {
+    const match = texto.match(padrao);
+    if (match) {
+      nifEncontrado = match[1];
+      console.log(`🔍 [FORNECEDOR] NIF encontrado: ${nifEncontrado} (padrão: ${padrao})`);
+      break;
+    }
+  }
+  
+  if (nifEncontrado) {
     // 3. Procurar fornecedor na lista pelo NIF
     const fornecedorEncontrado = fornecedoresList.find(f => f.nif === nifEncontrado);
     
     if (fornecedorEncontrado) {
-      void 0;
+      console.log(`🔍 [FORNECEDOR] Match por NIF: ${fornecedorEncontrado.nome}`);
       return {
         id: fornecedorEncontrado.id,
         nome: fornecedorEncontrado.nome,
@@ -4493,8 +4557,20 @@ const detectarFornecedor = (texto, fornecedoresList = []) => {
       };
     }
     
+    // Verificar também nos fornecedores conhecidos
+    for (const [chave, fornecedor] of Object.entries(FORNECEDORES_CONHECIDOS)) {
+      if (fornecedor.nif === nifEncontrado) {
+        console.log(`🔍 [FORNECEDOR] Match por NIF (conhecido): ${fornecedor.nome}`);
+        return {
+          chave: chave,
+          nome: fornecedor.nome,
+          nif: fornecedor.nif
+        };
+      }
+    }
+    
     // NIF encontrado mas fornecedor não está na lista
-    void 0;
+    console.log(`🔍 [FORNECEDOR] NIF ${nifEncontrado} não encontrado na lista`);
     return {
       chave: 'desconhecido',
       nome: 'Fornecedor Desconhecido',
@@ -9823,10 +9899,6 @@ void 0;
    * NOVA FUNÇÃO: Separar produtos que estão colados na mesma linha
    * Mesmo SEM códigos de produto, tenta separar por padrões
    */
-  /**
-   * NOVA FUNÇÃO: Separar produtos que estão colados na mesma linha
-   * Mesmo SEM códigos de produto, tenta separar por padrões
-   */
   const separarProdutosColados = (linha) => {
     // Ignorar linhas muito curtas
     if (!linha || linha.length < 15) {
@@ -9842,7 +9914,7 @@ void 0;
     console.log(`🔍 [SEPARACAO] Linha: "${linha.substring(0, 60)}..." | Códigos: ${codigos ? codigos.join(', ') : 'nenhum'}`);
     
     if (codigos && codigos.length > 1) {
-      console.log(`🔍 [SEPARACAO] ✅ SEPARANDO ${codigos.length} produtos!`);
+      console.log(`🔍 [SEPARACAO] ✅ SEPARANDO ${codigos.length} produtos (por códigos)!`);
       OCR_DEBUG.log('SEPARACAO', `${codigos.length} códigos detectados - SEPARANDO`, { codigos, linha: linha.substring(0, 80) });
       
       const produtos = [];
@@ -9885,14 +9957,72 @@ void 0;
       return produtos.length > 0 ? produtos : [linha];
     }
     
-    // MÉTODO 2: Por padrões de quantidade/preço (fallback)
-    const padraoItem = /([A-Z][A-Z\s]+?)(\d+(?:G|ML|L|KG|UN|CL))\s*€?\s*(\d+[.,]\d{2})/gi;
-    const matches = [...linha.matchAll(padraoItem)];
+    // MÉTODO 2: Pingo Doce / Continente - separar por QUANTIDADE + LETRA (novo produto)
+    // Padrão: "E MOLH INGLES PD 192ML E CACAU PO" → quantidade (192ML) seguida de letra (E)
+    // Ou: "C REQUEIJAO VC PD 170G BEBIDAS" → quantidade (170G) seguida de palavra maiúscula
+    const padraoQtdNovoProduto = /(\d+(?:,\d+)?(?:ML|GR|G|KG|L|CL|UN|U|DZ))\s+([A-Z])/gi;
     
-    if (matches && matches.length > 1) {
-      console.log(`🔍 [SEPARACAO] ${matches.length} produtos por padrão qtd+preço`);
-      OCR_DEBUG.log('SEPARACAO', `${matches.length} produtos por padrão qtd+preço`, { matches: matches.map(m => m[0]) });
-      return matches.map(m => m[0]);
+    // Encontrar todas as posições onde há quantidade seguida de letra
+    let matches = [];
+    let match;
+    const regexGlobal = /(\d+(?:,\d+)?(?:ML|GR|G|KG|L|CL|UN|U|DZ))\s+([A-Z])/gi;
+    
+    while ((match = regexGlobal.exec(linha)) !== null) {
+      matches.push({
+        index: match.index,
+        fullMatch: match[0],
+        quantidade: match[1],
+        letraSeguinte: match[2],
+        posicaoCorte: match.index + match[1].length // Cortar DEPOIS da quantidade
+      });
+    }
+    
+    if (matches.length > 0) {
+      console.log(`🔍 [SEPARACAO] Encontrados ${matches.length} pontos de separação (qtd+letra):`, matches.map(m => m.fullMatch));
+      
+      const produtos = [];
+      let ultimoCorte = 0;
+      
+      for (const m of matches) {
+        // Extrair do último corte até INCLUIR a quantidade
+        const posicaoFimQuantidade = m.index + m.quantidade.length;
+        const fragmento = linha.substring(ultimoCorte, posicaoFimQuantidade).trim();
+        
+        if (fragmento.length > 3) {
+          produtos.push(fragmento);
+          console.log(`🔍 [SEPARACAO] Produto: "${fragmento}"`);
+        }
+        
+        // Próximo corte começa na letra seguinte
+        ultimoCorte = posicaoFimQuantidade;
+        // Avançar espaços
+        while (ultimoCorte < linha.length && linha[ultimoCorte] === ' ') {
+          ultimoCorte++;
+        }
+      }
+      
+      // Último fragmento (do último corte até ao fim)
+      const ultimoFragmento = linha.substring(ultimoCorte).trim();
+      if (ultimoFragmento.length > 3) {
+        produtos.push(ultimoFragmento);
+        console.log(`🔍 [SEPARACAO] Produto (último): "${ultimoFragmento}"`);
+      }
+      
+      if (produtos.length > 1) {
+        console.log(`🔍 [SEPARACAO] ✅ Resultado: ${produtos.length} produtos separados (por qtd+letra)`);
+        OCR_DEBUG.log('SEPARACAO', `Separados em ${produtos.length} produtos (qtd+letra)`, { produtos });
+        return produtos;
+      }
+    }
+    
+    // MÉTODO 3: Por padrões de quantidade/preço (fallback antigo)
+    const padraoItem = /([A-Z][A-Z\s]+?)(\d+(?:G|ML|L|KG|UN|CL))\s*€?\s*(\d+[.,]\d{2})/gi;
+    const matchesPreco = [...linha.matchAll(padraoItem)];
+    
+    if (matchesPreco && matchesPreco.length > 1) {
+      console.log(`🔍 [SEPARACAO] ${matchesPreco.length} produtos por padrão qtd+preço`);
+      OCR_DEBUG.log('SEPARACAO', `${matchesPreco.length} produtos por padrão qtd+preço`, { matches: matchesPreco.map(m => m[0]) });
+      return matchesPreco.map(m => m[0]);
     }
     
     // Não conseguiu separar
