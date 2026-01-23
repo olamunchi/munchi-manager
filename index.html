@@ -1819,24 +1819,7 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
                               +
                             </button>
                           </div>
-                          {linha.ingredienteSugerido && ingredienteSugerido && (
-                            <div className="text-xs mt-1 p-2 bg-blue-50 border border-blue-200 rounded">
-                              <div className="flex items-center gap-1 mb-1">
-                                <span className={`font-bold ${
-                                  confianca >= 80 ? 'text-green-600' :
-                                  confianca >= 60 ? 'text-yellow-600' :
-                                  'text-orange-600'
-                                }`}>
-                                  {confianca >= 80 ? '✓ AUTO-PREENCHIDO' :
-                                   confianca >= 60 ? '⚠ VERIFICAR' :
-                                   '💡 SUGESTÃO'}
-                                </span>
-                              </div>
-                              <div className="text-gray-700">
-                                <strong>{ingredienteSugerido.nome}</strong>
-                              </div>
-                            </div>
-                          )}
+
                         </td>
                         <td className={`border p-2 text-center ${getConfidenceClass(confianca)}`}>
                           <div className="text-sm font-bold">{linha.ingredienteSugerido ? `${confianca}%` : '--'}</div>
@@ -1877,22 +1860,7 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
                         className="w-full px-2 py-1 text-sm border rounded text-right"
                         placeholder="--"
                       />
-                      
-                      {/* 🆕 SUGESTÃO DE PREÇO ATUAL DO INGREDIENTE */}
-                      {linha.precoSugerido && linha.precoSugerido > 0 && (
-                        <div className="mt-1 p-2 bg-blue-50 border border-blue-200 rounded text-xs">
-                          <div className="flex items-center gap-1 text-blue-700 font-semibold mb-1">
-                            💡 Auto-preenchido
-                          </div>
-                          <div className="text-blue-600">
-                            Preço atual: €{linha.precoSugerido.toFixed(2)}/{linha.unidade}
-                          </div>
-                          <div className="text-blue-500 text-xs mt-1">
-                            Unidade da última compra deste fornecedor
-                          </div>
-                        </div>
-                      )}
-                      
+
                       {/* ✨ PREVIEW DO PREÇO UNITÁRIO CALCULADO */}
                       {linha.preco && linha.quantidade && linha.ingredienteConfirmado && (() => {
                         const ing = ingredientesLocais.find(i => i.id === linha.ingredienteConfirmado);
@@ -3410,6 +3378,7 @@ const RestauranteGestor = () => {
 
   const [dashboardSubTab, setDashboardSubTab] = useState('resumo');
   const [dateFilter, setDateFilter] = useState('all'); // all, today, week, month, custom
+  const [showBreakEvenDetails, setShowBreakEvenDetails] = useState(false); // Estado para dropdown do break-even
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
   const [gestaoSubTab, setGestaoSubTab] = useState('ingredientes');
@@ -3577,6 +3546,7 @@ const RestauranteGestor = () => {
   
   const [mostrarImportacao, setMostrarImportacao] = useState(false);
   const [fonteImportacao, setFonteImportacao] = useState('moloni');
+  const [fornecedoresExpandidos, setFornecedoresExpandidos] = useState({});
   
   // Importar vendas CSV
   const importarVendasCSV = (event) => {
@@ -3679,6 +3649,11 @@ const RestauranteGestor = () => {
   const [backupExpanded, setBackupExpanded] = useState(false);
   const [exportarExpanded, setExportarExpanded] = useState(false);
   const [exportDateStart, setExportDateStart] = useState('');
+  
+  // 🆕 Estados para filtros de Compras Registadas
+  const [anoFaturaSelecionado, setAnoFaturaSelecionado] = useState(new Date().getFullYear());
+  const [mesFaturaSelecionado, setMesFaturaSelecionado] = useState(null); // null = todos os meses
+  const [fornecedorFiltro, setFornecedorFiltro] = useState(''); // '' = todos os fornecedores
   const [exportDateEnd, setExportDateEnd] = useState('');
   
   // Estados OCR
@@ -5033,12 +5008,25 @@ const calcularIndiceDesperdicio = (comprasPeriodo, vendasPeriodo, produtos) => {
   // Calcular custo real das vendas
   let custoVendas = 0;
   vendasPeriodo.forEach(venda => {
-    venda.itens?.forEach(item => {
-      const produto = produtos.find(p => p.id === item.produtoId);
+    // 🔧 SUPORTAR 2 FORMATOS:
+    // Formato 1: venda.itens[] (array de produtos)
+    // Formato 2: venda direto (produtoId + quantidade)
+    
+    if (venda.itens && venda.itens.length > 0) {
+      // Formato 1: Array de itens
+      venda.itens.forEach(item => {
+        const produto = produtos.find(p => p.id === item.produtoId);
+        if (produto) {
+          custoVendas += (produto.custoReceita || 0) * (item.quantidade || 1);
+        }
+      });
+    } else if (venda.produtoId) {
+      // Formato 2: Venda direta
+      const produto = produtos.find(p => p.id === venda.produtoId);
       if (produto) {
-        custoVendas += produto.custoReceita * item.quantidade;
+        custoVendas += (produto.custoReceita || 0) * (venda.quantidade || 1);
       }
-    });
+    }
   });
   
   // Calcular desperdício
@@ -9474,6 +9462,12 @@ void 0;
   
   void 0;
   
+  // 🆕 CALCULAR ÍNDICE DE DESPERDÍCIO
+  const comprasPeriodo = filteredFaturas.filter(f => f.categoria === 'compras' || !f.categoria);
+  const indiceDesperdicio = calcularIndiceDesperdicio(comprasPeriodo, filteredVendas, produtos);
+  
+  void 0;
+  
   // Limite IVA: SEMPRE calcular apenas vendas do ano atual (reset a 1 Janeiro)
   const anoAtual = new Date().getFullYear();
   const vendasAnoAtual = vendas.filter(v => {
@@ -9580,28 +9574,89 @@ void 0;
   }, 0);
   const laborCostPercentage = totV > 0 ? (totalSalarios / totV) * 100 : 0;
 
-  // New metrics calculations - ✅ USAR todasDespesas
-  // Food Cost = APENAS compras de ingredientes (não inclui renda, eletricidade, etc.)
-  const totalFoodCost = todasDespesas.filter(d => d.categoria === 'compras').reduce((s, d) => s + d.valor, 0);
-  const foodCostPercentage = totV > 0 ? (totalFoodCost / totV) * 100 : 0;
-  const primeCostPercentage = foodCostPercentage + laborCostPercentage;
-  const primeCostTotal = totalFoodCost + totalSalarios;
+  // 🔧 FOOD COST CORRIGIDO - Usar custo REAL das vendas (baseado em receitas)
+  // Calcular custo real das vendas (baseado no custoReceita de cada produto vendido)
+  let custoRealVendas = 0;
+  vendasFiltradas.forEach(venda => {
+    // Suportar 2 formatos: venda.itens[] ou venda direta
+    if (venda.itens && venda.itens.length > 0) {
+      venda.itens.forEach(item => {
+        const produto = produtos.find(p => p.id === item.produtoId);
+        if (produto) {
+          custoRealVendas += (produto.custoReceita || 0) * (item.quantidade || 1);
+        }
+      });
+    } else if (venda.produtoId) {
+      const produto = produtos.find(p => p.id === venda.produtoId);
+      if (produto) {
+        custoRealVendas += (produto.custoReceita || 0) * (venda.quantidade || 1);
+      }
+    }
+  });
   
-  // Break-even calculation: Fixed costs / (1 - (Variable costs / Revenue)) - ✅ USAR todasDespesas
-  const fixedCosts = todasDespesas.filter(d => ['renda', 'eletricidade', 'agua', 'gas', 'internet', 'salarios'].includes(d.categoria)).reduce((s, d) => s + d.valor, 0);
-  // Variable Costs = APENAS compras e consumíveis (não inclui renda, eletricidade, etc.)
-  const variableCosts = todasDespesas.filter(d => ['compras', 'consumiveis'].includes(d.categoria)).reduce((s, d) => s + d.valor, 0);
-  const contributionMarginRatio = totV > 0 ? (totV - variableCosts) / totV : 0;
+  const foodCostPercentage = totV > 0 ? (custoRealVendas / totV) * 100 : 0;
+  const primeCostPercentage = foodCostPercentage + laborCostPercentage;
+  const primeCostTotal = custoRealVendas + totalSalarios;
+  
+  // ============================================
+  // BREAK-EVEN COMPLETO - Todos os Custos
+  // ============================================
+  
+  // Calcular número REAL de dias no período filtrado
+  let diasReaisPeriodo = 26; // default
+  if (vendasFiltradas.length > 0) {
+    const datas = vendasFiltradas.map(v => new Date(v.data));
+    const dataMin = new Date(Math.min(...datas));
+    const dataMax = new Date(Math.max(...datas));
+    const diffTime = Math.abs(dataMax - dataMin);
+    diasReaisPeriodo = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1);
+  }
+  
+  // 1. CUSTOS FIXOS (não variam com vendas)
+  const fixedCosts = todasDespesas.filter(d => 
+    ['renda', 'eletricidade', 'agua', 'gas', 'internet', 'salarios'].includes(d.categoria)
+  ).reduce((s, d) => s + d.valor, 0);
+  
+  // 2. CUSTOS VARIÁVEIS (compras de ingredientes e consumíveis)
+  const variableCosts = todasDespesas.filter(d => 
+    ['compras', 'consumiveis'].includes(d.categoria)
+  ).reduce((s, d) => s + d.valor, 0);
+  
+  // 3. FOOD COST REAL (ingredientes usados nas vendas + desperdício)
+  // custoRealVendas já calculado acima = custo dos ingredientes nas receitas vendidas
+  // Adicionar desperdício estimado (baseado nas percentagens configuradas)
+  const foodCostComDesperdicio = custoRealVendas * 1.08; // +8% média de desperdício
+  
+  // 4. CUSTO TOTAL DO PERÍODO
+  const custoTotalPeriodo = fixedCosts + variableCosts + foodCostComDesperdicio;
+  
+  // 5. BREAK-EVEN MENSAL (usando 26 dias úteis como referência)
+  const diasUteis = 26;
+  
+  // Projetar custos fixos e variáveis para um mês completo (26 dias)
+  const fixedCostsProjetados = (fixedCosts / diasReaisPeriodo) * diasUteis;
+  const variableCostsProjetados = (variableCosts / diasReaisPeriodo) * diasUteis;
+  const foodCostProjetado = (foodCostComDesperdicio / diasReaisPeriodo) * diasUteis;
+  
+  // Margem de contribuição = Receita - Custos Variáveis
+  const contributionMarginRatio = totV > 0 ? (totV - variableCosts - foodCostComDesperdicio) / totV : 0;
   const breakEvenPoint = contributionMarginRatio > 0 ? fixedCosts / contributionMarginRatio : 0;
   
-  // Break-even DIÁRIO (26 dias úteis)
-  const diasUteis = 26;
-  const fixedCostsDiarios = fixedCosts / diasUteis;
+  // 6. BREAK-EVEN DIÁRIO (usando valores projetados para 26 dias)
+  const custoTotalDiario = (fixedCostsProjetados + variableCostsProjetados + foodCostProjetado) / diasUteis;
+  const fixedCostsDiarios = fixedCostsProjetados / diasUteis;
+  const variableCostsDiarios = variableCostsProjetados / diasUteis;
+  const foodCostDiario = foodCostProjetado / diasUteis;
+  
+  // 7. FATURAÇÃO NECESSÁRIA POR DIA para cobrir TODOS os custos
   const ticketMedio = filteredVendas.length > 0 ? totV / filteredVendas.length : 0;
-  const foodCostPorVenda = filteredVendas.length > 0 ? totalFoodCost / filteredVendas.length : 0;
+  const foodCostPorVenda = filteredVendas.length > 0 ? custoRealVendas / filteredVendas.length : 0;
   const margemPorVenda = ticketMedio - foodCostPorVenda;
-  const vendasNecessariasPorDia = margemPorVenda > 0 ? fixedCostsDiarios / margemPorVenda : 0;
+  const vendasNecessariasPorDia = margemPorVenda > 0 ? custoTotalDiario / margemPorVenda : 0;
   const breakEvenDiario = vendasNecessariasPorDia * ticketMedio;
+  
+  // 8. FATURAÇÃO NECESSÁRIA considerando MARGEM de segurança
+  const faturacaoNecessariaDiaria = custoTotalDiario / (contributionMarginRatio > 0 ? contributionMarginRatio : 0.5);
   
   // Efficiency per employee (count unique employees considering frequency) - ✅ USAR todasDespesas
   const numEmployees = todasDespesas
@@ -11036,7 +11091,7 @@ void 0;
         if (!ing) return total;
         
         const quantidade = parseFloat(item.quantidade) || 0;
-        const precoUnit = parseFloat(ing.precoUnitario) || 0;
+        const precoUnit = parseFloat(ing.custoUnitario) || 0;
         
         return total + (quantidade * precoUnit);
       }, 0);
@@ -11617,7 +11672,7 @@ void 0;
             showNotification={showNotification}
           />
           
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-2">
               <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg shadow p-3 text-white">
                 <Tooltip text="Total de vendas no período selecionado. Inclui todas as receitas antes de impostos e despesas." position="bottom">
                   <p className="text-green-100 text-xs mb-1 flex items-center gap-1">
@@ -11664,6 +11719,26 @@ void 0;
                 </Tooltip>
                 <p className="text-xl font-bold">€{Math.abs(ivaP).toFixed(2)}</p>
                 <p className="text-orange-100 text-xs">{ivaP >= 0 ? 'Entregar' : 'Crédito'}</p>
+              </div>
+              
+              {/* 🆕 CARD DE DESPERDÍCIO */}
+              <div className={`bg-gradient-to-br rounded-lg shadow p-3 text-white ${
+                indiceDesperdicio.desperdicioPercent > 15 ? 'from-red-500 to-red-700' :
+                indiceDesperdicio.desperdicioPercent > 10 ? 'from-yellow-500 to-orange-600' :
+                'from-purple-500 to-purple-700'
+              }`}>
+                <Tooltip text="Desperdício = Total Compras - Custo Real das Vendas. Inclui stock não vendido, desperdício real, e perdas. Ideal: 5-10%" position="bottom">
+                  <p className="text-purple-100 text-xs mb-1 flex items-center gap-1">
+                    Desperdício
+                    <span className="text-purple-300 text-sm">ⓘ</span>
+                  </p>
+                </Tooltip>
+                <p className="text-xl font-bold">
+                  {indiceDesperdicio.desperdicioPercent.toFixed(1)}%
+                </p>
+                <p className="text-purple-100 text-xs">
+                  {indiceDesperdicio.status === 'alto' ? '⚠️ Alto' : '✅ Normal'}
+                </p>
               </div>
             </div>
             
@@ -11777,6 +11852,123 @@ void 0;
                 );
               })()}
             </div>
+            
+            {/* 🆕 ANÁLISE DETALHADA DE DESPERDÍCIO */}
+            {indiceDesperdicio.compras > 0 && (
+              <div className="bg-white rounded-lg shadow p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-lg font-bold flex items-center gap-2">
+                    🗑️ Análise de Desperdício
+                  </h3>
+                  <Tooltip text="Desperdício = Total Compras - Custo Real das Vendas. Inclui stock não vendido, perdas por deterioração e erros de preparação. Ideal para restauração: 5-10%" position="left">
+                    <span className="text-gray-400 cursor-help">ⓘ</span>
+                  </Tooltip>
+                </div>
+                
+                <div className="space-y-3">
+                  {/* Resumo Visual */}
+                  <div className={`rounded-lg p-4 ${
+                    indiceDesperdicio.desperdicioPercent > 15 ? 'bg-red-50 border border-red-200' :
+                    indiceDesperdicio.desperdicioPercent > 10 ? 'bg-yellow-50 border border-yellow-200' :
+                    'bg-green-50 border border-green-200'
+                  }`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-semibold text-sm">Taxa de Desperdício</span>
+                      <span className={`text-2xl font-bold ${
+                        indiceDesperdicio.desperdicioPercent > 15 ? 'text-red-600' :
+                        indiceDesperdicio.desperdicioPercent > 10 ? 'text-yellow-600' :
+                        'text-green-600'
+                      }`}>
+                        {indiceDesperdicio.desperdicioPercent.toFixed(1)}%
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-3">
+                      <div 
+                        className={`h-3 rounded-full ${
+                          indiceDesperdicio.desperdicioPercent > 15 ? 'bg-red-500' :
+                          indiceDesperdicio.desperdicioPercent > 10 ? 'bg-yellow-500' :
+                          'bg-green-500'
+                        }`}
+                        style={{ width: `${Math.min(indiceDesperdicio.desperdicioPercent, 100)}%` }}
+                      ></div>
+                    </div>
+                    <div className="flex justify-between text-xs text-gray-500 mt-1">
+                      <span>0%</span>
+                      <span>5%</span>
+                      <span>10%</span>
+                      <span>15%</span>
+                      <span>20%</span>
+                    </div>
+                  </div>
+                  
+                  {/* Breakdown dos Valores */}
+                  <div className="grid grid-cols-3 gap-3">
+                    <Tooltip text="Total gasto em compras de ingredientes no período selecionado" position="top">
+                      <div className="bg-blue-50 rounded-lg p-3 cursor-help">
+                        <p className="text-xs text-gray-600 mb-1">Total Compras</p>
+                        <p className="text-lg font-bold text-blue-600">€{indiceDesperdicio.compras.toFixed(2)}</p>
+                      </div>
+                    </Tooltip>
+                    <Tooltip text="Custo teórico dos ingredientes usados nos produtos vendidos (baseado nas receitas)" position="top">
+                      <div className="bg-green-50 rounded-lg p-3 cursor-help">
+                        <p className="text-xs text-gray-600 mb-1">Custo Vendas</p>
+                        <p className="text-lg font-bold text-green-600">€{indiceDesperdicio.custoVendas.toFixed(2)}</p>
+                      </div>
+                    </Tooltip>
+                    <Tooltip text="Diferença entre compras e vendas. Representa stock não vendido, perdas e erros." position="top">
+                      <div className={`rounded-lg p-3 cursor-help ${
+                        indiceDesperdicio.desperdicioPercent > 10 ? 'bg-red-50' : 'bg-purple-50'
+                      }`}>
+                        <p className="text-xs text-gray-600 mb-1">Desperdício</p>
+                        <p className={`text-lg font-bold ${
+                          indiceDesperdicio.desperdicioPercent > 10 ? 'text-red-600' : 'text-purple-600'
+                        }`}>
+                          €{indiceDesperdicio.desperdicio.toFixed(2)}
+                        </p>
+                      </div>
+                    </Tooltip>
+                  </div>
+                  
+                  {/* Status e Recomendações - Compacto */}
+                  {indiceDesperdicio.custoVendas > 0 && indiceDesperdicio.desperdicioPercent > 10 && (
+                    <div className={`rounded-lg p-3 flex items-start gap-2 ${
+                      indiceDesperdicio.desperdicioPercent > 15 ? 'bg-red-50 border-l-4 border-red-500' :
+                      'bg-yellow-50 border-l-4 border-yellow-500'
+                    }`}>
+                      <span className="text-xl flex-shrink-0">
+                        {indiceDesperdicio.desperdicioPercent > 15 ? '🚨' : '⚠️'}
+                      </span>
+                      <div className="flex-1">
+                        <p className="text-xs font-semibold mb-1">
+                          {indiceDesperdicio.desperdicioPercent > 15 ? 'Desperdício Alto - Ação Urgente' : 'Desperdício Elevado - Melhorias Possíveis'}
+                        </p>
+                        <Tooltip 
+                          text={
+                            indiceDesperdicio.desperdicioPercent > 15 
+                              ? "Sugestões: Rever processos de compra (compras excessivas?), verificar controlo de porções nas receitas, implementar FIFO (First In, First Out), treinar equipa em redução de desperdício"
+                              : "Sugestões: Monitorizar stock mais regularmente, otimizar quantidades de compra, rever datas de validade dos produtos"
+                          } 
+                          position="bottom"
+                        >
+                          <p className="text-xs text-gray-600 cursor-help hover:text-gray-800 underline decoration-dotted">
+                            Ver recomendações →
+                          </p>
+                        </Tooltip>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {indiceDesperdicio.custoVendas > 0 && indiceDesperdicio.desperdicioPercent <= 10 && (
+                    <div className="bg-green-50 border-l-4 border-green-500 rounded-lg p-3 flex items-center gap-2">
+                      <span className="text-xl">✅</span>
+                      <p className="text-xs text-gray-700">
+                        <span className="font-semibold">Desperdício Controlado!</span> Continue o bom trabalho mantendo as práticas atuais.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
                 
                 {/* Simulador de IVA Trimestral */}
                 <div className="bg-white rounded-lg shadow p-4">
@@ -12167,9 +12359,9 @@ void 0;
                   
                   {/* Food Cost % */}
                   <div className="bg-purple-50 rounded-lg p-4 border-l-4 border-purple-500">
-                    <Tooltip text="Percentagem da receita gasta em ingredientes e matéria-prima. Calculado como: (Custo dos Ingredientes ÷ Faturação) × 100. O ideal é manter entre 25-35%. Acima de 40% indica problema grave nos preços ou desperdício." position="bottom">
+                    <Tooltip text="Percentagem da receita gasta em ingredientes (MÉTODO CORRIGIDO). Calculado como: (Custo Real das Vendas ÷ Faturação) × 100, onde Custo Real = soma do custoReceita de cada produto vendido. Este é o método correto que considera apenas os ingredientes USADOS nas vendas (não inclui stock nem desperdício). Ideal: 25-35%." position="bottom">
                       <p className="text-xs text-purple-700 mb-1 font-semibold flex items-center gap-1">
-                        🍽️ Food Cost %
+                        🍽️ Food Cost % ✓
                         <span className="text-purple-400 text-sm">ⓘ</span>
                       </p>
                     </Tooltip>
@@ -12230,24 +12422,234 @@ void 0;
               </div>
 
               {/* ============================================ */}
-              {/* SECTION 2: BREAK-EVEN & EFICIÊNCIA */}
+              {/* SECTION 2: BREAK-EVEN DETALHADO (DROPDOWN) */}
               {/* ============================================ */}
+              {showBreakEvenDetails && (
               <div className="bg-white rounded-lg shadow p-4 mb-3">
                 <h2 className="text-xl font-bold mb-3 flex items-center gap-2">
-                  💰 Break-Even & Eficiência
+                  💰 Break-Even & Custos Operacionais Detalhados
+                  <button
+                    onClick={() => setShowBreakEvenDetails(false)}
+                    className="ml-auto text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded p-1 transition"
+                    title="Recolher"
+                  >
+                    <X size={20} />
+                  </button>
                 </h2>
                 
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-                  {/* Break-Even Point */}
-                  <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg p-4 border-2 border-green-300">
+                {/* NOVO: Resumo de Custos Mensais */}
+                <div className="bg-gradient-to-br from-purple-50 to-indigo-50 border-2 border-purple-300 rounded-lg p-4 mb-4">
+                  <h3 className="text-sm font-bold text-purple-900 mb-3 flex items-center gap-2">
+                    📋 Resumo de Custos do Período
+                  </h3>
+                  
+                  <div className="grid grid-cols-2 gap-3 mb-3">
+                    <div className="bg-white rounded-lg p-3 border border-purple-200">
+                      <p className="text-xs text-gray-600 mb-1">Custos Fixos</p>
+                      <p className="text-lg font-bold text-purple-900">€{fixedCosts.toFixed(2)}</p>
+                      <p className="text-xs text-gray-500">Renda, salários, utilities</p>
+                    </div>
+                    
+                    <div className="bg-white rounded-lg p-3 border border-purple-200">
+                      <p className="text-xs text-gray-600 mb-1">Custos Variáveis</p>
+                      <p className="text-lg font-bold text-purple-900">€{variableCosts.toFixed(2)}</p>
+                      <p className="text-xs text-gray-500">Compras, consumíveis</p>
+                    </div>
+                    
+                    <div className="bg-white rounded-lg p-3 border border-orange-200">
+                      <p className="text-xs text-gray-600 mb-1">Food Cost Real</p>
+                      <p className="text-lg font-bold text-orange-900">€{custoRealVendas.toFixed(2)}</p>
+                      <p className="text-xs text-gray-500">Ingredientes vendidos</p>
+                    </div>
+                    
+                    <div className="bg-white rounded-lg p-3 border border-red-200">
+                      <p className="text-xs text-gray-600 mb-1">Food Cost + Desperdício</p>
+                      <p className="text-lg font-bold text-red-900">€{foodCostComDesperdicio.toFixed(2)}</p>
+                      <p className="text-xs text-gray-500">+8% desperdício</p>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-gradient-to-r from-purple-100 to-pink-100 rounded-lg p-3 border-2 border-purple-400">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-bold text-purple-900">💰 CUSTO TOTAL DO PERÍODO:</span>
+                      <span className="text-2xl font-bold text-purple-900">€{custoTotalPeriodo.toFixed(2)}</span>
+                    </div>
+                    <p className="text-xs text-purple-700 mt-1">
+                      = Fixos (€{fixedCosts.toFixed(2)}) + Variáveis (€{variableCosts.toFixed(2)}) + Food Cost (€{foodCostComDesperdicio.toFixed(2)})
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                  {/* Break-Even Diário COMPLETO */}
+                  <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg p-4 border-2 border-green-400">
                     <p className="text-xs text-green-700 mb-2 font-bold flex items-center gap-1">
-                      <Tooltip text="O Break-Even é o valor mínimo que precisas de faturar para cobrir todos os custos fixos (renda, salários, utilities) e variáveis (ingredientes). Abaixo deste valor, estás a ter prejuízo." position="bottom">
+                      <Tooltip text="Quanto precisas faturar POR DIA (26 dias úteis) para cobrir TODOS os custos operacionais: fixos, variáveis, food cost e desperdício. Este é o valor mínimo para não ter prejuízo." position="bottom">
                         <span className="flex items-center gap-1">
-                          🎯 Break-Even Point
+                          🎯 Break-Even Diário Completo
                           <span className="text-green-500 text-base">ⓘ</span>
                         </span>
                       </Tooltip>
                     </p>
+                    
+                    <div className="bg-white rounded-lg p-3 border-2 border-green-300 mb-3">
+                      <p className="text-xs text-gray-600 mb-1">Faturação Necessária por Dia</p>
+                      <p className="text-3xl font-bold text-green-900">
+                        €{faturacaoNecessariaDiaria.toFixed(2)}
+                      </p>
+                      <p className="text-xs text-green-700 mt-1">Para cobrir todos os custos</p>
+                    </div>
+                    
+                    <div className="space-y-2 text-xs">
+                      <div className="bg-white rounded p-2 border border-green-200">
+                        <div className="flex justify-between mb-1">
+                          <span className="text-gray-700 font-semibold">📊 Breakdown Diário ({diasUteis} dias):</span>
+                        </div>
+                        <div className="space-y-1">
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">• Custos Fixos/dia:</span>
+                            <span className="font-semibold text-purple-700">€{fixedCostsDiarios.toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">• Custos Variáveis/dia:</span>
+                            <span className="font-semibold text-orange-700">€{variableCostsDiarios.toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">• Food Cost/dia:</span>
+                            <span className="font-semibold text-red-700">€{foodCostDiario.toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between border-t border-gray-300 pt-1 mt-1">
+                            <span className="text-gray-700 font-bold">= Custo Total/dia:</span>
+                            <span className="font-bold text-green-900">€{custoTotalDiario.toFixed(2)}</span>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="bg-green-100 border-2 border-green-400 rounded p-2">
+                        <div className="flex justify-between items-center">
+                          <span className="font-bold text-green-900">Status Atual:</span>
+                          <span className={`font-bold text-lg ${
+                            medFat >= faturacaoNecessariaDiaria * 1.2 ? 'text-green-600' : 
+                            medFat >= faturacaoNecessariaDiaria ? 'text-yellow-600' : 'text-red-600'
+                          }`}>
+                            {medFat >= faturacaoNecessariaDiaria * 1.2 ? '✅ Excelente' : 
+                             medFat >= faturacaoNecessariaDiaria ? '⚠️ No limite' : '🚨 Abaixo'}
+                          </span>
+                        </div>
+                        <div className="flex justify-between mt-1 text-xs">
+                          <span className="text-green-700">Faturação média/dia:</span>
+                          <span className="font-bold text-green-900">€{medFat.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between text-xs">
+                          <span className="text-green-700">Diferença:</span>
+                          <span className={`font-bold ${
+                            medFat >= faturacaoNecessariaDiaria ? 'text-green-600' : 'text-red-600'
+                          }`}>
+                            {medFat >= faturacaoNecessariaDiaria ? '+' : ''}€{(medFat - faturacaoNecessariaDiaria).toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Vendas Necessárias */}
+                  <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-lg p-4 border-2 border-blue-300">
+                    <p className="text-xs text-blue-700 mb-2 font-bold flex items-center gap-1">
+                      <Tooltip text="Quantas vendas precisas fazer por dia para atingir o break-even. Baseado no ticket médio atual e na margem de contribuição por venda." position="bottom">
+                        <span className="flex items-center gap-1">
+                          🎫 Vendas Necessárias por Dia
+                          <span className="text-blue-400 text-base">ⓘ</span>
+                        </span>
+                      </Tooltip>
+                    </p>
+                    
+                    <div className="bg-white rounded-lg p-3 border-2 border-blue-300 mb-3">
+                      <p className="text-xs text-gray-600 mb-1">Número de Vendas/Dia</p>
+                      <p className="text-3xl font-bold text-blue-900">
+                        {Math.ceil(vendasNecessariasPorDia)}
+                      </p>
+                      <p className="text-xs text-blue-700 mt-1">Vendas para break-even</p>
+                    </div>
+                    
+                    <div className="space-y-2 text-xs">
+                      <div className="bg-white rounded p-2 border border-blue-200">
+                        <div className="flex justify-between mb-1">
+                          <span className="text-gray-700 font-semibold">📊 Análise por Venda:</span>
+                        </div>
+                        <div className="space-y-1">
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">• Ticket Médio:</span>
+                            <span className="font-semibold text-blue-700">€{ticketMedio.toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">• Food Cost/venda:</span>
+                            <span className="font-semibold text-orange-700">€{foodCostPorVenda.toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between border-t border-gray-300 pt-1 mt-1">
+                            <span className="text-gray-700 font-bold">= Margem/venda:</span>
+                            <span className="font-bold text-green-700">€{margemPorVenda.toFixed(2)}</span>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="bg-blue-100 border-2 border-blue-400 rounded p-2">
+                        <div className="flex justify-between text-xs">
+                          <span className="text-blue-700">Faturação prevista:</span>
+                          <span className="font-bold text-blue-900">€{(vendasNecessariasPorDia * ticketMedio).toFixed(2)}/dia</span>
+                        </div>
+                        <div className="flex justify-between text-xs mt-1">
+                          <span className="text-blue-700">Cobertura custos:</span>
+                          <span className="font-bold text-blue-900">
+                            {custoTotalDiario > 0 ? ((vendasNecessariasPorDia * ticketMedio / custoTotalDiario) * 100).toFixed(0) : 0}%
+                          </span>
+                        </div>
+                      </div>
+                      
+                      <div className="bg-gradient-to-r from-blue-100 to-cyan-100 rounded p-2 border border-blue-300">
+                        <p className="text-xs text-blue-800 font-semibold">
+                          💡 Para ter margem de segurança de 20%, precisas de:
+                        </p>
+                        <p className="text-lg font-bold text-blue-900 mt-1">
+                          {Math.ceil(vendasNecessariasPorDia * 1.2)} vendas/dia
+                        </p>
+                        <p className="text-xs text-blue-700">
+                          = €{(vendasNecessariasPorDia * 1.2 * ticketMedio).toFixed(2)}/dia
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              )}
+              {/* FIM DO DROPDOWN DE BREAK-EVEN DETALHADO */}
+
+              {/* Manter as outras seções existentes... */}
+              <div className="bg-white rounded-lg shadow p-4 mb-3">
+                <h2 className="text-xl font-bold mb-3 flex items-center gap-2">
+                  👥 Eficiência Operacional
+                </h2>
+                
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                  {/* Break-Even Point COM BOTÃO DE EXPANDIR */}
+                  <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg p-4 border-2 border-green-300">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-xs text-green-700 font-bold flex items-center gap-1">
+                        <Tooltip text="O Break-Even é o valor mínimo que precisas de faturar para cobrir todos os custos fixos (renda, salários, utilities) e variáveis (ingredientes). Abaixo deste valor, estás a ter prejuízo." position="bottom">
+                          <span className="flex items-center gap-1">
+                            🎯 Break-Even Point
+                            <span className="text-green-500 text-base">ⓘ</span>
+                          </span>
+                        </Tooltip>
+                      </p>
+                      <button
+                        onClick={() => setShowBreakEvenDetails(!showBreakEvenDetails)}
+                        className="text-green-700 hover:text-green-900 hover:bg-green-200 rounded p-1 transition"
+                        title={showBreakEvenDetails ? "Recolher detalhes" : "Ver detalhes completos"}
+                      >
+                        {showBreakEvenDetails ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                      </button>
+                    </div>
+                    
                     <p className="text-3xl font-bold text-green-900 mb-1">
                       {breakEvenPoint > 0 ? `€${breakEvenPoint.toFixed(0)}` : 'N/A'}
                     </p>
@@ -12280,13 +12682,13 @@ void 0;
                       </div>
                     </div>
                     
-                    {/* Break-Even Diário */}
+                    {/* Break-Even Diário Resumido */}
                     <div className="bg-green-100 border border-green-300 rounded p-2 text-xs">
                       <p className="font-bold text-green-900 mb-1">📅 Break-Even Diário ({diasUteis} dias):</p>
                       <div className="space-y-0.5">
                         <div className="flex justify-between">
                           <span className="text-green-700">Faturação/dia:</span>
-                          <span className="font-bold text-green-900">€{breakEvenDiario.toFixed(2)}</span>
+                          <span className="font-bold text-green-900">€{faturacaoNecessariaDiaria.toFixed(2)}</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-green-700">Vendas necessárias:</span>
@@ -12298,6 +12700,14 @@ void 0;
                         </div>
                       </div>
                     </div>
+                    
+                    {/* Botão Ver Detalhes */}
+                    <button
+                      onClick={() => setShowBreakEvenDetails(!showBreakEvenDetails)}
+                      className="w-full mt-2 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold py-2 px-3 rounded transition flex items-center justify-center gap-2"
+                    >
+                      {showBreakEvenDetails ? '▲ Recolher Detalhes' : '▼ Ver Detalhes Completos'}
+                    </button>
                   </div>
                   
                   {/* Efficiency per Employee */}
@@ -15236,22 +15646,104 @@ void 0;
                     </div>
                   </div>
                   
+                  {/* 🆕 FILTROS DE ANO, MÊS E FORNECEDOR */}
+                  <div className="mb-4 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-200">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      {/* Filtro de Ano */}
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-700 mb-1">📅 Ano</label>
+                        <select
+                          value={anoFaturaSelecionado}
+                          onChange={(e) => setAnoFaturaSelecionado(Number(e.target.value))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        >
+                          {(() => {
+                            const anos = [...new Set((faturas || []).map(f => new Date(f.data).getFullYear()))].sort((a, b) => b - a);
+                            return anos.map(ano => (
+                              <option key={ano} value={ano}>{ano}</option>
+                            ));
+                          })()}
+                        </select>
+                      </div>
+                      
+                      {/* Filtro de Mês */}
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-700 mb-1">📆 Mês</label>
+                        <select
+                          value={mesFaturaSelecionado || ''}
+                          onChange={(e) => setMesFaturaSelecionado(e.target.value === '' ? null : Number(e.target.value))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        >
+                          <option value="">Todos os meses</option>
+                          <option value="0">Janeiro</option>
+                          <option value="1">Fevereiro</option>
+                          <option value="2">Março</option>
+                          <option value="3">Abril</option>
+                          <option value="4">Maio</option>
+                          <option value="5">Junho</option>
+                          <option value="6">Julho</option>
+                          <option value="7">Agosto</option>
+                          <option value="8">Setembro</option>
+                          <option value="9">Outubro</option>
+                          <option value="10">Novembro</option>
+                          <option value="11">Dezembro</option>
+                        </select>
+                      </div>
+                      
+                      {/* Filtro de Fornecedor */}
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-700 mb-1">🏪 Fornecedor</label>
+                        <select
+                          value={fornecedorFiltro}
+                          onChange={(e) => setFornecedorFiltro(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        >
+                          <option value="">Todos os fornecedores</option>
+                          {(() => {
+                            const fornecedoresUnicos = [...new Set((faturas || [])
+                              .filter(f => f.fornecedorNome)
+                              .map(f => f.fornecedorNome)
+                            )].sort();
+                            return fornecedoresUnicos.map(nome => (
+                              <option key={nome} value={nome}>{nome}</option>
+                            ));
+                          })()}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                  
                   <h3 className="font-semibold text-sm mb-3 flex items-center justify-between">
                     <span>🛒 Compras Registadas ({
                       (() => {
                         const total = (faturas || []).length;
-                        if (!searchFatura) return total;
+                        if (!searchFatura && !fornecedorFiltro && mesFaturaSelecionado === null) return total;
                         const filtered = (faturas || []).filter(fatura => {
-                          const search = searchFatura.toLowerCase();
-                          return (
-                            (fatura.numero || '').toLowerCase().includes(search) ||
-                            (fatura.fornecedorNome || '').toLowerCase().includes(search) ||
-                            (fatura.fornecedorNif || '').toLowerCase().includes(search) ||
-                            (fatura.tipo || '').toLowerCase().includes(search) ||
-                            (fatura.itens || []).some(item => 
-                              (item.ingredienteNome || '').toLowerCase().includes(search)
-                            )
-                          );
+                          // Filtro de ano
+                          const dataFatura = new Date(fatura.data);
+                          if (dataFatura.getFullYear() !== anoFaturaSelecionado) return false;
+                          
+                          // Filtro de mês
+                          if (mesFaturaSelecionado !== null && dataFatura.getMonth() !== mesFaturaSelecionado) return false;
+                          
+                          // Filtro de fornecedor
+                          if (fornecedorFiltro && fatura.fornecedorNome !== fornecedorFiltro) return false;
+                          
+                          // Filtro de pesquisa
+                          if (searchFatura) {
+                            const search = searchFatura.toLowerCase();
+                            return (
+                              (fatura.numero || '').toLowerCase().includes(search) ||
+                              (fatura.fornecedorNome || '').toLowerCase().includes(search) ||
+                              (fatura.fornecedorNif || '').toLowerCase().includes(search) ||
+                              (fatura.tipo || '').toLowerCase().includes(search) ||
+                              (fatura.itens || []).some(item => 
+                                (item.ingredienteNome || '').toLowerCase().includes(search)
+                              )
+                            );
+                          }
+                          
+                          return true;
                         }).length;
                         return `${filtered} de ${total}`;
                       })()
@@ -15276,17 +15768,31 @@ void 0;
                     <div className="space-y-3">
                       {(faturas || [])
                         .filter(fatura => {
-                          if (!searchFatura) return true;
-                          const search = searchFatura.toLowerCase();
-                          return (
-                            (fatura.numero || '').toLowerCase().includes(search) ||
-                            (fatura.fornecedorNome || '').toLowerCase().includes(search) ||
-                            (fatura.fornecedorNif || '').toLowerCase().includes(search) ||
-                            (fatura.tipo || '').toLowerCase().includes(search) ||
-                            (fatura.itens || []).some(item => 
-                              (item.ingredienteNome || '').toLowerCase().includes(search)
-                            )
-                          );
+                          // Filtro de ano
+                          const dataFatura = new Date(fatura.data);
+                          if (dataFatura.getFullYear() !== anoFaturaSelecionado) return false;
+                          
+                          // Filtro de mês
+                          if (mesFaturaSelecionado !== null && dataFatura.getMonth() !== mesFaturaSelecionado) return false;
+                          
+                          // Filtro de fornecedor
+                          if (fornecedorFiltro && fatura.fornecedorNome !== fornecedorFiltro) return false;
+                          
+                          // Filtro de pesquisa
+                          if (searchFatura) {
+                            const search = searchFatura.toLowerCase();
+                            return (
+                              (fatura.numero || '').toLowerCase().includes(search) ||
+                              (fatura.fornecedorNome || '').toLowerCase().includes(search) ||
+                              (fatura.fornecedorNif || '').toLowerCase().includes(search) ||
+                              (fatura.tipo || '').toLowerCase().includes(search) ||
+                              (fatura.itens || []).some(item => 
+                                (item.ingredienteNome || '').toLowerCase().includes(search)
+                              )
+                            );
+                          }
+                          
+                          return true;
                         })
                         .sort((a, b) => new Date(b.data) - new Date(a.data))
                         .map(fatura => (
@@ -16076,45 +16582,66 @@ void 0;
                           );
                         }
                         
+                        const toggleFornecedor = (nif) => {
+                          setFornecedoresExpandidos(prev => ({
+                            ...prev,
+                            [nif]: !prev[nif]
+                          }));
+                        };
+                        
                         return (
-                          <div className="space-y-4">
+                          <div className="space-y-3">
                             <p className="text-sm font-semibold text-gray-700">
                               📋 {numFornecedores} fornecedor(es) com blacklist
                             </p>
                             
                             {Object.entries(blacklistPorFornecedor).map(([nif, dados]) => (
-                              <div key={nif} className="border border-gray-200 rounded-lg p-3 bg-gray-50">
-                                <h4 className="font-semibold text-sm mb-2 flex items-center gap-2">
-                                  🏢 {dados.nome}
-                                  <span className="text-xs text-gray-500">({dados.items.length} items)</span>
-                                </h4>
+                              <div key={nif} className="border border-gray-300 rounded-lg overflow-hidden bg-white shadow-sm">
+                                {/* Cabeçalho do Fornecedor - Clicável */}
+                                <button
+                                  onClick={() => toggleFornecedor(nif)}
+                                  className="w-full p-3 flex items-center justify-between hover:bg-gray-50 transition"
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-semibold text-sm">🏢 {dados.nome}</span>
+                                    <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-semibold">
+                                      {dados.items.length} item{dados.items.length !== 1 ? 's' : ''}
+                                    </span>
+                                  </div>
+                                  {fornecedoresExpandidos[nif] ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                                </button>
                                 
-                                <div className="space-y-2">
-                                  {dados.items.map((item, idx) => (
-                                    <div key={idx} className="flex items-center justify-between bg-white p-2 rounded border border-gray-200">
-                                      <span className="text-sm font-mono text-gray-700">{item}</span>
-                                      <button
-                                        onClick={() => {
-                                          if (confirm(`Remover "${item}" da blacklist?`)) {
-                                            // Remover da blacklist
-                                            const template = templatesOCR.find(t => t.nifFornecedor === nif);
-                                            if (template) {
-                                              const novaBlacklist = template.blacklist.filter(b => b !== item);
-                                              const index = templatesOCR.findIndex(t => t.nifFornecedor === nif);
-                                              const novos = [...templatesOCR];
-                                              novos[index] = { ...template, blacklist: novaBlacklist };
-                                              setTemplatesOCR(novos);
-                                              showNotification('✅ Removido da blacklist!', 'success');
+                                {/* Lista de Items - Expansível */}
+                                {fornecedoresExpandidos[nif] && (
+                                  <div className="border-t border-gray-200 p-3 bg-gray-50 space-y-2">
+                                    {dados.items.map((item, idx) => (
+                                      <div key={idx} className="flex items-center justify-between bg-white p-2 rounded border border-gray-200 hover:border-gray-300 transition">
+                                        <span className="text-sm font-mono text-gray-700 flex-1 truncate" title={item}>
+                                          {item}
+                                        </span>
+                                        <button
+                                          onClick={() => {
+                                            if (confirm(`Remover "${item}" da blacklist?`)) {
+                                              // Remover da blacklist
+                                              const template = templatesOCR.find(t => t.nifFornecedor === nif);
+                                              if (template) {
+                                                const novaBlacklist = template.blacklist.filter(b => b !== item);
+                                                const index = templatesOCR.findIndex(t => t.nifFornecedor === nif);
+                                                const novos = [...templatesOCR];
+                                                novos[index] = { ...template, blacklist: novaBlacklist };
+                                                setTemplatesOCR(novos);
+                                                showNotification('✅ Removido da blacklist!', 'success');
+                                              }
                                             }
-                                          }
-                                        }}
-                                        className="text-red-600 hover:text-red-800 text-xs font-semibold px-2 py-1 hover:bg-red-50 rounded transition"
-                                      >
-                                        ❌ Remover
-                                      </button>
-                                    </div>
-                                  ))}
-                                </div>
+                                          }}
+                                          className="text-red-600 hover:text-red-800 text-xs font-semibold px-2 py-1 hover:bg-red-50 rounded transition ml-2"
+                                        >
+                                          ❌ Remover
+                                        </button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
                               </div>
                             ))}
                           </div>
