@@ -3864,6 +3864,90 @@ const RestauranteGestor = () => {
         
         console.log('\n' + '═'.repeat(60));
       },
+      testarPDF: (numeroFatura) => {
+        console.log('🧪 TESTAR PDF DA FATURA:', numeroFatura);
+        console.log('═'.repeat(60));
+        
+        const fatura = faturas.find(f => f.numero === numeroFatura || f.id == numeroFatura);
+        
+        if (!fatura) {
+          console.error('❌ Fatura não encontrada:', numeroFatura);
+          console.log('💡 Use: window.DEBUG_MUNCHI.faturas para ver todas as faturas');
+          return;
+        }
+        
+        if (!fatura.documentoPDF) {
+          console.error('❌ Esta fatura não tem PDF anexado');
+          return;
+        }
+        
+        console.log('📄 Fatura encontrada:');
+        console.log('  Número:', fatura.numero);
+        console.log('  Fornecedor:', fatura.fornecedorNome);
+        console.log('  Data:', fatura.data);
+        
+        try {
+          let base64Data = fatura.documentoPDF;
+          
+          // Extrair base64 puro
+          if (base64Data.includes(',')) {
+            const parts = base64Data.split(',');
+            console.log('  Prefixo:', parts[0]);
+            base64Data = parts[1];
+          }
+          
+          // Limpar whitespace
+          const original = base64Data.length;
+          base64Data = base64Data.trim().replace(/\s/g, '');
+          console.log('  Tamanho original:', original);
+          console.log('  Tamanho após limpeza:', base64Data.length);
+          
+          // Validar formato
+          const base64Regex = /^[A-Za-z0-9+/]+=*$/;
+          const formatoValido = base64Regex.test(base64Data);
+          console.log('  Formato base64 válido:', formatoValido ? '✅' : '❌');
+          
+          // Verificar assinatura PDF
+          const inicioPDF = base64Data.startsWith('JVBERi0');
+          console.log('  Assinatura PDF (JVBERi0):', inicioPDF ? '✅' : '❌');
+          console.log('  Primeiros 20 chars:', base64Data.substring(0, 20));
+          
+          if (!formatoValido || !inicioPDF) {
+            console.error('❌ PDF corrompido ou inválido!');
+            return;
+          }
+          
+          // Tentar fazer download
+          console.log('\n🔽 A fazer download do PDF para teste...');
+          
+          const byteCharacters = atob(base64Data);
+          const byteNumbers = new Array(byteCharacters.length);
+          for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+          }
+          const byteArray = new Uint8Array(byteNumbers);
+          const blob = new Blob([byteArray], { type: 'application/pdf' });
+          
+          console.log('  Tamanho do blob:', (blob.size / 1024).toFixed(2), 'KB');
+          
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `TESTE_${fatura.numero.replace(/[\/\\:*?"<>|]/g, '_')}.pdf`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          
+          console.log('✅ PDF baixado! Tente abrir o ficheiro.');
+          console.log('💡 Se não abrir, o PDF original está corrompido.');
+          
+        } catch (error) {
+          console.error('❌ Erro ao processar PDF:', error);
+        }
+        
+        console.log('\n' + '═'.repeat(60));
+      },
       diagnosticar: () => {
         console.log('🔍 DIAGNÓSTICO MUNCHI MANAGER');
         console.log('═'.repeat(50));
@@ -4041,6 +4125,7 @@ const RestauranteGestor = () => {
     console.log('  - window.DEBUG_MUNCHI.faturas');
     console.log('  - window.DEBUG_MUNCHI.diagnosticar() ← Execute isto!');
     console.log('  - window.DEBUG_MUNCHI.diagnosticarPDFs() ← Verificar PDFs das faturas');
+    console.log('  - window.DEBUG_MUNCHI.testarPDF("FT 2025/001") ← Testar PDF específico');
     console.log('  - window.DEBUG_MUNCHI.corrigirCustos() ← Corrigir produtos');
     console.log('  - window.DEBUG_MUNCHI.corrigirIngredientes() ← Corrigir ingredientes!');
     console.log('  - window.DEBUG_MUNCHI.recalcularTudo() ← Recalcular tudo');
@@ -6719,8 +6804,26 @@ void 0;
               base64Data = base64Data.split(',')[1];
             }
             
+            // ⚠️ CRÍTICO: Limpar whitespace e newlines do base64
+            base64Data = base64Data.trim().replace(/\s/g, '');
+            
             // Validar se o base64 não está vazio
             if (!base64Data || base64Data.length < 100) {
+              void 0;
+              pdfsComErro++;
+              return; // Skip este PDF
+            }
+            
+            // Validar se é base64 válido (só caracteres A-Z, a-z, 0-9, +, /, =)
+            const base64Regex = /^[A-Za-z0-9+/]+=*$/;
+            if (!base64Regex.test(base64Data)) {
+              void 0;
+              pdfsComErro++;
+              return; // Skip este PDF
+            }
+            
+            // Validar se começa com assinatura PDF (JVBERi0 = %PDF- em base64)
+            if (!base64Data.startsWith('JVBERi0')) {
               void 0;
               pdfsComErro++;
               return; // Skip este PDF
