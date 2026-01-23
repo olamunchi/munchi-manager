@@ -3859,6 +3859,84 @@ const RestauranteGestor = () => {
           console.log('As métricas devem estar corretas agora.');
           console.log('Verifique o Dashboard.');
         }, 500);
+      },
+      recalcularTudo: () => {
+        console.log('🔄 RECALCULANDO TODOS OS CUSTOS DO ZERO...\n');
+        
+        const novoProdutos = produtos.map(produto => {
+          if (!produto.receita || produto.receita.length === 0) {
+            console.log(`⏭️ ${produto.nome}: Sem receita`);
+            return produto;
+          }
+          
+          // Calcular custo do zero
+          const custoTotal = produto.receita.reduce((total, item) => {
+            const ing = ingredientes.find(i => i.id === item.ingredienteId);
+            if (!ing) return total;
+            
+            let quantidade = parseFloat(item.quantidade) || 0;
+            const precoUnit = parseFloat(ing.custoUnitario) || 0;
+            
+            // Conversão de unidades
+            const unidadeReceita = item.unidade || ing.unidade;
+            if (ing.unidade === 'kg' && unidadeReceita === 'g') quantidade = quantidade / 1000;
+            if (ing.unidade === 'L' && unidadeReceita === 'ml') quantidade = quantidade / 1000;
+            if (ing.unidade === 'g' && unidadeReceita === 'kg') quantidade = quantidade * 1000;
+            if (ing.unidade === 'ml' && unidadeReceita === 'L') quantidade = quantidade * 1000;
+            
+            return total + (quantidade * precoUnit);
+          }, 0);
+          
+          // Dividir por porções (SEM desperdício para começar limpo)
+          const custoFinal = (produto.porcoes && produto.porcoes > 1) 
+            ? custoTotal / produto.porcoes 
+            : custoTotal;
+          
+          const custoAntigo = produto.custoReceita || 0;
+          
+          if (Math.abs(custoFinal - custoAntigo) > 0.01) {
+            console.log(`✅ ${produto.nome}: €${custoAntigo.toFixed(2)} → €${custoFinal.toFixed(2)} (${produto.porcoes || 1} porções)`);
+          }
+          
+          return {
+            ...produto,
+            custoReceita: custoFinal,
+            margemLucro: produto.precoVenda > 0 ? ((produto.precoVenda - custoFinal) / produto.precoVenda) * 100 : 0
+          };
+        });
+        
+        console.log('\n💾 Aplicando novo cálculo...');
+        setProdutos(novoProdutos);
+        
+        setTimeout(() => {
+          console.log('✅ RECÁLCULO COMPLETO!');
+          console.log('Recarregue a página (F5) para ver os resultados.');
+        }, 500);
+      },
+      corrigirIngredientes: () => {
+        console.log('🔧 Corrigindo custos dos INGREDIENTES...\n');
+        
+        let corrigidos = 0;
+        const novosIngredientes = ingredientes.map(ing => {
+          if (ing.custoUnitario > 5) {
+            const custoAntigo = ing.custoUnitario;
+            const custoNovo = ing.custoUnitario / 100;
+            console.log(`✅ ${ing.nome}: €${custoAntigo.toFixed(2)}/${ing.unidade} → €${custoNovo.toFixed(2)}/${ing.unidade}`);
+            corrigidos++;
+            return { ...ing, custoUnitario: custoNovo };
+          }
+          return ing;
+        });
+        
+        console.log(`\n📊 ${corrigidos} ingredientes corrigidos!`);
+        console.log('💾 Aplicando correções...');
+        
+        setIngredientes(novosIngredientes);
+        
+        setTimeout(() => {
+          console.log('✅ CORREÇÃO DE INGREDIENTES COMPLETA!');
+          console.log('Recarregue a página (F5) para ver os resultados.');
+        }, 500);
       }
     };
     
@@ -3867,7 +3945,9 @@ const RestauranteGestor = () => {
     console.log('  - window.DEBUG_MUNCHI.vendas');
     console.log('  - window.DEBUG_MUNCHI.faturas');
     console.log('  - window.DEBUG_MUNCHI.diagnosticar() ← Execute isto!');
-    console.log('  - window.DEBUG_MUNCHI.corrigirCustos() ← Correção automática!');
+    console.log('  - window.DEBUG_MUNCHI.corrigirCustos() ← Corrigir produtos');
+    console.log('  - window.DEBUG_MUNCHI.corrigirIngredientes() ← Corrigir ingredientes!');
+    console.log('  - window.DEBUG_MUNCHI.recalcularTudo() ← Recalcular tudo');
   }, [produtos, vendas, despesas, faturas, ingredientes, fornecedores]);
   
   const [fornecedoresExpanded, setFornecedoresExpanded] = useState(false);
