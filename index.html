@@ -12012,81 +12012,127 @@ void 0;
   };
   
   // Matching
-  const findBestMatch = (nomeProduto, ingredientes) => {
-    // 1. Limpar texto OCR ANTES de normalizar
-    const produtoLimpo = cleanOCRText(nomeProduto);
-    const produtoNorm = normalizeForMatching(produtoLimpo);
+  /**
+   * 🆕 Extrai palavras-chave principais do nome do produto
+   * Remove ruído comum (marcas, quantidades, códigos, etc.)
+   */
+  const extrairPalavrasChave = (texto) => {
+    if (!texto) return [];
     
-    // Se após limpeza ficou vazio, retornar null
-    if (!produtoNorm || produtoNorm.length < 3) {
+    // Normalizar primeiro
+    let limpo = texto
+      .toUpperCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, ''); // Remove acentos
+    
+    // Remover padrões comuns de ruído
+    limpo = limpo
+      // Remover quantidades: 250GR, 1KG, 500ML, 2L, etc.
+      .replace(/\d+\s*(G|GR|GRAMA|GRAMAS|KG|KILO|QUILOGRAMA|ML|L|LITRO|LITROS|CL|DL|UN|UNI|UNIDADE|UNIDADES|PCT|PACOTE|EMBALAGEM|EMBALGEM|SCO|SACO)\b/gi, '')
+      // Remover códigos de produto: 110126.1, etc.
+      .replace(/\b\d{5,}\.\d+\b/g, '')
+      // Remover marcas comuns
+      .replace(/\b(MCHEF|M CHEF|AMANH|AMANHÃ|PRIMOR|CHEF|MASTER|ROYAL|FERBAR|SCHOCO|VAHINE|PANTAGRUEL|NIDO)\b/gi, '')
+      // Remover palavras de contexto que não são ingredientes
+      .replace(/\b(FAT|FT|VIDRO|LATA|PACOTE|PCT|EMBALAGEM|EMBALGEM|SC|SCO|SACO|CAL|RAMA|SECOS|SECA|SECO|SERR|BCO|PAP|GORDO|CULINARIA)\b/gi, '')
+      // Remover números soltos
+      .replace(/\b\d+\b/g, '')
+      // Limpar pontuação
+      .replace(/[^\w\s]/g, ' ')
+      // Limpar espaços múltiplos
+      .replace(/\s+/g, ' ')
+      .trim();
+    
+    // Dividir em palavras e filtrar palavras muito curtas
+    const palavras = limpo
+      .split(' ')
+      .filter(p => p.length >= 3) // Palavras com 3+ letras
+      .filter(p => !/^\d+$/.test(p)); // Remover números puros
+    
+    return palavras;
+  };
+
+  const findBestMatch = (nomeProduto, ingredientes) => {
+    if (!nomeProduto || !ingredientes || ingredientes.length === 0) {
+      return null;
+    }
+    
+    // Extrair palavras-chave do produto (com limpeza inteligente)
+    const palavrasProduto = extrairPalavrasChave(nomeProduto);
+    
+    if (palavrasProduto.length === 0) {
       return null;
     }
     
     let bestMatch = null;
     let bestScore = 0;
-    
-    // Dividir produto em palavras para matching individual
-    const palavrasProduto = produtoNorm.split(' ').filter(p => p.length > 2);
+    let bestMethod = '';
     
     for (const ing of ingredientes) {
-      const ingNorm = normalizeForMatching(ing.nome);
-      const palavrasIng = ingNorm.split(' ').filter(p => p.length > 2);
+      const palavrasIng = extrairPalavrasChave(ing.nome);
+      let score = 0;
+      let method = '';
       
-      // 1. Score base com fuzzball (texto completo)
-      let score = fuzz.ratio(produtoNorm, ingNorm);
-      
-      // 2. BONUS: Match de palavras individuais (NOVO!)
-      let maxPalavraScore = 0;
-      for (const pProd of palavrasProduto) {
-        for (const pIng of palavrasIng) {
-          const palavraScore = fuzz.ratio(pProd, pIng);
-          if (palavraScore > maxPalavraScore) {
-            maxPalavraScore = palavraScore;
-          }
+      // ========== CAMADA 1: MATCH EXATO DE PALAVRAS ==========
+      // Se TODAS as palavras-chave do ingrediente estão no produto → 95 pontos
+      if (palavrasIng.length > 0) {
+        const todasPalavrasPresentes = palavrasIng.every(pIng => 
+          palavrasProduto.some(pProd => pProd === pIng)
+        );
+        
+        if (todasPalavrasPresentes) {
+          score = 95;
+          method = 'MATCH_EXATO_COMPLETO';
         }
       }
       
-      // Se alguma palavra tem match forte (>70%), dar bonus grande
-      if (maxPalavraScore >= 70) {
-        score = Math.min(100, score + 25);
-      } else if (maxPalavraScore >= 60) {
-        score = Math.min(100, score + 15);
-      }
-      
-      // 3. BONUS: Se um contém o outro (parcial match)
-      if (produtoNorm.includes(ingNorm) || ingNorm.includes(produtoNorm)) {
-        score = Math.min(100, score + 15);
-      }
-      
-      // 4. BONUS: Se as primeiras 4 letras são iguais
-      if (produtoNorm.length >= 4 && ingNorm.length >= 4) {
-        if (produtoNorm.substring(0, 4) === ingNorm.substring(0, 4)) {
-          score = Math.min(100, score + 10);
+      // ========== CAMADA 2: MATCH PARCIAL DE PALAVRAS ==========
+      // Quantas palavras em comum? Quanto maior o overlap, maior o score
+      if (score === 0 && palavrasIng.length > 0 && palavrasProduto.length > 0) {
+        const palavrasComuns = palavrasProduto.filter(pProd =>
+          palavrasIng.some(pIng => pIng === pProd)
+        );
+        
+        if (palavrasComuns.length > 0) {
+          // Score baseado na % de overlap
+          const overlapProduto = palavrasComuns.length / palavrasProduto.length;
+          const overlapIngrediente = palavrasComuns.length / palavrasIng.length;
+          const overlapMedio = (overlapProduto + overlapIngrediente) / 2;
+          
+          score = Math.round(overlapMedio * 85); // Max 85 pontos
+          method = `MATCH_PARCIAL (${palavrasComuns.length}/${palavrasProduto.length} palavras)`;
         }
       }
       
-      // 5. BONUS: Palavras-chave exatas comuns
-      const palavrasComuns = palavrasProduto.filter(p => 
-        p.length > 3 && palavrasIng.some(i => i === p)
-      ).length;
-      if (palavrasComuns > 0) {
-        score = Math.min(100, score + (palavrasComuns * 8));
+      // ========== CAMADA 3: FUZZY MATCH TRADICIONAL ==========
+      // Fallback: se não houve match de palavras, usar fuzzy (max 75 pontos)
+      if (score === 0) {
+        const produtoNorm = palavrasProduto.join(' ');
+        const ingNorm = palavrasIng.join(' ');
+        
+        if (produtoNorm && ingNorm && typeof fuzz !== 'undefined') {
+          const fuzzyScore = fuzz.ratio(produtoNorm, ingNorm);
+          score = Math.round(fuzzyScore * 0.75); // Limitar a 75%
+          method = 'FUZZY_MATCH';
+        }
       }
       
+      // Atualizar melhor match
       if (score > bestScore) {
         bestScore = score;
-        bestMatch = { 
-          id: ing.id, 
-          nome: ing.nome, 
-          confianca: Math.round(score),
-          textoOCR: produtoLimpo,
-          maxPalavraScore: Math.round(maxPalavraScore)  // Debug
+        bestMatch = {
+          id: ing.id,
+          nome: ing.nome,
+          confianca: score,
+          metodo: method,
+          textoOCR: nomeProduto,
+          palavrasChave: palavrasProduto.join(', ')
         };
       }
     }
     
-    // Threshold: 50% em vez de 55% (mais permissivo após correção OCR)
-    return bestScore >= 50 ? bestMatch : null;
+    // Threshold: 40 pontos (mais permissivo para capturar mais matches)
+    return bestScore >= 40 ? bestMatch : null;
   };
   
   const matchIngredientes = (linhas, ingredientes) => {
