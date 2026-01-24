@@ -55,6 +55,18 @@
     <script type="text/babel">
 const { useState, useEffect } = React;
 
+// ==================== FUNÇÃO DE NORMALIZAÇÃO DE TEXTO ====================
+// Remove acentos, cedilhas e outros diacríticos para facilitar busca
+const normalizeText = (text) => {
+  if (!text) return '';
+  return text
+    .toLowerCase()
+    .normalize('NFD') // Decompõe caracteres acentuados
+    .replace(/[\u0300-\u036f]/g, '') // Remove diacríticos (acentos)
+    .replace(/ç/g, 'c') // Cedilha
+    .replace(/[^a-z0-9\s]/g, ''); // Remove caracteres especiais, mantém espaços
+};
+
 // Icons
 const Plus = (props) => <svg className={props.className || "w-5 h-5"} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>;
 const Trash2 = (props) => <svg className={props.className || "w-5 h-5"} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>;
@@ -551,7 +563,7 @@ const ComprasAnalysis = ({ despesas, faturas = [], ingredientes, fornecedores })
     
     if (searchCompra) {
       filtered = filtered.filter(ing => 
-        ing.nome.toLowerCase().includes(searchCompra.toLowerCase())
+        normalizeText(ing.nome).includes(normalizeText(searchCompra))
       );
     }
     
@@ -1754,9 +1766,9 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
                               {/* Dropdown de sugestões */}
                               {showDropdownOCR[index] && (
                                 (() => {
-                                  const search = (searchIngredienteOCR[index] || '').toLowerCase();
+                                  const search = normalizeText(searchIngredienteOCR[index] || '');
                                   const sugestoes = ingredientesLocais
-                                    .filter(ing => ing.nome.toLowerCase().includes(search))
+                                    .filter(ing => normalizeText(ing.nome).includes(search))
                                     .slice(0, 10);
                                   
                                   if (sugestoes.length === 0) return null;
@@ -15701,7 +15713,7 @@ void 0;
                     {(() => {
                       const total = (ingredientes || []).length;
                       const filtrados = (ingredientes || []).filter(ing => {
-                        const matchNome = ing.nome.toLowerCase().includes(searchIngredienteGlobal.toLowerCase());
+                        const matchNome = normalizeText(ing.nome).includes(normalizeText(searchIngredienteGlobal));
                         const matchCategoria = categoriaFiltro === 'todas' || ing.categoria === categoriaFiltro;
                         return matchNome && matchCategoria;
                       }).length;
@@ -15739,7 +15751,7 @@ void 0;
                     <tbody>
                       {(() => {
                         const ingredientesFiltrados = (ingredientes || []).filter(ing => {
-                          const matchNome = ing.nome.toLowerCase().includes(searchIngredienteGlobal.toLowerCase());
+                          const matchNome = normalizeText(ing.nome).includes(normalizeText(searchIngredienteGlobal));
                           const matchCategoria = categoriaFiltro === 'todas' || ing.categoria === categoriaFiltro;
                           return matchNome && matchCategoria;
                         });
@@ -15986,7 +15998,7 @@ void 0;
                             <div className="absolute z-10 w-full bg-white border rounded shadow-lg mt-1 max-h-40 overflow-y-auto">
                               {ingredientes
                                 .filter(ing => 
-                                  ing.nome.toLowerCase().includes(searchIngrediente.toLowerCase()) &&
+                                  normalizeText(ing.nome).includes(normalizeText(searchIngrediente)) &&
                                   !novoProduto.receita.find(r => r.ingredienteId === ing.id)
                                 )
                                 .map(ing => (
@@ -16010,7 +16022,7 @@ void 0;
                                   </button>
                                 ))}
                               {ingredientes.filter(ing => 
-                                ing.nome.toLowerCase().includes(searchIngrediente.toLowerCase()) &&
+                                normalizeText(ing.nome).includes(normalizeText(searchIngrediente)) &&
                                 !novoProduto.receita.find(r => r.ingredienteId === ing.id)
                               ).length === 0 && (
                                 <div className="px-3 py-4 text-gray-400 text-center text-xs">
@@ -16473,7 +16485,7 @@ void 0;
                               {showDropdownIngrediente && (
                                 <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
                                   {ingredientes
-                                    .filter(ing => !searchIngredienteFatura || ing.nome.toLowerCase().includes(searchIngredienteFatura.toLowerCase()))
+                                    .filter(ing => !searchIngredienteFatura || normalizeText(ing.nome).includes(normalizeText(searchIngredienteFatura)))
                                     .map(ing => (
                                       <div
                                         key={ing.id}
@@ -16499,7 +16511,7 @@ void 0;
                                     ))}
                                   
                                   {/* Nenhum resultado */}
-                                  {ingredientes.filter(ing => !searchIngredienteFatura || ing.nome.toLowerCase().includes(searchIngredienteFatura.toLowerCase())).length === 0 && (
+                                  {ingredientes.filter(ing => !searchIngredienteFatura || normalizeText(ing.nome).includes(normalizeText(searchIngredienteFatura))).length === 0 && (
                                     <div className="px-3 py-4 text-center text-gray-500 text-sm">
                                       {searchIngredienteFatura ? 'Nenhum ingrediente encontrado' : 'Nenhum ingrediente criado ainda'}
                                     </div>
