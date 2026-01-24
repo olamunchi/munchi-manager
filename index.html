@@ -2359,6 +2359,7 @@ const ModalConfirmacaoFatura = ({ dadosFatura, onConfirmar, onCancelar, forneced
   const [tipoSelecionado, setTipoSelecionado] = React.useState(dadosFatura.tipo);
   const [categoriaSelecionada, setCategoriaSelecionada] = React.useState(dadosFatura.categoria || 'compras'); // 🆕 CATEGORIA
   const [dataCorrigida, setDataCorrigida] = React.useState(dadosFatura.data || '');
+  const [temNifCliente, setTemNifCliente] = React.useState(dadosFatura.temNifCliente || false); // 🆕 NIF CLIENTE
   const [mostrarModalNovoFornecedor, setMostrarModalNovoFornecedor] = React.useState(false);
   const [fornecedoresLocais, setFornecedoresLocais] = React.useState(fornecedores);
   const [novoFornecedor, setNovoFornecedor] = React.useState({
@@ -2444,6 +2445,7 @@ const ModalConfirmacaoFatura = ({ dadosFatura, onConfirmar, onCancelar, forneced
       categoria: categoriaSelecionada, // 🆕 PASSAR CATEGORIA
       numero: numeroFatura || dadosFatura.numero,
       data: dataCorrigida || dadosFatura.data, // 🆕 PASSAR DATA CORRIGIDA
+      temNifCliente: temNifCliente, // 🆕 PASSAR NIF CLIENTE do state
       fornecedor: fornecedorSelecionado ? {
         nome: fornecedorSelecionado.nome,
         nif: fornecedorSelecionado.nif,
@@ -2536,20 +2538,47 @@ const ModalConfirmacaoFatura = ({ dadosFatura, onConfirmar, onCancelar, forneced
               </select>
             </div>
             
-            {/* 🆕 Campo Data Corrigível */}
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Data da Fatura:
-              </label>
-              <input
-                type="date"
-                value={dataCorrigida}
-                onChange={(e) => setDataCorrigida(e.target.value)}
-                className="w-full p-2 border rounded-lg"
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                💡 Detectada: {dadosFatura.data}
-              </p>
+            {/* 🆕 Data e Categoria lado a lado */}
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              {/* Campo Data */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Data da Fatura:
+                </label>
+                <input
+                  type="date"
+                  value={dataCorrigida}
+                  onChange={(e) => setDataCorrigida(e.target.value)}
+                  className="w-full p-2 border rounded-lg"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  💡 Detectada: {dadosFatura.data}
+                </p>
+              </div>
+              
+              {/* 🆕 Seleção de Categoria */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  📂 Categoria da Despesa:
+                </label>
+                <select
+                  value={categoriaSelecionada}
+                  onChange={(e) => setCategoriaSelecionada(e.target.value)}
+                  className="w-full p-2 border rounded-lg"
+                >
+                  <option value="compras">🛒 Compras</option>
+                  <option value="renda">🏠 Renda</option>
+                  <option value="eletricidade">💡 Eletricidade</option>
+                  <option value="agua">💧 Água</option>
+                  <option value="gas">🔥 Gás</option>
+                  <option value="internet">🌐 Internet/Telefone</option>
+                  <option value="salarios">👥 Salários</option>
+                  <option value="marketing">📢 Marketing</option>
+                  <option value="consumiveis">🧻 Consumíveis</option>
+                  <option value="manutencao">🔧 Manutenção</option>
+                  <option value="outros">📦 Outros</option>
+                </select>
+              </div>
             </div>
             
             {/* Campo Número Fatura */}
@@ -2564,30 +2593,6 @@ const ModalConfirmacaoFatura = ({ dadosFatura, onConfirmar, onCancelar, forneced
                 placeholder="Ex: FT 2024/001"
                 className="w-full p-2 border rounded-lg"
               />
-            </div>
-            
-            {/* 🆕 Seleção de Categoria */}
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                📂 Categoria da Despesa:
-              </label>
-              <select
-                value={categoriaSelecionada}
-                onChange={(e) => setCategoriaSelecionada(e.target.value)}
-                className="w-full p-2 border rounded-lg"
-              >
-                <option value="compras">🛒 Compras (Ingredientes)</option>
-                <option value="renda">🏠 Renda</option>
-                <option value="eletricidade">💡 Eletricidade</option>
-                <option value="agua">💧 Água</option>
-                <option value="gas">🔥 Gás</option>
-                <option value="internet">🌐 Internet/Telefone</option>
-                <option value="salarios">👥 Salários</option>
-                <option value="marketing">📢 Marketing</option>
-                <option value="consumiveis">🧻 Consumíveis</option>
-                <option value="manutencao">🔧 Manutenção</option>
-                <option value="outros">📦 Outros</option>
-              </select>
             </div>
           </div>
           
@@ -2624,6 +2629,52 @@ const ModalConfirmacaoFatura = ({ dadosFatura, onConfirmar, onCancelar, forneced
                 </label>
               ))}
             </div>
+            
+            {/* 🆕 CAMPO NIF DO CLIENTE (só para FS) */}
+            {tipoSelecionado === 'FS' && (
+              <div className={`mt-3 p-3 rounded-lg border-2 ${
+                temNifCliente
+                  ? 'bg-green-50 border-green-500' 
+                  : 'bg-red-50 border-red-500'
+              }`}>
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={temNifCliente}
+                    onChange={(e) => setTemNifCliente(e.target.checked)}
+                    className="w-5 h-5 mt-1 cursor-pointer"
+                  />
+                  <div className="flex-1">
+                    <div className="font-semibold text-sm flex items-center flex-wrap gap-2">
+                      <span>Esta fatura contém o meu NIF (255274513)</span>
+                      {temNifCliente && (
+                        <span className="px-2 py-1 bg-green-600 text-white text-xs rounded whitespace-nowrap">
+                          ✅ DETETADO
+                        </span>
+                      )}
+                      {!temNifCliente && (
+                        <span className="px-2 py-1 bg-orange-600 text-white text-xs rounded whitespace-nowrap">
+                          ⚠️ ADICIONAR MANUALMENTE
+                        </span>
+                      )}
+                    </div>
+                    <div className={`text-xs mt-1 ${
+                      temNifCliente ? 'text-green-700' : 'text-red-700'
+                    }`}>
+                      {temNifCliente ? (
+                        <>
+                          ℹ️ O sistema encontrou o teu NIF nesta fatura. Pode ser incluída na partilha para o contabilista.
+                        </>
+                      ) : (
+                        <>
+                          ⚠️ O sistema não encontrou o teu NIF. Se esta fatura tiver o teu NIF, marca esta opção para poder deduzir.
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </label>
+              </div>
+            )}
           </div>
         </div>
         
@@ -3081,7 +3132,9 @@ const CONFIGURACOES_DEFAULT = {
     incluirFR: true,
     incluirFS: true,
     // Legacy (manter para compatibilidade)
-    apenasOficial: false
+    apenasOficial: false,
+    // 🆕 NIF da empresa para deteção automática em FS
+    nifEmpresa: '255274513' // Cátia Santos
   },
   alertas: {
     margemBaixa: 70,
@@ -3164,7 +3217,7 @@ const INVOICE_TYPES = {
   },
   FS: {
     label: 'Fatura Simplificada (FS)',
-    description: 'NÃO vai para contabilista',
+    description: 'Vai para contabilista SE tiver NIF',
     patterns: [
       /Fatura\s+Simplificada/i,
       /FS\s+[MN]\/\d+/i, // FS M/68601
@@ -3890,6 +3943,25 @@ const RestauranteGestor = () => {
   const [fornecedorFiltro, setFornecedorFiltro] = useState(''); // '' = todos os fornecedores
   const [exportDateEnd, setExportDateEnd] = useState('');
   
+  // 🆕 Auto-ajustar ano selecionado quando faturas mudarem
+  React.useEffect(() => {
+    if (faturas.length === 0) return;
+    
+    // Obter anos disponíveis
+    const anosDisponiveis = [...new Set(
+      faturas
+        .filter(f => f.data)
+        .map(f => new Date(f.data).getFullYear())
+        .filter(ano => !isNaN(ano))
+    )].sort((a, b) => b - a);
+    
+    // Se o ano selecionado não existe mais, mudar para o mais recente
+    if (anosDisponiveis.length > 0 && !anosDisponiveis.includes(anoFaturaSelecionado)) {
+      void 0;
+      setAnoFaturaSelecionado(anosDisponiveis[0]); // Ano mais recente
+    }
+  }, [faturas.length, faturas]); // Trigger quando faturas mudarem
+  
   // Estados OCR
   const [mostrarModalOCR, setMostrarModalOCR] = useState(false);
   const [linhasOCR, setLinhasOCR] = useState([]);
@@ -4586,7 +4658,8 @@ const RestauranteGestor = () => {
             data: dadosConfirmados.data,
             atcud: dadosConfirmados.atcud,
             totais: dadosConfirmados.totais,
-            categoria: categoriaFatura
+            categoria: categoriaFatura,
+            temNifCliente: dadosConfirmados.temNifCliente || false // 🆕 PASSAR NIF CLIENTE
           }
         }
       });
@@ -4682,7 +4755,8 @@ const RestauranteGestor = () => {
       atcud: dadosConfirmados.atcud,
       totais: dadosConfirmados.totais,
       precosComIVA: dadosConfirmados.precosComIVA,
-      categoria: dadosConfirmados.categoria || 'compras' // 🆕 GUARDAR CATEGORIA
+      categoria: dadosConfirmados.categoria || 'compras', // 🆕 GUARDAR CATEGORIA
+      temNifCliente: dadosConfirmados.temNifCliente || prev?.temNifCliente || false // 🆕 NIF CLIENTE
     }));
     
     void 0;
@@ -4754,7 +4828,18 @@ const RestauranteGestor = () => {
         iva: valorIVA,
         total: precoComIVA
       },
-      paraContabilista: (metadata?.tipo !== 'FS' && metadata?.tipoFatura !== 'FS')
+      // 🆕 CAMPOS DE NIF DO CLIENTE
+      temNifCliente: metadata?.temNifCliente || false,
+      nifCliente: metadata?.nifClienteDetetado || configuracoes.metricas.nifEmpresa || null,
+      paraContabilista: (() => {
+        const tipo = metadata?.tipo || metadata?.tipoFatura;
+        const temNif = metadata?.temNifCliente;
+        // FT e FR sempre vão
+        if (tipo === 'FT' || tipo === 'FR') return true;
+        // FS só vai se tiver NIF
+        if (tipo === 'FS') return temNif === true;
+        return false;
+      })()
     };
     
     void 0;
@@ -6732,16 +6817,30 @@ void 0;
       f.tipoDocumento === 'fatura' || !f.tipoDocumento
     );
     
-    // ⚠️ FILTRAR: Excluir FS (Faturas Simplificadas) - apenas FT e FR para contabilista
-    const filteredFaturas = filteredFaturasSemRecibos.filter(f => f.tipo !== 'FS');
+    // ⚠️ FILTRAR: Excluir FS sem NIF - apenas FT, FR e FS com NIF para contabilista
+    const filteredFaturas = filteredFaturasSemRecibos.filter(f => {
+      // Não é FS? Incluir sempre (FT, FR, NC, etc)
+      if (f.tipo !== 'FS') return true;
+      
+      // É FS? Só incluir se tiver NIF do cliente
+      return f.temNifCliente === true;
+    });
     
     const recibosIgnorados = filteredFaturasTemp.length - filteredFaturasSemRecibos.length;
-    const fsIgnoradas = filteredFaturasSemRecibos.length - filteredFaturas.length;
+    const fsComNif = filteredFaturasSemRecibos.filter(f => 
+      f.tipo === 'FS' && f.temNifCliente === true
+    ).length;
+    const fsSemNif = filteredFaturasSemRecibos.filter(f => 
+      f.tipo === 'FS' && f.temNifCliente !== true
+    ).length;
     
-    if (recibosIgnorados > 0 || fsIgnoradas > 0) {
-      let msg = 'ℹ️ Documentos excluídos da exportação: ';
-      if (recibosIgnorados > 0) msg += `${recibosIgnorados} recibo(s) `;
-      if (fsIgnoradas > 0) msg += `${fsIgnoradas} FS `;
+    if (recibosIgnorados > 0 || fsComNif > 0 || fsSemNif > 0) {
+      let msg = 'ℹ️ Faturas: ';
+      const partes = [];
+      if (recibosIgnorados > 0) partes.push(`${recibosIgnorados} recibo(s) excluídos`);
+      if (fsComNif > 0) partes.push(`${fsComNif} FS com NIF (incluídas)`);
+      if (fsSemNif > 0) partes.push(`${fsSemNif} FS sem NIF (excluídas)`);
+      msg += partes.join(' | ');
       void 0;
     }
     
@@ -7144,11 +7243,22 @@ void 0;
       f.tipoDocumento === 'fatura' || !f.tipoDocumento // Retrocompatibilidade
     );
     
-    // ⚠️ FILTRAR: Excluir FS (Faturas Simplificadas) - apenas FT e FR para contabilista
-    const filteredFaturas = filteredFaturasSemRecibos.filter(f => f.tipo !== 'FS');
+    // ⚠️ FILTRAR: Excluir FS sem NIF - apenas FT, FR e FS com NIF para contabilista
+    const filteredFaturas = filteredFaturasSemRecibos.filter(f => {
+      // Não é FS? Incluir sempre (FT, FR, NC, etc)
+      if (f.tipo !== 'FS') return true;
+      
+      // É FS? Só incluir se tiver NIF do cliente
+      return f.temNifCliente === true;
+    });
     
     const recibosIgnorados = filteredFaturasCompletas.length - filteredFaturasSemRecibos.length;
-    const fsIgnoradas = filteredFaturasSemRecibos.length - filteredFaturas.length;
+    const fsComNif = filteredFaturasSemRecibos.filter(f => 
+      f.tipo === 'FS' && f.temNifCliente === true
+    ).length;
+    const fsSemNif = filteredFaturasSemRecibos.filter(f => 
+      f.tipo === 'FS' && f.temNifCliente !== true
+    ).length;
     
     if (filteredVendas.length === 0 && filteredFaturas.length === 0) {
       showNotification('Nenhum dado para exportar no período selecionado!', 'error');
@@ -7164,21 +7274,25 @@ void 0;
     if (recibosIgnorados > 0) {
       avisos.push(`${recibosIgnorados} recibo(s)`);
     }
-    if (fsIgnoradas > 0) {
-      avisos.push(`${fsIgnoradas} FS (Fatura Simplificada)`);
+    if (fsComNif > 0) {
+      avisos.push(`${fsComNif} FS com NIF (incluídas ✅)`);
+    }
+    if (fsSemNif > 0) {
+      avisos.push(`${fsSemNif} FS sem NIF (excluídas)`);
     }
     if (avisos.length > 0) {
-      const msg = `ℹ️ Nota: ${avisos.join(' e ')} NÃO serão exportados (apenas FT e FR vão para contabilista)`;
+      const msg = `ℹ️ Nota: ${avisos.join(' | ')}`;
       void 0;
     }
     
     if (faturasSemPDF.length > 0) {
       let mensagemAviso = `⚠️ ATENÇÃO!\n\n${faturasSemPDF.length} fatura(s) NÃO têm PDF anexado.\n`;
       
-      if (recibosIgnorados > 0 || fsIgnoradas > 0) {
-        mensagemAviso += `\nExcluídos da exportação:\n`;
-        if (recibosIgnorados > 0) mensagemAviso += `• ${recibosIgnorados} recibo(s)\n`;
-        if (fsIgnoradas > 0) mensagemAviso += `• ${fsIgnoradas} FS - Fatura(s) Simplificada(s)\n`;
+      if (recibosIgnorados > 0 || fsComNif > 0 || fsSemNif > 0) {
+        mensagemAviso += `\nInformação sobre documentos:\n`;
+        if (recibosIgnorados > 0) mensagemAviso += `• ${recibosIgnorados} recibo(s) - excluídos\n`;
+        if (fsComNif > 0) mensagemAviso += `• ${fsComNif} FS com NIF - incluídas ✅\n`;
+        if (fsSemNif > 0) mensagemAviso += `• ${fsSemNif} FS sem NIF - excluídas\n`;
         mensagemAviso += `\n`;
       }
       
@@ -7641,6 +7755,83 @@ void 0;
     }
   };
 
+  // 🆕 FUNÇÃO DE DETEÇÃO DE NIF DO CLIENTE
+  /**
+   * Deteta se o texto OCR contém o NIF configurado
+   * Procura por padrões como:
+   * - "Contribuinte: 123456789"
+   * - "NIF: 123456789"
+   * - "NIPC: 123456789"
+   * - "Contribuinte N.º 123456789"
+   */
+  const detetarNifCliente = (textoOCR, nifProcurado) => {
+    if (!textoOCR || !nifProcurado) return false;
+    
+    // Limpar o NIF (só números)
+    const nifLimpo = nifProcurado.replace(/\D/g, '');
+    
+    if (nifLimpo.length !== 9) return false;
+    
+    console.log(`🔍 [NIF] Procurando NIF ${nifLimpo} no texto...`);
+    
+    // Padrões para procurar o NIF
+    const padroes = [
+      // "Contribuinte: 123456789" ou "Contribuinte 123456789"
+      new RegExp(`Contribuinte[:\\s]+${nifLimpo}`, 'i'),
+      
+      // "NIF: 123456789" ou "NIF 123456789"
+      new RegExp(`NIF[:\\s]+${nifLimpo}`, 'i'),
+      
+      // "NIPC: 123456789"
+      new RegExp(`NIPC[:\\s]+${nifLimpo}`, 'i'),
+      
+      // "Contribuinte N.º 123456789"
+      new RegExp(`Contribuinte\\s+N[.º°]+\\s*${nifLimpo}`, 'i'),
+      
+      // "NIF N.º 123456789"
+      new RegExp(`NIF\\s+N[.º°]+\\s*${nifLimpo}`, 'i'),
+      
+      // Formato com espaços: "123 456 789"
+      new RegExp(nifLimpo.replace(/(\d{3})(\d{3})(\d{3})/, '$1\\s*$2\\s*$3')),
+      
+      // 🔍 Procurar também com possíveis erros de OCR
+      // "1Z3456789" (Z em vez de 2), "12345678Q" (Q em vez de 9), etc
+      new RegExp(
+        nifLimpo
+          .split('')
+          .map(d => {
+            // Mapear dígitos com letras que OCR pode confundir
+            const confusoes = {
+              '0': '[0OoQD]',
+              '1': '[1IlL]',
+              '2': '[2Z]',
+              '3': '[3]',
+              '4': '[4]',
+              '5': '[5S]',
+              '6': '[6G]',
+              '7': '[7]',
+              '8': '[8B]',
+              '9': '[9gq]'
+            };
+            return confusoes[d] || d;
+          })
+          .join('\\s*'),
+        'i'
+      )
+    ];
+    
+    // Verificar se algum padrão match
+    for (const padrao of padroes) {
+      if (padrao.test(textoOCR)) {
+        console.log(`✅ [NIF] NIF ${nifLimpo} ENCONTRADO no texto!`);
+        return true;
+      }
+    }
+    
+    console.log(`⚠️ [NIF] NIF ${nifLimpo} NÃO encontrado no texto`);
+    return false;
+  };
+
   /**
    * Handler para importar fatura do Google Drive com OCR
    * Usa Google Picker para escolher ficheiro do Drive
@@ -7749,6 +7940,18 @@ void 0;
                 precosComIVA: dadosFatura.precosComIVA,
                 metodoOCR: 'Google Drive OCR'
               };
+              
+              // 🆕 DETECTAR SE TEM NIF DO CLIENTE
+              const nifEmpresa = configuracoes.metricas.nifEmpresa;
+              if (nifEmpresa) {
+                const temNifCliente = detetarNifCliente(textoExtraido, nifEmpresa);
+                metadata.temNifCliente = temNifCliente;
+                metadata.nifClienteDetetado = temNifCliente ? nifEmpresa : null;
+                console.log(`🔍 [NIF] Deteção: ${temNifCliente ? 'ENCONTRADO' : 'NÃO encontrado'}`);
+              } else {
+                metadata.temNifCliente = false;
+                metadata.nifClienteDetetado = null;
+              }
 
               // 7. Criar URL do PDF para visualização
               const pdfUrl = URL.createObjectURL(pdfBlob);
@@ -9277,6 +9480,18 @@ void 0;
       diaRecorrencia: faturaParaGuardar.diaRecorrencia || 1, // Nova
       documentoPDF: faturaParaGuardar.documentoPDF || null, // PDF da fatura
       nomeDocumento: faturaParaGuardar.nomeDocumento || '', // Nome do PDF
+      // 🆕 CAMPOS DE NIF DO CLIENTE
+      temNifCliente: faturaParaGuardar.temNifCliente || false,
+      nifCliente: faturaParaGuardar.nifCliente || null,
+      paraContabilista: (() => {
+        const tipo = faturaParaGuardar.tipo || 'FT';
+        const temNif = faturaParaGuardar.temNifCliente;
+        // FT e FR sempre vão
+        if (tipo === 'FT' || tipo === 'FR') return true;
+        // FS só vai se tiver NIF
+        if (tipo === 'FS') return temNif === true;
+        return false;
+      })(),
       subtotal: faturaParaGuardar.itens.reduce((sum, item) => sum + item.subtotal, 0),
       totalIva: faturaParaGuardar.itens.reduce((sum, item) => sum + (item.subtotal * item.iva / 100), 0),
       total: faturaParaGuardar.itens.reduce((sum, item) => sum + (item.subtotal * (1 + item.iva / 100)), 0),
@@ -11939,6 +12154,19 @@ void 0;
       const metadata = extractFaturaMetadata(text);
       metadata.textoCompleto = text; // Guardar para aprender template
       
+      // 🆕 DETECTAR SE TEM NIF DO CLIENTE
+      const nifEmpresa = configuracoes.metricas.nifEmpresa;
+      if (nifEmpresa) {
+        const temNifCliente = detetarNifCliente(text, nifEmpresa);
+        metadata.temNifCliente = temNifCliente;
+        metadata.nifClienteDetetado = temNifCliente ? nifEmpresa : null;
+        console.log(`🔍 [NIF] Deteção: ${temNifCliente ? 'ENCONTRADO' : 'NÃO encontrado'}`);
+      } else {
+        metadata.temNifCliente = false;
+        metadata.nifClienteDetetado = null;
+        console.log('⚠️ [NIF] NIF da empresa não configurado');
+      }
+      
       // ==================== PROCESSAR FATURA V2.0 ====================
       // Detectar tipo de fatura e extrair dados estruturados
       const dadosFatura = processarTextoFatura(text, fornecedores); // ✅ PASSAR FORNECEDORES
@@ -11974,15 +12202,16 @@ void 0;
         ? matchIngredientes(linhas, ingredientes)
         : []; // Lista vazia mas abre modal na mesma
       
-      // SEMPRE abrir modal (user pode adicionar ingredientes manualmente)
+      // 🚫 NÃO ABRIR MODAL 2 AINDA! Só preparar os dados
+      // O Modal 2 vai abrir quando o usuário confirmar o Modal 1
       setLinhasOCR(linhasComMatch);
       setMetadataOCR(metadata);
-      setMostrarModalOCR(true);
+      // setMostrarModalOCR(true); // ❌ REMOVIDO - vai abrir no handleConfirmarFatura
       
       if (linhas.length === 0) {
-        showNotification('⚠️ Nenhum produto detectado. Adicione manualmente no modal!', 'warning');
+        void 0; // Apenas log, não notificar ainda
       } else {
-        showNotification(`✅ ${linhas.length} produtos identificados!`, 'success');
+        void 0;
       }
     } catch (error) {
       void 0;
@@ -12427,7 +12656,17 @@ void 0;
       ...novaFatura,
       numero: metadata.numeroFatura || novaFatura.numero,
       tipo: tipoFatura, // ✅ TIPO DE FATURA (FT/FR/FS)
-      paraContabilista: tipoFatura !== 'FS', // ✅ FS NÃO vai, FT e FR vão
+      // 🆕 CAMPOS DE NIF DO CLIENTE
+      temNifCliente: metadata.temNifCliente || false,
+      nifCliente: metadata.nifClienteDetetado || configuracoes.metricas.nifEmpresa || null,
+      paraContabilista: (() => {
+        const temNif = metadata.temNifCliente;
+        // FT e FR sempre vão
+        if (tipoFatura === 'FT' || tipoFatura === 'FR') return true;
+        // FS só vai se tiver NIF
+        if (tipoFatura === 'FS') return temNif === true;
+        return false;
+      })(),
       tipoDocumento: metadata.tipoDocumento || 'fatura', // ← tipo do documento
       data: metadata.data ? convertDataToISO(metadata.data) : novaFatura.data,
       itens: novosItens,
@@ -12513,7 +12752,14 @@ void 0;
   
   // Converter data DD/MM/YYYY para YYYY-MM-DD
   const convertDataToISO = (dataStr) => {
+    if (!dataStr) return new Date().toISOString().split('T')[0];
+    
     try {
+      // Se já está em formato ISO (YYYY-MM-DD), retorna direto
+      if (/^\d{4}-\d{2}-\d{2}$/.test(dataStr)) {
+        return dataStr;
+      }
+      
       // Tentar formatos: DD/MM/YYYY, DD-MM-YYYY, DD/MM/YY
       const patterns = [
         /(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/, // DD/MM/YYYY
@@ -12534,13 +12780,24 @@ void 0;
           dia = dia.padStart(2, '0');
           mes = mes.padStart(2, '0');
           
+          // Validar mês e dia
+          const mesNum = parseInt(mes);
+          const diaNum = parseInt(dia);
+          
+          if (mesNum < 1 || mesNum > 12 || diaNum < 1 || diaNum > 31) {
+            console.error('Data inválida detectada:', dataStr, '→ Dia:', dia, 'Mês:', mes);
+            return new Date().toISOString().split('T')[0];
+          }
+          
           return `${ano}-${mes}-${dia}`;
         }
       }
       
       // Se falhar, retornar data atual
+      console.warn('Formato de data não reconhecido:', dataStr);
       return new Date().toISOString().split('T')[0];
-    } catch {
+    } catch (e) {
+      console.error('Erro ao converter data:', dataStr, e);
       return new Date().toISOString().split('T')[0];
     }
   };
@@ -16176,7 +16433,7 @@ void 0;
                             onChange={(e) => setNovaFatura({...novaFatura, categoria: e.target.value})}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
                           >
-                            <option value="compras">🛒 Compras (Ingredientes)</option>
+                            <option value="compras">🛒 Compras</option>
                             <option value="renda">🏠 Renda</option>
                             <option value="eletricidade">💡 Eletricidade</option>
                             <option value="agua">💧 Água</option>
@@ -16757,7 +17014,21 @@ void 0;
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         >
                           {(() => {
-                            const anos = [...new Set((faturas || []).map(f => new Date(f.data).getFullYear()))].sort((a, b) => b - a);
+                            const anos = [...new Set(
+                              (faturas || [])
+                                .filter(f => f.data) // Filtrar faturas sem data
+                                .map(f => {
+                                  const ano = new Date(f.data).getFullYear();
+                                  return isNaN(ano) ? null : ano; // Filtrar anos inválidos
+                                })
+                                .filter(ano => ano !== null) // Remover nulls
+                            )].sort((a, b) => b - a);
+                            
+                            // Se não houver anos válidos, adicionar o ano atual
+                            if (anos.length === 0) {
+                              anos.push(new Date().getFullYear());
+                            }
+                            
                             return anos.map(ano => (
                               <option key={ano} value={ano}>{ano}</option>
                             ));
