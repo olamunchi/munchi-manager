@@ -1559,7 +1559,7 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center z-50 overflow-y-auto p-4 pt-8">
       <div className="bg-white rounded-lg shadow-xl max-w-[95vw] w-full max-h-[95vh] flex flex-col">
         <div className="p-4 border-b flex-shrink-0">
           <h2 className="text-xl font-bold mb-2">📄 Confirmar Produtos Extraídos</h2>
@@ -1972,8 +1972,8 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
 
       {/* Modal Criar Ingrediente */}
       {mostrarModalCriarIng && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]">
-          <div className="bg-white rounded-lg shadow-2xl w-full max-w-md p-6">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center z-[60] overflow-y-auto p-4 pt-8">
+          <div className="bg-white rounded-lg shadow-2xl w-full max-w-md p-6 my-8">
             <h3 className="text-xl font-bold mb-4 text-gray-800">✨ Criar Novo Ingrediente</h3>
             
             <div className="space-y-4">
@@ -2078,8 +2078,8 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
       
       {/* Modal Criar Fornecedor */}
       {mostrarModalNovoFornecedor && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-[60]">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-start justify-center z-[60] overflow-y-auto p-4 pt-8">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6 my-8">
             <h3 className="text-xl font-bold mb-4">➕ Criar Novo Fornecedor</h3>
             
             <div className="space-y-3">
@@ -2236,7 +2236,7 @@ const ModalDespesaSimples = ({ dadosDespesa, onConfirmar, onCancelar }) => {
   };
   
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center z-50 overflow-y-auto p-4 pt-8">
       <div className="bg-white rounded-lg shadow-2xl max-w-md w-full">
         {/* Header */}
         <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-4 rounded-t-lg">
@@ -2453,7 +2453,7 @@ const ModalConfirmacaoFatura = ({ dadosFatura, onConfirmar, onCancelar, forneced
   };
   
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center z-50 overflow-y-auto p-4 pt-8">
       <div className="bg-white rounded-lg p-6 max-w-4xl w-full shadow-xl max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-xl font-bold">Confirmar Tipo de Fatura</h3>
@@ -2646,8 +2646,8 @@ const ModalConfirmacaoFatura = ({ dadosFatura, onConfirmar, onCancelar, forneced
       
       {/* Modal Criar Fornecedor */}
       {mostrarModalNovoFornecedor && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-[60]">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-start justify-center z-[60] overflow-y-auto p-4 pt-8">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6 my-8">
             <h3 className="text-xl font-bold mb-4">➕ Criar Novo Fornecedor</h3>
             
             <div className="space-y-3">
@@ -3122,6 +3122,13 @@ const INVOICE_TYPES = {
       /^Fatura$/i
     ],
     numberPatterns: [
+      // ✅ SEMPRE com contexto de fatura
+      /(?:FT|Fatura)\s*N?[.º°:]*\s*([A-Z0-9]+\s*[\/\-]\s*[A-Z0-9]+)/i,
+      /N[.º°:]\s*FT\s*[:\s-]*([A-Z0-9]+\s*[\/\-]\s*[A-Z0-9]+)/i,
+      /FT\s*[:\s-]*([A-Z0-9]+\s*[\/\-]\s*[A-Z0-9]+)/i,
+      // Com "N.º" mas só se tiver "Fatura" antes no texto
+      /Fatura.*?N[.º°:]\s*([A-Z0-9]+\s*[\/\-]\s*[A-Z0-9]+)/i,
+      // Padrões antigos específicos
       /Fatura\s+N[.º°]\s*(FT\s*\d{4}\/\d+)/i,
       /N[.º°]\s*(FT[_\s-]?\d{4}[\/\s-]?\d+)/i,
       /(FT\s*\d{4}\/\d+)/,
@@ -3141,12 +3148,18 @@ const INVOICE_TYPES = {
       /Recibo.*Fatura/i   // ✅ NOVO: Recibo...Fatura
     ],
     numberPatterns: [
-      /Fatura[_\s-]Recibo.*?(\d{4}[-_]\d{2}[-_]\d{2})/,
+      // ✅ SEMPRE com contexto de fatura-recibo
+      /(?:FR|Fatura[_\s-]?Recibo)\s*N?[.º°:]*\s*([A-Z0-9]+\s*[\/\-]\s*[A-Z0-9]+)/i,
+      /N[.º°:]\s*FR\s*[:\s-]*([A-Z0-9]+\s*[\/\-]\s*[A-Z0-9]+)/i,
+      /FR\s*[:\s-]*([A-Z0-9]+\s*[\/\-]\s*[A-Z0-9]+)/i,
+      // Com "N.º" mas só se tiver "Fatura" e "Recibo" antes
+      /Fatura.*?Recibo.*?N[.º°:]\s*([A-Z0-9]+\s*[\/\-]\s*[A-Z0-9]+)/i,
+      // Padrão de data (caso específico de alguns fornecedores)
+      /Fatura[_\s-]Recibo.*?(\d{4}[-_\/]\d{2}[-_\/]\d{2})/,
+      // Padrões antigos
       /04\/Fatura\/Recibo\s+(\d{4}[-_]\d{2}[-_]\d{2})/,
       /(FR\s*\d{4}\/\d+)/,
-      /(FT\s*\d{4}\/\d+)/,
-      /PP\s+(\d+)/,
-      /FR\s*[:-]?\s*(\d+)/i  // ✅ NOVO: FR: 123 ou FR 123
+      /PP\s+(\d+)/
     ]
   },
   FS: {
@@ -3163,13 +3176,19 @@ const INVOICE_TYPES = {
       /Simplif/i  // ✅ NOVO: OCR pode cortar palavra
     ],
     numberPatterns: [
-      /Simplificada\s+FS\s+([MN]\/\d+)/i, // FS M/68601
-      /FS\s+([MN]\/\d+)/i,
-      /Simplificada\s+N[.º°]\s*(FS\s*\d{4}\/\d+)/i,
+      // ✅ SEMPRE com contexto de fatura simplificada
+      /(?:FS|Fatura\s+Simplificada|Simplificada)\s*N?[.º°:]*\s*([A-Z0-9]+\s*[\/\-]\s*[A-Z0-9]+)/i,
+      /N[.º°:]\s*FS\s*[:\s-]*([A-Z0-9]+\s*[\/\-]\s*[A-Z0-9]+)/i,
+      /FS\s*[:\s-]*([A-Z0-9]+\s*[\/\-]\s*[A-Z0-9]+)/i,
+      // Padrões específicos FS com M/ ou N/
+      /Simplificada\s+FS\s+([MN]\/[A-Z0-9]+)/i,
+      /FS\s+([MN]\/[A-Z0-9]+)/i,
+      // Com "N.º" mas só se tiver "Simplificada" antes
+      /Simplificada.*?N[.º°:]\s*([A-Z0-9]+\s*[\/\-]\s*[A-Z0-9]+)/i,
+      // Padrões antigos
       /(FS\s*\d{4}\/\d+)/,
       /Recibo\s+N[.º°]\s*(\d+)/,
-      /Simplificada\s+(\d+)/,
-      /FS\s*[:-]?\s*(\d+)/i  // ✅ NOVO: FS: 123 ou FS 123
+      /Simplificada\s+(\d+)/
     ]
   }
 };
@@ -3244,149 +3263,6 @@ const FORNECEDORES_CONHECIDOS = {
 void 0;
 
   // ===== 🆕 COMPONENTE: PAINEL DE ALERTAS DE STOCK =====
-  const PainelAlertasStock = ({ 
-    ingredientes, 
-    getStockStatus, 
-    setActiveTab, 
-    setGestaoSubTab, 
-    showNotification 
-  }) => {
-    const [expandido, setExpandido] = useState(false);
-    
-    const ingredientesComStatus = ingredientes
-      .map(ing => ({
-        ...ing,
-        statusInfo: getStockStatus(ing)
-      }))
-      .sort((a, b) => a.statusInfo.prioridade - b.statusInfo.prioridade);
-    
-    const criticos = ingredientesComStatus.filter(i => i.statusInfo.status === 'CRITICO');
-    const baixos = ingredientesComStatus.filter(i => i.statusInfo.status === 'BAIXO');
-    const atencao = ingredientesComStatus.filter(i => i.statusInfo.status === 'ATENCAO');
-    const totalAlertas = criticos.length + baixos.length + atencao.length;
-    
-    if (totalAlertas === 0) {
-      return (
-        <div className="bg-green-50 border border-green-300 rounded-lg p-3 mb-4">
-          <button
-            onClick={() => setExpandido(!expandido)}
-            className="w-full flex items-center justify-between"
-          >
-            <div className="flex items-center gap-2">
-              <span className="text-xl">✅</span>
-              <div className="text-left">
-                <p className="font-bold text-green-800 text-sm">Stocks OK!</p>
-                <p className="text-xs text-green-700">Todos os ingredientes em níveis adequados</p>
-              </div>
-            </div>
-            {expandido ? <ChevronUp className="w-5 h-5 text-green-600" /> : <ChevronDown className="w-5 h-5 text-green-600" />}
-          </button>
-          {expandido && (
-            <div className="mt-3 pt-3 border-t border-green-300">
-              <button 
-                onClick={() => {
-                  setActiveTab('gestao');
-                  setGestaoSubTab('ingredientes');
-                }}
-                className="w-full bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 text-sm font-semibold"
-              >
-                📋 Ver Inventário Completo
-              </button>
-            </div>
-          )}
-        </div>
-      );
-    }
-    
-    return (
-      <div className="bg-white rounded-lg shadow border border-gray-200 mb-4">
-        {/* Header Colapsável */}
-        <button
-          onClick={() => setExpandido(!expandido)}
-          className="w-full p-3 flex items-center justify-between hover:bg-gray-50 transition rounded-lg"
-        >
-          <div className="flex items-center gap-2">
-            <AlertCircle className={`w-5 h-5 ${criticos.length > 0 ? 'text-red-600' : 'text-orange-600'}`} />
-            <div className="text-left">
-              <h3 className="text-sm font-bold text-gray-800">Alertas de Stock</h3>
-              <p className="text-xs text-gray-600">
-                {totalAlertas} alerta{totalAlertas !== 1 ? 's' : ''} • 
-                <span className="text-red-600 font-semibold"> {criticos.length} crítico{criticos.length !== 1 ? 's' : ''}</span>
-                {baixos.length > 0 && <span className="text-orange-600"> • {baixos.length} baixo{baixos.length !== 1 ? 's' : ''}</span>}
-              </p>
-            </div>
-          </div>
-          {expandido ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
-        </button>
-        
-        {/* Conteúdo Expandido */}
-        {expandido && (
-          <div className="px-3 pb-3">
-            <div className="grid grid-cols-3 gap-2 mb-3">
-              <div className={`rounded p-2 border ${criticos.length > 0 ? 'bg-red-50 border-red-300' : 'bg-gray-50 border-gray-300'}`}>
-                <p className="text-xs font-semibold text-gray-700">🔴 Críticos</p>
-                <p className="text-2xl font-bold text-red-600">{criticos.length}</p>
-              </div>
-              <div className={`rounded p-2 border ${baixos.length > 0 ? 'bg-orange-50 border-orange-300' : 'bg-gray-50 border-gray-300'}`}>
-                <p className="text-xs font-semibold text-gray-700">🟠 Baixos</p>
-                <p className="text-2xl font-bold text-orange-600">{baixos.length}</p>
-              </div>
-              <div className={`rounded p-2 border ${atencao.length > 0 ? 'bg-yellow-50 border-yellow-300' : 'bg-gray-50 border-gray-300'}`}>
-                <p className="text-xs font-semibold text-gray-700">🟡 Atenção</p>
-                <p className="text-2xl font-bold text-yellow-600">{atencao.length}</p>
-              </div>
-            </div>
-            
-            {criticos.length > 0 && (
-              <div className="mb-2">
-                <h4 className="font-bold text-red-700 mb-1 text-xs">🔴 URGENTE - Stock Esgotado:</h4>
-                <div className="space-y-1">
-                  {criticos.map(ing => (
-                    <div key={ing.id} className="bg-red-50 border border-red-300 rounded p-2">
-                      <p className="font-semibold text-xs">{ing.nome}</p>
-                      <p className="text-xs text-gray-600">
-                        Stock: <span className="text-red-600 font-bold">{ing.stockAtual || 0} {ing.unidade}</span> | 
-                        Mínimo: {ing.stockMinimo || 0} {ing.unidade}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            
-            {baixos.length > 0 && (
-              <div className="mb-2">
-                <h4 className="font-bold text-orange-700 mb-1 text-xs">🟠 BAIXOS - Planejar Compra:</h4>
-                <div className="space-y-1">
-                  {baixos.slice(0, 3).map(ing => (
-                    <div key={ing.id} className="bg-orange-50 border border-orange-200 rounded p-1.5 flex justify-between items-center">
-                      <div>
-                        <p className="font-semibold text-xs">{ing.nome}</p>
-                        <p className="text-xs text-gray-600">{ing.stockAtual || 0} / {ing.stockMinimo || 0} {ing.unidade}</p>
-                      </div>
-                    </div>
-                  ))}
-                  {baixos.length > 3 && (
-                    <p className="text-xs text-gray-500 italic">+ {baixos.length - 3} mais...</p>
-                  )}
-                </div>
-              </div>
-            )}
-            
-            <button 
-              onClick={() => {
-                setActiveTab('gestao');
-                setGestaoSubTab('ingredientes');
-              }}
-              className="w-full bg-blue-600 text-white px-3 py-2 rounded hover:bg-blue-700 text-xs font-semibold mt-2"
-            >
-              📋 Ver Inventário Completo
-            </button>
-          </div>
-        )}
-      </div>
-    );
-  };
 
 const RestauranteGestor = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -3495,6 +3371,12 @@ const RestauranteGestor = () => {
   const [searchIngredienteGlobal, setSearchIngredienteGlobal] = useState('');
   const [categoriaFiltro, setCategoriaFiltro] = useState('todas');
   const [searchProdutoGlobal, setSearchProdutoGlobal] = useState('');
+  
+  // 🆕 ESTADOS PARA STOCK INTELIGENTE
+  const [movimentacoesStock, setMovimentacoesStock] = useState([]);
+  const [stockRastreamentoAtivo, setStockRastreamentoAtivo] = useState(true);
+  const [alertasStock, setAlertasStock] = useState([]);
+  const [mostrarModalMovimentacoes, setMostrarModalMovimentacoes] = useState(false);
 
   // Auto-save GitHub (handled by GitHubSync internally)
 
@@ -3557,6 +3439,234 @@ const RestauranteGestor = () => {
   const [desempenhoProdutoExpanded, setDesempenhoProdutoExpanded] = useState(false);
   const [searchTakeAway, setSearchTakeAway] = useState('');
   
+  // ============================================
+  // 🆕 FUNÇÕES DE GESTÃO INTELIGENTE DE STOCK
+  // ============================================
+  
+  // 🔧 Arredondar número para evitar erros de ponto flutuante
+  const arredondar = (numero, casasDecimais = 4) => {
+    return Math.round(numero * Math.pow(10, casasDecimais)) / Math.pow(10, casasDecimais);
+  };
+  
+  // Converter unidades (kg ↔ g, L ↔ ml)
+  const converterParaUnidadeBase = (quantidade, unidadeOrigem, unidadeDestino) => {
+    const origem = unidadeOrigem?.toLowerCase() || '';
+    const destino = unidadeDestino?.toLowerCase() || '';
+    
+    if (origem === destino) return arredondar(quantidade);
+    
+    if (origem === 'kg' && destino === 'g') return arredondar(quantidade * 1000);
+    if (origem === 'g' && destino === 'kg') return arredondar(quantidade / 1000);
+    if (origem === 'l' && destino === 'ml') return arredondar(quantidade * 1000);
+    if (origem === 'ml' && destino === 'l') return arredondar(quantidade / 1000);
+    
+    return arredondar(quantidade);
+  };
+  
+  // Verificar compatibilidade de unidades
+  const unidadesSaoCompativeis = (unidade1, unidade2) => {
+    const u1 = unidade1?.toLowerCase() || '';
+    const u2 = unidade2?.toLowerCase() || '';
+    
+    const unidadesPeso = ['kg', 'g'];
+    const unidadesVolume = ['l', 'ml'];
+    const unidadesContagem = ['un', 'unidade', 'unidades'];
+    
+    if (unidadesPeso.includes(u1) && unidadesPeso.includes(u2)) return true;
+    if (unidadesVolume.includes(u1) && unidadesVolume.includes(u2)) return true;
+    if (unidadesContagem.includes(u1) && unidadesContagem.includes(u2)) return true;
+    if (u1 === u2) return true;
+    
+    return false;
+  };
+  
+  // Registrar entrada de stock (compra)
+  const registrarEntradaStock = (compraData) => {
+    const { ingredienteId, quantidade, unidade, precoTotal, data, fornecedor, numeroDocumento } = compraData;
+    
+    const ingredienteIndex = ingredientes.findIndex(ing => ing.id === ingredienteId);
+    if (ingredienteIndex === -1) return;
+    
+    const ingrediente = ingredientes[ingredienteIndex];
+    const quantidadeConvertida = converterParaUnidadeBase(quantidade, unidade, ingrediente.unidade);
+    
+    if (!unidadesSaoCompativeis(unidade, ingrediente.unidade)) {
+      console.warn(`Unidades incompatíveis: ${unidade} vs ${ingrediente.unidade}`);
+      return;
+    }
+    
+    const stockAnterior = arredondar(ingrediente.stockAtual || 0);
+    const novoStock = arredondar(stockAnterior + quantidadeConvertida);
+    const novosIngredientes = [...ingredientes];
+    novosIngredientes[ingredienteIndex] = {
+      ...ingrediente,
+      stockAtual: novoStock
+    };
+    
+    setIngredientes(novosIngredientes);
+    
+    const movimentacao = {
+      id: Date.now() + Math.random(),
+      data: data || new Date().toISOString().split('T')[0],
+      tipo: 'entrada',
+      ingredienteId: ingredienteId,
+      ingredienteNome: ingrediente.nome,
+      quantidade: quantidadeConvertida,
+      unidade: ingrediente.unidade,
+      precoUnitario: precoTotal / quantidade,
+      precoTotal: precoTotal,
+      stockAnterior: stockAnterior,
+      stockNovo: novoStock,
+      fornecedor: fornecedor || 'N/A',
+      numeroDocumento: numeroDocumento || 'N/A',
+      observacao: `Compra: +${quantidadeConvertida.toFixed(2)} ${ingrediente.unidade}`
+    };
+    
+    setMovimentacoesStock(prev => [...prev, movimentacao]);
+  };
+  
+  // Registrar saída de stock (venda)
+  const registrarSaidaStock = (vendaData) => {
+    const { produtoId, quantidade, data } = vendaData;
+    
+    const produto = produtos.find(p => p.id === produtoId);
+    if (!produto || !produto.receita || produto.receita.length === 0) return;
+    
+    const novosIngredientes = [...ingredientes];
+    const novasMovimentacoes = [];
+    
+    produto.receita.forEach(receitaItem => {
+      const ingredienteIndex = novosIngredientes.findIndex(ing => ing.id === receitaItem.ingredienteId);
+      if (ingredienteIndex === -1) return;
+      
+      const ingrediente = novosIngredientes[ingredienteIndex];
+      
+      // 🆕 CONVERTER unidade da receita para unidade do ingrediente
+      const quantidadeReceitaConvertida = converterParaUnidadeBase(
+        receitaItem.quantidade,
+        receitaItem.unidade || ingrediente.unidade,
+        ingrediente.unidade
+      );
+      
+      const quantidadeUsada = arredondar(quantidadeReceitaConvertida * quantidade);
+      const stockAnterior = arredondar(ingrediente.stockAtual || 0);
+      const novoStock = arredondar(Math.max(0, stockAnterior - quantidadeUsada));
+      
+      novosIngredientes[ingredienteIndex] = {
+        ...ingrediente,
+        stockAtual: novoStock
+      };
+      
+      const movimentacao = {
+        id: Date.now() + Math.random(),
+        data: data || new Date().toISOString().split('T')[0],
+        tipo: 'saida',
+        ingredienteId: ingrediente.id,
+        ingredienteNome: ingrediente.nome,
+        quantidade: quantidadeUsada,
+        unidade: ingrediente.unidade,
+        stockAnterior: stockAnterior,
+        stockNovo: novoStock,
+        produtoId: produto.id,
+        produtoNome: produto.nome,
+        quantidadeProdutos: quantidade,
+        observacao: `Venda: -${quantidadeUsada.toFixed(2)} ${ingrediente.unidade} (${quantidade}x ${produto.nome})`
+      };
+      
+      novasMovimentacoes.push(movimentacao);
+    });
+    
+    setIngredientes(novosIngredientes);
+    setMovimentacoesStock(prev => [...prev, ...novasMovimentacoes]);
+  };
+  
+  // Calcular desperdício real
+  const calcularDesperdicio = (ingrediente) => {
+    if (!ingrediente.id) return null;
+    
+    const movimentacoesIngrediente = movimentacoesStock.filter(m => m.ingredienteId === ingrediente.id);
+    
+    if (movimentacoesIngrediente.length === 0) {
+      return {
+        stockTeorico: ingrediente.stockAtual || 0,
+        stockReal: ingrediente.stockAtual || 0,
+        desperdicio: 0,
+        percentualDesperdicio: 0,
+        temDados: false
+      };
+    }
+    
+    let stockTeorico = 0;
+    movimentacoesIngrediente.forEach(mov => {
+      if (mov.tipo === 'entrada') {
+        stockTeorico += mov.quantidade;
+      } else if (mov.tipo === 'saida') {
+        stockTeorico -= mov.quantidade;
+      } else if (mov.tipo === 'ajuste') {
+        stockTeorico += mov.quantidade; // ajuste pode ser + ou -
+      }
+    });
+    
+    const stockReal = ingrediente.stockAtual || 0;
+    const desperdicio = Math.max(0, stockTeorico - stockReal);
+    const percentualDesperdicio = stockTeorico > 0 ? (desperdicio / stockTeorico) * 100 : 0;
+    
+    return {
+      stockTeorico,
+      stockReal,
+      desperdicio,
+      percentualDesperdicio: parseFloat(percentualDesperdicio.toFixed(2)),
+      temDados: true
+    };
+  };
+  
+  // Gerar alertas críticos
+  const gerarAlertasCriticos = () => {
+    const alertas = [];
+    
+    ingredientes.forEach(ingrediente => {
+      const stockAtual = ingrediente.stockAtual || 0;
+      const stockMinimo = ingrediente.stockMinimo || 0;
+      
+      if (stockAtual === 0 && stockMinimo > 0) {
+        alertas.push({
+          id: `critical-${ingrediente.id}`,
+          tipo: 'sem_stock',
+          ingredienteId: ingrediente.id,
+          ingredienteNome: ingrediente.nome,
+          mensagem: `❌ SEM STOCK: ${ingrediente.nome}`,
+          stockAtual: 0,
+          unidade: ingrediente.unidade
+        });
+      } else if (stockAtual <= stockMinimo * 0.5 && stockMinimo > 0) {
+        alertas.push({
+          id: `low-${ingrediente.id}`,
+          tipo: 'stock_critico',
+          ingredienteId: ingrediente.id,
+          ingredienteNome: ingrediente.nome,
+          mensagem: `⚠️ Stock crítico: ${ingrediente.nome} (${stockAtual.toFixed(1)} ${ingrediente.unidade})`,
+          stockAtual: stockAtual,
+          stockMinimo: stockMinimo,
+          unidade: ingrediente.unidade
+        });
+      }
+    });
+    
+    return alertas;
+  };
+  
+  // useEffect para recalcular alertas
+  useEffect(() => {
+    if (stockRastreamentoAtivo) {
+      const alertasCriticos = gerarAlertasCriticos();
+      setAlertasStock(alertasCriticos);
+    }
+  }, [ingredientes, stockRastreamentoAtivo]);
+  
+  // ============================================
+  // FIM FUNÇÕES STOCK INTELIGENTE
+  // ============================================
+  
   // Novos estados para Dados da Empresa
   const [dadosEmpresa, setDadosEmpresa] = useState({
     nif: '',
@@ -3580,6 +3690,50 @@ const RestauranteGestor = () => {
   const MAPEAMENTO_PRODUTOS = {"Expresso":"Café Expresso","Bica/Expresso":"Café Expresso","Expresso Take Away":"Café Expresso","Bica/Take Away":"Café Expresso","Meia De Leite":"Meia de Leite","Meia Leite":"Meia de Leite","Meia de Leite/White Coffee":"Meia de Leite","Meia de Leite Take Away":"Meia de Leite","Meia de Leite/White Coffee Take Away":"Meia de Leite","Capuccino":"Cappuccino","Cappuccino Take Away":"Cappuccino","Americano Take Away":"Americano","Americano/Black Coffee":"Americano","Descafeinado/Decaf":"Descafeinado","Galao":"Galão","Matcha com Leite/Matcha Latte":"Matcha Latte","Matcha com Leite/Matcha Latte Take Away":"Matcha Latte","Matcha":"Matcha Latte","Matcha TG":"Matcha Latte","Cha/Tea":"Chá","Sumo de Laranja":"Sumo Laranja","Sumo de Laranja/Orange Juice":"Sumo Laranja","Sumo de Laranja Take Away":"Sumo Laranja","Sumo de Laranja/Take Away":"Sumo Laranja","Sumo Laranja TG":"Sumo Laranja","Sumo Caseiro Take Away":"Sumo Caseiro","Sumo Caseiro/Home made juice Take Away":"Sumo Caseiro","Mojito Picante/Spicy Mojito":"Spicy Mojito","Mojito Spicy":"Spicy Mojito","Mojito S/ Alcool":"Mojito Sem Álcool","Agua 1.5l":"Água 1.5L","Agua Penacova 1.5L":"Água 1.5L","Agua/Water 0.33l":"Água 33cl","Aguas Penacova 33":"Água 33cl","Aguas Penacova 50cl":"Água 50cl","Água Com Gás":"Água com Gás 33cl","Agua com Gas Castello 25cl":"Água com Gás 25cl","Agua com Gas/Sparkling Water 0.33l":"Água com Gás 33cl","Cerveja Super Bock/Beer Super Bock 33l":"Cerveja Super Bock","Super Bock":"Cerveja Super Bock","Super Bock 33cl":"Cerveja Super Bock","Super Bock Stout":"Cerveja Super Bock Stout","Cerveja Preta/Stout":"Cerveja Super Bock Stout","Cerveja Artesanal 33l":"Cerveja Artesanal Mania","Cerveja Artesanal/Craft Beer 33l":"Cerveja Artesanal Mania","Castelo Rodrigo (branco) Garrafa":"Castelo Rodrigo Branco Garrafa","Castelo Rogrido Branco Copo":"Castelo Rodrigo Branco Copo","Castelo Rodrigo 100% Touriga Nacional Tinto (Beira Interior)":"Castelo Rodrigo Tinto Garrafa","Convento Aguiar Reserva Branco (Beira Interior)":"Convento Aguiar Branco Garrafa","Ladeira Santa Branco (Garrafa)":"Ladeira Santa Branco Garrafa","Ladeira da Santa Colheita Branco (Dao)":"Ladeira Santa Branco Garrafa","Ladeira da Santa 2023 Tinto (Dao)":"Ladeira Santa Tinto Garrafa","Ladeira da Santa Encruzado 2023 Tinto (Dao)":"Ladeira Santa Tinto Garrafa","Ladeira Santa Rose Copo":"Ladeira Santa Rosé Copo","Ladeira da Santa Rose (Dao)":"Ladeira Santa Rosé Copo","Falatório Bastardo Tinto (Lisboa)":"Falatório Bastardo Tinto","Aromas 4u Verde Copo":"Ladeira Santa Branco Copo","Aromas4U Sentido (Verde)":"Ladeira Santa Branco Garrafa","Ovos Turcos / Turkish Eggs":"Ovos Turcos","Ovos Turcos / Turkish Eggs s/picante":"Ovos Turcos","Croissant":"Olh'ó Croissant","Croque Monsieur":"Croque Monsieur Munchi","Croque Monsiur":"Croque Monsieur Munchi","Tosta de Abacate":"Tosta Abacate","Tosta Aberta de Abacate":"Tosta Abacate","Tosta de Requeijão":"Tosta Requeijão","Tosta de Requeijão":"Tosta Requeijão","Tosta Aberta de Requeijão":"Tosta Requeijão","Tosta Aberta de Requeijão":"Tosta Requeijão","Tosta Amendoim":"Tosta Manteiga Amendoim","Tosta Aberta de Manteiga de Amendoim":"Tosta Manteiga Amendoim","Wrap":"Wrap Ovo Bacon","Burrito":"Wrap Ovo Bacon","Rolos Crocantes picantes":"Rolos Crocantes Picante","Queijo Chevre":"Queijo Chèvre Flambeado","Queijo Chevre Flambeado":"Queijo Chèvre Flambeado","Sandes Polvo":"Sandes de Polvo","Sandes de Presunto, Brie e Mel":"Sandes Presunto TA","Sandes de Salmão Fumado e Salada de Ovo":"Sandes Salmão TA","Sandes de Salmão Fumado e Salada de Ovo":"Sandes Salmão TA","Salada de Queijo Burrata com Pêssego":"Salada Pêssegos Grelhados","Salada de Queijo Burrata com Pêssego":"Salada Pêssegos Grelhados","Salada de Queijo Burrata e Pêssego Grelhado":"Salada Pêssegos Grelhados","Salada de Queijo Burrata e Pêssego Grelhado":"Salada Pêssegos Grelhados","Salada Burrata":"Salada Pêssegos Grelhados","Salada Burrata C/Presunto":"Salada Pêssegos Grelhados","Salada de Burrata e Pêssego Grelhado C/ Presunto":"Salada Pêssegos Grelhados","Salada de Burrata e Pêssego Grelhado C/ Presunto":"Salada Pêssegos Grelhados","Salada de Queijo Feta com Pêssego":"Salada Pêssegos Grelhados","Salada de Queijo Feta com Pêssego":"Salada Pêssegos Grelhados","Salada Feta":"Salada Pêssegos Grelhados","Salada de Queijo com Pêssego Grelhado":"Salada Pêssegos Grelhados","Salada de Queijo com Pêssego Grelhado":"Salada Pêssegos Grelhados","Salada Extra":"Salada Pêssegos Grelhados","Bolo de Limão/Lemon Cake":"Bolo de Limão com Mirtilos","Bolo de Limão/Lemon Cake":"Bolo de Limão com Mirtilos","Bolo Limão":"Bolo de Limão com Mirtilos","Bolo Chocolate":"Bolo de Chocolate com Caramelo Salgado","Red Velvet":"Bolo Red Velvet com Frutos Vermelhos","Bolo Banana":"Bolo de Banana","Bolo Bolacha":"Bolo de Bolacha","Cheesecake Frutos Vermelhos":"Cheesecake de Frutos Vermelhos","Cheesecake Frutos Tropicais":"Cheesecake de Frutos Tropicais","Cheesecake frutos tropicais":"Cheesecake de Frutos Tropicais","Cheesecake Matcha":"Cheesecake de Matcha","Cheesecake Matcha Manga e Maracuja":"Cheesecake de Matcha","Cheesecake Merengue queimado":"Cheesecake Merengue Queimado","Pavlova":"Mini Pavlova de Frutos Vermelhos","Pudim Chia Frutos Vermelhos":"Pudim Chia","Pudim Chia com Matcha":"Pudim Chia Matcha","Pudin Chia Vegan":"Pudim Chia","Cebola 100":"Chutney Cebola 100ml","Cebola 100 ml":"Chutney Cebola 100ml","Cebola 250":"Chutney Cebola 250ml","Cebola 250 ml":"Chutney Cebola 250ml","Chipotle 100":"Chutney Chipotle 100ml","Chipotle 100 ml":"Chutney Chipotle 100ml","Chipotle 250":"Chutney Chipotle 250ml","Chipotle 250 ml":"Chutney Chipotle 250ml","Jalapeños Verdes 100":"Chutney Jalapeños Verde 100ml","Jalapenos Verde 100 ml":"Chutney Jalapeños Verde 100ml","Jalapeños Verdes 250":"Chutney Jalapeños Verde 250ml","Jalapenos Verde 250 ml":"Chutney Jalapeños Verde 250ml","Jalapeños Vermelhos 100":"Chutney Jalapeños Vermelho 100ml","Jalapenos Vermelhos 100 ml":"Chutney Jalapeños Vermelho 100ml","Jalapeños Vermelho 250":"Chutney Jalapeños Vermelho 250ml","Jalapenos Vermelhos 250 ml":"Chutney Jalapeños Vermelho 250ml","Pimentos Vermelhos 100":"Chutney Pimentos 100ml","Pimentos Vermelhos 100ml":"Chutney Pimentos 100ml","Pimentos Vermelhos 250ml":"Chutney Pimentos 250ml","Abóbora 100":"Compota Abóbora 100ml","Abobora 100 ml":"Compota Abóbora 100ml","Abóbora 250":"Compota Abóbora 250ml","Abobora 250 ml":"Compota Abóbora 250ml","Figo 100":"Compota Figo 100ml","Figo 250":"Compota Figo 250ml","Tomate 100":"Compota Tomate 100ml","Tomate 100 ml":"Compota Tomate 100ml","Tomate 250":"Compota Tomate 250ml","Tomate 250 ml":"Compota Tomate 250ml","Laranja 100":"Vinagrete Laranja 100ml","Laranja 100 ml":"Vinagrete Laranja 100ml","Laranja 250":"Vinagrete Laranja 250ml","Laranja 250 ml":"Vinagrete Laranja 250ml"};
   
   const mapearNomeProduto = (nome) => MAPEAMENTO_PRODUTOS[nome] || nome;
+
+  
+  // FUZZY MATCHING PARA VENDAS
+  const findBestMatchProduto = (nomeProduto, produtos) => {
+    if (!nomeProduto || !produtos || produtos.length === 0) return null;
+    
+    const normalize = (str) => {
+      return str.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
+    };
+    
+    const nomeNorm = normalize(nomeProduto);
+    
+    for (const prod of produtos) {
+      if (normalize(prod.nome) === nomeNorm) {
+        return { id: prod.id, nome: prod.nome, confianca: 100, metodo: 'exato' };
+      }
+    }
+    
+    const fuzz = window.fuzzball || window.fuzz;
+    if (!fuzz) return null;
+    
+    let bestMatch = null;
+    let bestScore = 0;
+    
+    for (const prod of produtos) {
+      const prodNorm = normalize(prod.nome);
+      let score = fuzz.ratio(nomeNorm, prodNorm);
+      
+      if (nomeNorm.includes(prodNorm) || prodNorm.includes(nomeNorm)) {
+        score = Math.min(100, score + 10);
+      }
+      
+      if (nomeNorm.length >= 4 && prodNorm.length >= 4 && nomeNorm.substring(0, 4) === prodNorm.substring(0, 4)) {
+        score = Math.min(100, score + 5);
+      }
+      
+      if (score > bestScore) {
+        bestScore = score;
+        bestMatch = { id: prod.id, nome: prod.nome, confianca: Math.round(score), metodo: 'fuzzy' };
+      }
+    }
+    
+    return bestScore >= 70 ? bestMatch : null;
+  };
   
   const [mostrarImportacao, setMostrarImportacao] = useState(false);
   const [fonteImportacao, setFonteImportacao] = useState('moloni');
@@ -3597,57 +3751,99 @@ const RestauranteGestor = () => {
         const texto = e.target.result;
         const linhas = texto.split('\n');
         const vendasImportadas = [];
+        let statsDicionario = 0, statsFuzzy = 0, statsExato = 0, statsSemMatch = 0;
         
-        for (let i = 1; i < linhas.length; i++) {
+        let startLine = 0;
+        for (let i = 0; i < linhas.length; i++) {
+          if (linhas[i].includes('"Data"') && linhas[i].includes('"Artigo"')) {
+            startLine = i + 1;
+            break;
+          }
+        }
+        
+        for (let i = startLine; i < linhas.length; i++) {
           const linha = linhas[i].trim();
           if (!linha) continue;
           
-          const campos = linha.split(',').map(c => c.replace(/"/g, '').trim());
-          if (campos.length < 3) continue;
+          const campos = linha.split(';').map(c => c.replace(/"/g, '').trim());
+          if (campos.length < 8) continue;
           
-          const [data, nomeProduto, valorStr] = campos;
+          const data = campos[0];
+          const nomeProduto = campos[1];
+          const valorStr = campos[7].replace(',', '.');
           const valor = parseFloat(valorStr);
           
           if (!data || !nomeProduto || isNaN(valor)) continue;
           
+          let produto = null, confianca = 0, metodoMatch = 'nenhum';
+          
           const nomeCorrigido = mapearNomeProduto(nomeProduto);
-          const produto = produtos.find(p => p.nome === nomeCorrigido);
+          if (nomeCorrigido !== nomeProduto) {
+            produto = produtos.find(p => p.nome === nomeCorrigido);
+            if (produto) { confianca = 100; metodoMatch = 'dicionario'; statsDicionario++; }
+          }
+          
+          if (!produto) {
+            const match = findBestMatchProduto(nomeProduto, produtos);
+            if (match) {
+              produto = produtos.find(p => p.id === match.id);
+              confianca = match.confianca;
+              metodoMatch = match.metodo;
+              if (match.metodo === 'exato') statsExato++; else statsFuzzy++;
+            } else {
+              statsSemMatch++;
+            }
+          }
+          
+          let dataFormatada = data;
+          if (data.match(/\d{2}-\d{2}-\d{4}/)) {
+            const parts = data.split('-');
+            dataFormatada = parts[2] + '-' + parts[1] + '-' + parts[0];
+          }
           
           vendasImportadas.push({
             id: Date.now() + Math.random(),
-            data: data,
-            produto: nomeCorrigido,
+            data: dataFormatada,
+            produto: produto?.nome || nomeProduto,
             produtoId: produto?.id || null,
             quantidade: 1,
             valor: valor,
             iva: produto?.iva || 6,
-            origem: fonteImportacao // ✅ 'moloni' ou 'zobaze'
+            origem: fonteImportacao,
+            confiancaMatch: confianca,
+            metodoMatch: metodoMatch,
+            nomeOriginalCSV: nomeProduto
           });
         }
         
         if (vendasImportadas.length > 0) {
-          const novasVendas = [...vendas, ...vendasImportadas];
-          setVendas(novasVendas);
+          setVendas([...vendas, ...vendasImportadas]);
           setMostrarImportacao(false);
           
-          const comEmparelhamento = vendasImportadas.filter(v => v.produtoId).length;
-          const semEmparelhamento = vendasImportadas.length - comEmparelhamento;
+          const total = statsDicionario + statsExato + statsFuzzy;
+          const pct = Math.round(total/vendasImportadas.length*100);
           
           showNotification(
-            `✅ ${vendasImportadas.length} vendas importadas!\n` +
-            `✓ ${comEmparelhamento} emparelhadas\n` +
-            `⚠ ${semEmparelhamento} sem emparelhamento\n` +
-            `Fonte: ${fonteImportacao}`,
-            'success'
+            '✅ ' + vendasImportadas.length + ' vendas!\n' +
+            '✓ ' + total + ' emparelhadas (' + pct + '%)\n' +
+            '  • ' + statsDicionario + ' dicionário\n' +
+            '  • ' + statsExato + ' exato\n' +
+            '  • ' + statsFuzzy + ' fuzzy\n' +
+            (statsSemMatch > 0 ? '⚠ ' + statsSemMatch + ' sem match' : ''),
+            total === vendasImportadas.length ? 'success' : 'warning'
           );
+          
+          console.log('MOLONI:', {total: vendasImportadas.length, dicionario: statsDicionario, exato: statsExato, fuzzy: statsFuzzy, semMatch: statsSemMatch});
+          if (statsSemMatch > 0) console.log('Sem match:', vendasImportadas.filter(v => !v.produtoId).map(v => v.nomeOriginalCSV));
         } else {
-          alert('❌ Nenhuma venda válida encontrada.');
+          alert('❌ Nenhuma venda válida');
         }
       } catch (error) {
+        console.error(error);
         alert('❌ Erro: ' + error.message);
       }
     };
-    reader.readAsText(file);
+    reader.readAsText(file, 'ISO-8859-1');
   };
   const [novaFatura, setNovaFatura] = useState({
     numero: '',
@@ -3731,7 +3927,23 @@ const RestauranteGestor = () => {
   
   useEffect(() => {
     localStorage.setItem('contagens', JSON.stringify(contagens));
-  }, [contagens])
+  }, [contagens]);
+  
+  // 🆕 Salvar e carregar movimentacoesStock
+  useEffect(() => {
+    const savedMovimentacoes = localStorage.getItem('movimentacoesStock');
+    if (savedMovimentacoes) {
+      try {
+        setMovimentacoesStock(JSON.parse(savedMovimentacoes));
+      } catch (e) {
+        console.error('Erro ao carregar movimentações:', e);
+      }
+    }
+  }, []);
+  
+  useEffect(() => {
+    localStorage.setItem('movimentacoesStock', JSON.stringify(movimentacoesStock));
+  }, [movimentacoesStock]);
   
   // 🆕 Inicializar ingredientes com campos de waste/stock quando carregarem
   useEffect(() => {
@@ -4824,14 +5036,38 @@ const extrairNumeroFatura = (texto, tipoFatura) => {
   const config = INVOICE_TYPES[tipoFatura];
   if (!config) return null;
   
+  // ✅ PRÉ-PROCESSAMENTO: Limpar e normalizar texto OCR
+  const textoLimpo = texto
+    .replace(/\s+/g, ' ')           // Normalizar espaços múltiplos
+    .replace(/\s*\/\s*/g, '/')      // Remover espaços ao redor de /
+    .replace(/\s*-\s*/g, '-')       // Remover espaços ao redor de -
+    .trim();
+  
   for (const pattern of config.numberPatterns) {
-    const match = texto.match(pattern);
-    if (match) {
-      void 0;
-      return match[1].trim();
+    const match = textoLimpo.match(pattern);
+    if (match && match[1]) {
+      let numero = match[1].trim();
+      
+      // ✅ POST-PROCESSAMENTO: Limpar o número capturado
+      numero = numero
+        .replace(/\s+/g, ' ')                    // Normalizar espaços
+        .replace(/\s*([\/\-])\s*/g, '$1')       // Remover espaços ao redor de separadores
+        .replace(/^(FT|FR|FS|NC|VD)\s*/i, '')   // Remover prefixo duplicado
+        .replace(/\s+$/, '')                     // Remover espaços finais
+        .toUpperCase();
+      
+      // ✅ VALIDAÇÃO: Verificar se tem conteúdo e tamanho mínimo
+      const temConteudo = /[A-Z0-9]/.test(numero);
+      const tamanhoOK = numero.length >= 3;
+      
+      if (temConteudo && tamanhoOK) {
+        void 0;
+        return numero;
+      }
     }
   }
   
+  // ❌ SEM FALLBACK - Se não encontrou com contexto, não retorna nada
   void 0;
   return null;
 };
@@ -5871,7 +6107,8 @@ void 0;
       vocabularioFornecedor, // 🧠 Incluir aprendizagem
       templatesOCR, // 📋 Incluir templates
       configuracaoWaste, // 🆕 Waste tracking config
-      contagens // 🆕 Histórico de contagens
+      contagens, // 🆕 Histórico de contagens
+      movimentacoesStock // 🆕 STOCK INTELIGENTE
     };
     
     const blob = new Blob([JSON.stringify(dados, null, 2)], { type: 'application/json' });
@@ -5927,6 +6164,188 @@ void 0;
           if (dados.templatesOCR) setTemplatesOCR(dados.templatesOCR); // 📋 Importar templates
           if (dados.configuracaoWaste) setConfiguracaoWaste(dados.configuracaoWaste); // 🆕 Waste tracking config
           if (dados.contagens) setContagens(dados.contagens); // 🆕 Contagens de inventário
+          if (dados.movimentacoesStock) setMovimentacoesStock(dados.movimentacoesStock); // 🆕 STOCK INTELIGENTE
+          
+          // 🆕 PROCESSAR HISTÓRICO: Criar movimentações retroativas das vendas e despesas antigas
+          setTimeout(() => {
+            const novasMovimentacoes = [];
+            let stocksAtualizados = {};
+            
+            // Inicializar stocks atuais
+            if (dados.ingredientes) {
+              dados.ingredientes.forEach(ing => {
+                stocksAtualizados[ing.id] = ing.stockAtual || 0;
+              });
+            }
+            
+            // PROCESSAR DESPESAS/COMPRAS (entrada de stock)
+            if (dados.despesas && dados.ingredientes) {
+              const compras = dados.despesas.filter(d => d.categoria === 'compras' && d.ingredienteId);
+              console.log(`📦 Processando ${compras.length} despesas de compras...`);
+              
+              compras
+                .sort((a, b) => new Date(a.data) - new Date(b.data))
+                .forEach(despesa => {
+                  const ingrediente = dados.ingredientes.find(i => i.id === despesa.ingredienteId);
+                  if (!ingrediente) {
+                    console.warn(`⚠️ Ingrediente ${despesa.ingredienteId} não encontrado na despesa`);
+                    return;
+                  }
+                  
+                  const quantidadeConvertida = converterParaUnidadeBase(
+                    parseFloat(despesa.quantidade || 0),
+                    despesa.unidade || ingrediente.unidade,
+                    ingrediente.unidade
+                  );
+                  
+                  const stockAnterior = stocksAtualizados[ingrediente.id] || 0;
+                  const stockNovo = stockAnterior + quantidadeConvertida;
+                  stocksAtualizados[ingrediente.id] = stockNovo;
+                  
+                  novasMovimentacoes.push({
+                    id: Date.now() + Math.random(),
+                    data: despesa.data,
+                    tipo: 'entrada',
+                    ingredienteId: ingrediente.id,
+                    ingredienteNome: ingrediente.nome,
+                    quantidade: quantidadeConvertida,
+                    unidade: ingrediente.unidade,
+                    stockAnterior: stockAnterior,
+                    stockNovo: stockNovo,
+                    fornecedor: despesa.fornecedor || 'N/A',
+                    numeroDocumento: despesa.numeroDocumento || 'N/A',
+                    precoTotal: parseFloat(despesa.valor || 0),
+                    precoUnitario: parseFloat(despesa.valor || 0) / parseFloat(despesa.quantidade || 1),
+                    observacao: `Compra: +${quantidadeConvertida.toFixed(2)} ${ingrediente.unidade}`
+                  });
+                });
+            }
+            
+            // 🆕 PROCESSAR FATURAS (entrada de stock)
+            if (dados.faturas && dados.ingredientes) {
+              console.log(`📄 Processando faturas...`);
+              dados.faturas
+                .sort((a, b) => new Date(a.data) - new Date(b.data))
+                .forEach(fatura => {
+                  if (!fatura.itens || fatura.itens.length === 0) return;
+                  
+                  fatura.itens.forEach(item => {
+                    if (!item.ingredienteId) return;
+                    
+                    const ingrediente = dados.ingredientes.find(i => i.id === item.ingredienteId);
+                    if (!ingrediente) {
+                      console.warn(`⚠️ Ingrediente ${item.ingredienteId} não encontrado na fatura`);
+                      return;
+                    }
+                    
+                    const quantidadeConvertida = converterParaUnidadeBase(
+                      parseFloat(item.quantidade || 0),
+                      item.unidade || ingrediente.unidade,
+                      ingrediente.unidade
+                    );
+                    
+                    const stockAnterior = stocksAtualizados[ingrediente.id] || 0;
+                    const stockNovo = stockAnterior + quantidadeConvertida;
+                    stocksAtualizados[ingrediente.id] = stockNovo;
+                    
+                    novasMovimentacoes.push({
+                      id: Date.now() + Math.random(),
+                      data: fatura.data,
+                      tipo: 'entrada',
+                      ingredienteId: ingrediente.id,
+                      ingredienteNome: ingrediente.nome,
+                      quantidade: quantidadeConvertida,
+                      unidade: ingrediente.unidade,
+                      stockAnterior: stockAnterior,
+                      stockNovo: stockNovo,
+                      fornecedor: fatura.fornecedor || 'N/A',
+                      numeroDocumento: fatura.numeroDocumento || fatura.numero || 'N/A',
+                      precoTotal: parseFloat(item.total || 0),
+                      precoUnitario: parseFloat(item.precoUnitario || 0),
+                      observacao: `Compra (Fatura): +${quantidadeConvertida.toFixed(2)} ${ingrediente.unidade}`
+                    });
+                  });
+                });
+            }
+            
+            // PROCESSAR VENDAS (saída de stock)
+            if (dados.vendas && dados.produtos && dados.ingredientes) {
+              console.log(`🛒 Processando ${dados.vendas.length} vendas...`);
+              let vendasProcessadas = 0;
+              let vendasSemReceita = 0;
+              
+              dados.vendas
+                .sort((a, b) => new Date(a.data) - new Date(b.data))
+                .forEach(venda => {
+                  const produto = dados.produtos.find(p => p.id === venda.produtoId);
+                  if (!produto) {
+                    console.warn(`⚠️ Produto ${venda.produtoId} não encontrado`);
+                    return;
+                  }
+                  
+                  if (!produto.receita || produto.receita.length === 0) {
+                    vendasSemReceita++;
+                    return;
+                  }
+                  
+                  vendasProcessadas++;
+                  produto.receita.forEach(receitaItem => {
+                    const ingrediente = dados.ingredientes.find(i => i.id === receitaItem.ingredienteId);
+                    if (!ingrediente) {
+                      console.warn(`⚠️ Ingrediente ${receitaItem.ingredienteId} não encontrado na receita de ${produto.nome}`);
+                      return;
+                    }
+                    
+                    // 🆕 CONVERTER unidade da receita para unidade do ingrediente
+                    const quantidadeReceitaConvertida = converterParaUnidadeBase(
+                      receitaItem.quantidade,
+                      receitaItem.unidade || ingrediente.unidade,
+                      ingrediente.unidade
+                    );
+                    
+                    const quantidadeUsada = arredondar(quantidadeReceitaConvertida * parseFloat(venda.quantidade || 1));
+                    const stockAnterior = arredondar(stocksAtualizados[ingrediente.id] || 0);
+                    const stockNovo = arredondar(Math.max(0, stockAnterior - quantidadeUsada));
+                    stocksAtualizados[ingrediente.id] = stockNovo;
+                    
+                    novasMovimentacoes.push({
+                      id: Date.now() + Math.random(),
+                      data: venda.data,
+                      tipo: 'saida',
+                      ingredienteId: ingrediente.id,
+                      ingredienteNome: ingrediente.nome,
+                      quantidade: quantidadeUsada,
+                      unidade: ingrediente.unidade,
+                      stockAnterior: stockAnterior,
+                      stockNovo: stockNovo,
+                      produtoId: produto.id,
+                      produtoNome: produto.nome,
+                      quantidadeProdutos: parseFloat(venda.quantidade || 1),
+                      observacao: `Venda: -${quantidadeUsada.toFixed(2)} ${ingrediente.unidade} (${venda.quantidade}x ${produto.nome})`
+                    });
+                  });
+                });
+              
+              console.log(`✅ Vendas processadas: ${vendasProcessadas} (${vendasSemReceita} sem receita)`);
+            }
+            
+            // Adicionar movimentações antigas às existentes (se houver no JSON)
+            const movimentacoesFinais = [...(dados.movimentacoesStock || []), ...novasMovimentacoes];
+            setMovimentacoesStock(movimentacoesFinais);
+            
+            // Atualizar stocks dos ingredientes
+            if (dados.ingredientes) {
+              const ingredientesAtualizados = dados.ingredientes.map(ing => ({
+                ...ing,
+                stockAtual: stocksAtualizados[ing.id] !== undefined ? stocksAtualizados[ing.id] : ing.stockAtual
+              }));
+              setIngredientes(ingredientesAtualizados);
+            }
+            
+            const entradas = novasMovimentacoes.filter(m => m.tipo === 'entrada').length;
+            const saidas = novasMovimentacoes.filter(m => m.tipo === 'saida').length;
+            console.log(`✅ TOTAL: ${novasMovimentacoes.length} movimentações (${entradas} entradas, ${saidas} saídas)`);
+          }, 500);
           
           showNotification('Dados importados com sucesso!', 'success');
           // Navegar para dashboard com subtab resumo
@@ -7083,6 +7502,7 @@ void 0;
         vocabularioFornecedor: vocabularioFornecedor || [], // 🧠 CORRIGIDO: Salvar aprendizagem
         configuracaoWaste: configuracaoWaste || {}, // 🆕 Waste tracking config
         contagens: contagens || [], // 🆕 Histórico de contagens
+        movimentacoesStock: movimentacoesStock || [], // 🆕 STOCK INTELIGENTE
         lastUpdate: new Date().toISOString()
       };
       let fileId = driveFileId;
@@ -7432,6 +7852,12 @@ void 0;
         }
         if (data.contagens) {
           setContagens(data.contagens);
+          void 0;
+        }
+        
+        // 🆕 STOCK INTELIGENTE: Carregar movimentações
+        if (data.movimentacoesStock) {
+          setMovimentacoesStock(data.movimentacoesStock);
           void 0;
         }
         
@@ -7840,47 +8266,104 @@ void 0;
     if (!ingredienteContagem) return;
     
     const novoStock = parseFloat(valorContagem) || 0;
+    const ingrediente = ingredientes.find(ing => ing.id === ingredienteContagem.id);
+    if (!ingrediente) return;
+    
+    // 🆕 CALCULAR STOCK TEÓRICO baseado em movimentações
+    const movimentacoesIngrediente = movimentacoesStock.filter(m => m.ingredienteId === ingrediente.id);
+    let stockTeorico = 0;
+    
+    movimentacoesIngrediente.forEach(mov => {
+      if (mov.tipo === 'entrada') {
+        stockTeorico += mov.quantidade;
+      } else if (mov.tipo === 'saida') {
+        stockTeorico -= mov.quantidade;
+      } else if (mov.tipo === 'ajuste') {
+        stockTeorico += mov.quantidade; // ajuste pode ser + ou -
+      }
+    });
+    
+    // Se não há movimentações, usar stock atual como base
+    if (movimentacoesIngrediente.length === 0) {
+      stockTeorico = ingrediente.stockAtual || 0;
+    }
+    
+    // 🆕 CALCULAR AJUSTE NECESSÁRIO
+    const ajuste = novoStock - stockTeorico;
+    const desperdicio = Math.max(0, stockTeorico - novoStock);
+    const percentagem = stockTeorico > 0 ? (desperdicio / stockTeorico) * 100 : 0;
+    
+    // 🆕 CRIAR MOVIMENTAÇÃO DE AJUSTE (se houver diferença)
+    if (Math.abs(ajuste) > 0.001) { // Tolerância para erros de arredondamento
+      const tipoAjuste = ajuste < 0 ? 'desperdício' : 'excesso';
+      const movimentacaoAjuste = {
+        id: Date.now() + Math.random(),
+        data: new Date().toISOString().split('T')[0],
+        tipo: 'ajuste',
+        subTipo: tipoAjuste,
+        ingredienteId: ingrediente.id,
+        ingredienteNome: ingrediente.nome,
+        quantidade: ajuste,
+        unidade: ingrediente.unidade,
+        stockAnterior: stockTeorico,
+        stockNovo: novoStock,
+        observacao: ajuste < 0 
+          ? `Ajuste inventário: ${Math.abs(ajuste).toFixed(2)} ${ingrediente.unidade} de desperdício (${percentagem.toFixed(1)}%)`
+          : `Ajuste inventário: +${ajuste.toFixed(2)} ${ingrediente.unidade} excesso detectado`
+      };
+      
+      setMovimentacoesStock(prev => [...prev, movimentacaoAjuste]);
+    }
     
     // Atualizar ingrediente com novo stock
     setIngredientes(ingredientes.map(ing => {
       if (ing.id !== ingredienteContagem.id) return ing;
       
-      // Se modo manual, calcular % real de desperdício
-      if (ing.modoWaste === 'manual') {
-        // Calcular stock teórico (simplificado por agora)
-        const stockTeorico = ing.stockAtual || 0; // Em produção, calcular com compras/vendas
-        const desperdicio = Math.max(0, stockTeorico - novoStock);
-        const percentagem = stockTeorico > 0 ? (desperdicio / stockTeorico) * 100 : 0;
-        
-        // Adicionar ao histórico
-        const novaContagem = {
-          data: new Date().toISOString(),
-          stockTeorico: stockTeorico,
-          stockReal: novoStock,
-          desperdicio: desperdicio,
-          percentagem: percentagem,
-          observacoes: ''
-        };
-        
-        const historicoAtualizado = [...(ing.historicoContagens || []), novaContagem];
-        
-        return {
-          ...ing,
-          stockAtual: novoStock,
-          ultimaContagem: new Date().toISOString(),
-          historicoContagens: historicoAtualizado
-        };
-      }
+      // Criar registro de contagem para histórico
+      const novaContagem = {
+        id: Date.now(),
+        data: new Date().toISOString(),
+        stockTeorico: stockTeorico,
+        stockReal: novoStock,
+        desperdicio: desperdicio,
+        percentagem: percentagem,
+        ajuste: ajuste,
+        observacoes: ''
+      };
       
-      // Se modo automático, apenas atualizar stock
+      // Adicionar contagem ao histórico global
+      setContagens(prev => [...prev, {
+        ...novaContagem,
+        ingredienteId: ing.id,
+        ingredienteNome: ing.nome,
+        unidade: ing.unidade
+      }]);
+      
       return {
         ...ing,
         stockAtual: novoStock,
-        ultimaContagem: new Date().toISOString()
+        ultimaContagem: new Date().toISOString(),
+        historicoContagens: [...(ing.historicoContagens || []), novaContagem]
       };
     }));
     
-    showNotification(`Stock de ${ingredienteContagem.nome} atualizado: ${novoStock} ${ingredienteContagem.unidade}`, 'success');
+    // Mensagem de feedback
+    if (Math.abs(ajuste) > 0.001) {
+      if (ajuste < 0) {
+        showNotification(
+          `Stock atualizado: ${novoStock} ${ingrediente.unidade} | Desperdício: ${Math.abs(ajuste).toFixed(2)} ${ingrediente.unidade} (${percentagem.toFixed(1)}%)`,
+          'warning'
+        );
+      } else {
+        showNotification(
+          `Stock atualizado: ${novoStock} ${ingrediente.unidade} | Excesso: +${ajuste.toFixed(2)} ${ingrediente.unidade}`,
+          'success'
+        );
+      }
+    } else {
+      showNotification(`Stock confirmado: ${novoStock} ${ingrediente.unidade} ✓`, 'success');
+    }
+    
     setModalContagem(false);
     setIngredienteContagem(null);
     setValorContagem(0);
@@ -8041,6 +8524,20 @@ void 0;
       iva: parseFloat(novaDespesa.iva),
       quantidade: novaDespesa.quantidade ? parseFloat(novaDespesa.quantidade) : null
     }]);
+    
+    // 🆕 Se for compra de ingrediente, registrar entrada no stock
+    if (novaDespesa.categoria === 'compras' && novaDespesa.ingredienteId && stockRastreamentoAtivo) {
+      registrarEntradaStock({
+        ingredienteId: novaDespesa.ingredienteId,
+        quantidade: parseFloat(novaDespesa.quantidade || 0),
+        unidade: novaDespesa.unidade || 'kg',
+        precoTotal: parseFloat(novaDespesa.valor || 0),
+        data: novaDespesa.data,
+        fornecedor: novaDespesa.fornecedor,
+        numeroDocumento: novaDespesa.numeroDocumento
+      });
+    }
+    
     setNovaDespesa({ 
       descricao: '', 
       valor: '', 
@@ -8064,19 +8561,20 @@ void 0;
   };
 
   const adicionarVendaManual = () => {
-    if (!novaVenda.produtoId) {
-      showNotification('Selecione um produto!', 'error');
+    // Validação robusta do produtoId
+    if (!novaVenda.produtoId || novaVenda.produtoId === '' || isNaN(novaVenda.produtoId)) {
+      showNotification('⚠️ Selecione um produto!', 'error');
       return;
     }
     
     if (!novaVenda.quantidade || parseFloat(novaVenda.quantidade) <= 0) {
-      showNotification('Quantidade inválida!', 'error');
+      showNotification('⚠️ Quantidade inválida!', 'error');
       return;
     }
     
-    const produto = produtos.find(p => p.id === novaVenda.produtoId);
+    const produto = produtos.find(p => p.id === parseInt(novaVenda.produtoId));
     if (!produto) {
-      showNotification('Produto não encontrado!', 'error');
+      showNotification('❌ Produto não encontrado!', 'error');
       return;
     }
     
@@ -8102,6 +8600,15 @@ void 0;
       origem: 'moloni' // ✅ PARA FILTRO DE MÉTRICAS (vendas manuais = Moloni)
     };
     
+    // 🆕 Registrar saída de stock automaticamente
+    if (stockRastreamentoAtivo && produto.receita && produto.receita.length > 0) {
+      registrarSaidaStock({
+        produtoId: produto.id,
+        quantidade: parseFloat(novaVenda.quantidade),
+        data: novaVenda.data
+      });
+    }
+    
     setVendas([...vendas, vendaManual]);
     
     // Reset form
@@ -8118,7 +8625,7 @@ void 0;
     });
     
     setMostrarVendaManual(false);
-    showNotification('Venda adicionada com sucesso!', 'success');
+    showNotification('✅ Venda adicionada com sucesso!', 'success');
   };
 
   const confirmarDespesaSemAtualizar = () => {
@@ -8135,6 +8642,20 @@ void 0;
       iva: parseFloat(despesaData.iva),
       quantidade: despesaData.quantidade ? parseFloat(despesaData.quantidade) : null
     }]);
+    
+    // 🆕 Se for compra de ingrediente, registrar entrada no stock
+    if (despesaData.categoria === 'compras' && despesaData.ingredienteId && stockRastreamentoAtivo) {
+      registrarEntradaStock({
+        ingredienteId: despesaData.ingredienteId,
+        quantidade: parseFloat(despesaData.quantidade || 0),
+        unidade: despesaData.unidade || 'kg',
+        precoTotal: parseFloat(despesaData.valor || 0),
+        data: despesaData.data,
+        fornecedor: despesaData.fornecedor,
+        numeroDocumento: despesaData.numeroDocumento
+      });
+    }
+    
     setNovaDespesa({ 
       descricao: '', 
       valor: '', 
@@ -8180,6 +8701,20 @@ void 0;
       iva: parseFloat(despesaData.iva),
       quantidade: despesaData.quantidade ? parseFloat(despesaData.quantidade) : null
     }]);
+    
+    // 🆕 Se for compra de ingrediente, registrar entrada no stock
+    if (despesaData.categoria === 'compras' && despesaData.ingredienteId && stockRastreamentoAtivo) {
+      registrarEntradaStock({
+        ingredienteId: despesaData.ingredienteId,
+        quantidade: parseFloat(despesaData.quantidade || 0),
+        unidade: despesaData.unidade || 'kg',
+        precoTotal: parseFloat(despesaData.valor || 0),
+        data: despesaData.data,
+        fornecedor: despesaData.fornecedor,
+        numeroDocumento: despesaData.numeroDocumento
+      });
+    }
+    
     setNovaDespesa({ 
       descricao: '', 
       valor: '', 
@@ -9461,101 +9996,111 @@ void 0;
     try {
       const data = await file.arrayBuffer();
       const workbook = XLSX.read(data);
-      const sheetName = 'receiptsWithItems'; // Nome da sheet do Zobaze
-      const worksheet = workbook.Sheets[sheetName];
+      const worksheet = workbook.Sheets['receiptsWithItems'];
       
       if (!worksheet) {
-        showNotification('❌ Sheet "receiptsWithItems" não encontrada no Excel', 'error');
+        showNotification('❌ Sheet "receiptsWithItems" não encontrada', 'error');
         return;
       }
       
       const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-      
-      // Agrupar por ReceiptId
-      const vendasDict = {};
-      let currentReceipt = null;
-      
-      for (let i = 1; i < rows.length; i++) { // Skip header
-        const row = rows[i];
-        const receiptId = row[0];
-        const date = row[1];
-        const entryType = row[6];
-        const entryName = row[7];
-        const entryAmount = row[8];
-        const total = row[10];
-        
-        // Se tem receiptId, é nova venda
-        if (receiptId) {
-          currentReceipt = receiptId;
-          if (!vendasDict[receiptId]) {
-            vendasDict[receiptId] = {
-              receiptId: receiptId,
-              data: date,
-              produtos: [],
-              total: total || 0
-            };
-          }
-        }
-        
-        // Se é item, adicionar ao receipt atual
-        if (entryType === 'Item' && entryName && currentReceipt) {
-          // Parse "Ovos Turcos (1 X 8)" -> nome: Ovos Turcos, qtd: 1, preço: 8
-          const match = entryName.match(/(.+?)\s*\((\d+(?:\.\d+)?)\s*X\s*(\d+(?:\.\d+)?)\)/);
-          if (match) {
-            const nome = match[1].trim();
-            const qtd = parseFloat(match[2]);
-            const preco = parseFloat(match[3]);
-            
-            vendasDict[currentReceipt].produtos.push({
-              nome: nome,
-              quantidade: qtd,
-              precoUnitario: preco
-            });
-          }
-        }
-      }
-      
-      // Converter para formato do sistema
       const vendasImportadas = [];
-      for (const [receiptId, vendaData] of Object.entries(vendasDict)) {
-        if (!vendaData.data || vendaData.produtos.length === 0) continue;
+      let statsDicionario = 0, statsFuzzy = 0, statsExato = 0, statsSemMatch = 0;
+      
+      let currentDate = '';
+      
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
         
-        // Converter data "Oct 25, 2025 2:55 PM" -> "2025-10-25"
-        try {
-          const dt = new Date(vendaData.data);
-          const dataISO = dt.toISOString().split('T')[0];
-          
-          // Criar vendas individuais para cada produto (formato atual do sistema)
-          vendaData.produtos.forEach(prod => {
-            vendasImportadas.push({
-              id: Date.now() + Math.random(),
-              data: dataISO,
-              produto: prod.nome,
-              quantidade: prod.quantidade,
-              valor: prod.quantidade * prod.precoUnitario,
-              total: prod.quantidade * prod.precoUnitario, // ✅ ADICIONAR CAMPO TOTAL
-              iva: 6,
-              tipo: 'manual', // Marca como manual
-              origem: 'zobaze', // ✅ PARA FILTRO DE MÉTRICAS
-              fonte: 'zobaze' // Para tracking opcional
-            });
-          });
-        } catch (err) {
-          void 0;
+        // Se tem data na coluna [1], guardar (é linha de cabeçalho do receipt)
+        if (row[1]) {
+          currentDate = row[1];
         }
+        
+        // Processar apenas items
+        if (row[6] !== 'Item' || !row[7] || !row[8]) continue;
+        
+        const match = String(row[7]).match(/(.+?)\s*\(\d+(?:\.\d+)?\s*X\s*[\d.]+\)/);
+        const nomeProduto = match ? match[1].trim() : String(row[7]).trim();
+        const valor = parseFloat(row[8]) || 0;
+        
+        if (!nomeProduto || valor === 0) continue;
+        
+        let produto = null, confianca = 0, metodoMatch = 'nenhum';
+        
+        const nomeCorrigido = mapearNomeProduto(nomeProduto);
+        if (nomeCorrigido !== nomeProduto) {
+          produto = produtos.find(p => p.nome === nomeCorrigido);
+          if (produto) { confianca = 100; metodoMatch = 'dicionario'; statsDicionario++; }
+        }
+        
+        if (!produto) {
+          const matchResult = findBestMatchProduto(nomeProduto, produtos);
+          if (matchResult) {
+            produto = produtos.find(p => p.id === matchResult.id);
+            confianca = matchResult.confianca;
+            metodoMatch = matchResult.metodo;
+            if (matchResult.metodo === 'exato') statsExato++; else statsFuzzy++;
+          } else {
+            statsSemMatch++;
+          }
+        }
+        
+        // Usar a data guardada do receipt
+        let dataFormatada = '';
+        if (currentDate) {
+          try {
+            const dt = new Date(currentDate);
+            dataFormatada = !isNaN(dt.getTime()) ? dt.toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+          } catch (err) {
+            dataFormatada = new Date().toISOString().split('T')[0];
+          }
+        } else {
+          dataFormatada = new Date().toISOString().split('T')[0];
+        }
+        
+        vendasImportadas.push({
+          id: Date.now() + Math.random(),
+          data: dataFormatada,
+          produto: produto?.nome || nomeProduto,
+          produtoId: produto?.id || null,
+          quantidade: 1,
+          valor: valor,
+          iva: produto?.iva || 6,
+          origem: 'zobaze',
+          confiancaMatch: confianca,
+          metodoMatch: metodoMatch,
+          nomeOriginalCSV: nomeProduto
+        });
       }
       
       if (vendasImportadas.length > 0) {
         setVendas([...vendas, ...vendasImportadas]);
-        showNotification(`✅ ${vendasImportadas.length} vendas Zobaze importadas!`, 'success');
-        e.target.value = ''; // Reset input
+        setMostrarImportacao(false);
+        
+        const total = statsDicionario + statsExato + statsFuzzy;
+        const pct = Math.round(total/vendasImportadas.length*100);
+        
+        showNotification(
+          '✅ ' + vendasImportadas.length + ' vendas Zobaze!\n' +
+          '✓ ' + total + ' emparelhadas (' + pct + '%)\n' +
+          '  • ' + statsDicionario + ' dicionário\n' +
+          '  • ' + statsExato + ' exato\n' +
+          '  • ' + statsFuzzy + ' fuzzy\n' +
+          (statsSemMatch > 0 ? '⚠ ' + statsSemMatch + ' sem match' : ''),
+          total === vendasImportadas.length ? 'success' : 'warning'
+        );
+        
+        console.log('ZOBAZE:', {total: vendasImportadas.length, dicionario: statsDicionario, exato: statsExato, fuzzy: statsFuzzy, semMatch: statsSemMatch});
+        if (statsSemMatch > 0) console.log('Sem match:', vendasImportadas.filter(v => !v.produtoId).map(v => v.nomeOriginalCSV));
+        
+        e.target.value = '';
       } else {
         showNotification('❌ Nenhuma venda válida encontrada', 'error');
       }
-      
     } catch (err) {
-      void 0;
-      showNotification('❌ Erro ao processar ficheiro Zobaze', 'error');
+      console.error('Erro Zobaze:', err);
+      showNotification('❌ Erro: ' + err.message, 'error');
     }
   };
 
@@ -9636,6 +10181,7 @@ void 0;
         fornecedores,
         dadosEmpresa,
         faturas,
+        movimentacoesStock, // 🆕 STOCK INTELIGENTE
         timestamp: new Date().toISOString()
       };
       
@@ -9858,9 +10404,20 @@ void 0;
   const filteredDespesas = getFilteredData(despesas);
   const filteredFaturas = getFilteredData(faturas);
   
+  // ✅ APLICAR FILTROS DE CONFIGURAÇÃO (além dos filtros de data)
+  // Aplicar filtros por tipo de fatura (FT/FR/FS) - APENAS para cálculos de compras
+  const filteredFaturasComConfig = filteredFaturas.filter(f => {
+    const tipo = f.tipo;
+    if (tipo === 'FT') return configuracoes.metricas?.incluirFT !== false;
+    if (tipo === 'FR') return configuracoes.metricas?.incluirFR !== false;
+    if (tipo === 'FS') return configuracoes.metricas?.incluirFS !== false;
+    return true; // Incluir tipos desconhecidos por segurança
+  });
+  
   // ✅ CRIAR ARRAY UNIFICADO: despesas manuais + faturas (convertidas para formato de despesa)
   // ⚠️ FILTRAR: Só faturas que vão para contabilista (FT e FR, não FS)
-  const faturasParaContabilista = filteredFaturas.filter(f => f.paraContabilista !== false);
+  // ✅ USAR faturas COM filtros de configuração aplicados
+  const faturasParaContabilista = filteredFaturasComConfig.filter(f => f.paraContabilista !== false);
   const faturasComoDespesas = faturasParaContabilista.map(f => ({
     id: f.id,
     data: f.data,
@@ -9947,17 +10504,18 @@ void 0;
   // 🆕 CALCULAR ÍNDICE DE DESPERDÍCIO
   // ✅ FILTRO RESTRITO: Apenas faturas EXPLICITAMENTE marcadas como 'compras'
   // Faturas sem categoria são IGNORADAS (em vez de assumidas como compras)
-  const comprasPeriodo = filteredFaturas.filter(f => {
+  // ✅ USAR faturas COM filtros de configuração aplicados
+  const comprasPeriodo = filteredFaturasComConfig.filter(f => {
     const cat = f.categoria;
     // APENAS aceitar se categoria é explicitamente 'compras'
     return cat === 'compras';
   });
   
   // 🔍 DEBUG: Mostrar categorias das faturas para diagnóstico
-  if (filteredFaturas.length > 0) {
+  if (filteredFaturasComConfig.length > 0) {
     const categoriasFaturas = {};
     const faturaSemCategoria = [];
-    filteredFaturas.forEach(f => {
+    filteredFaturasComConfig.forEach(f => {
       const cat = f.categoria || 'SEM_CATEGORIA';
       categoriasFaturas[cat] = (categoriasFaturas[cat] || 0) + 1;
       if (!f.categoria) {
@@ -9969,7 +10527,7 @@ void 0;
       }
     });
     console.log('📊 Faturas por Categoria:', categoriasFaturas);
-    console.log('🛒 Faturas consideradas COMPRAS:', comprasPeriodo.length, 'de', filteredFaturas.length, 'totais');
+    console.log('🛒 Faturas consideradas COMPRAS:', comprasPeriodo.length, 'de', filteredFaturasComConfig.length, 'totais');
     if (faturaSemCategoria.length > 0) {
       console.warn('⚠️ ATENÇÃO: ' + faturaSemCategoria.length + ' faturas SEM CATEGORIA (sendo ignoradas no Food Cost)');
       console.table(faturaSemCategoria);
@@ -9977,7 +10535,8 @@ void 0;
     }
   }
   
-  const indiceDesperdicio = calcularIndiceDesperdicio(comprasPeriodo, filteredVendas, produtos);
+  // ✅ ÍNDICE DE DESPERDÍCIO com vendas filtradas
+  const indiceDesperdicio = calcularIndiceDesperdicio(comprasPeriodo, vendasFiltradas, produtos);
   
   void 0;
   
@@ -10022,12 +10581,28 @@ void 0;
   });
   
   // IVA Vendas (a receber do estado) - APENAS TRIMESTRE ATUAL
-  const ivaV = vendasAnoAtual.reduce((s, v) => s + ((v.total || v.valor || 0) * v.iva / (100 + v.iva)), 0);
+  // ✅ APLICAR FILTROS DE CONFIGURAÇÃO POR ORIGEM
+  const vendasAnoFiltradas = vendasAnoAtual.filter(v => {
+    const origem = v.origem || 'manual';
+    if (origem === 'moloni') return configuracoes.metricas?.incluirMoloni !== false;
+    if (origem === 'zobaze') return configuracoes.metricas?.incluirZobaze !== false;
+    if (origem === 'manual' || v.tipo === 'manual') return configuracoes.metricas?.incluirManual !== false;
+    return true;
+  });
+  const ivaV = vendasAnoFiltradas.reduce((s, v) => s + ((v.total || v.valor || 0) * v.iva / (100 + v.iva)), 0);
   
   // IVA Compras (das faturas - a deduzir) - APENAS TRIMESTRE ATUAL
   // ⚠️ EXCLUIR Faturas Simplificadas (FS) - NÃO dão direito à dedução de IVA
+  // ✅ APLICAR FILTROS DE CONFIGURAÇÃO POR TIPO DE FATURA
   const ivaComprasFaturas = faturasAnoAtual
-    .filter(f => f.tipo !== 'FS') // ✅ Só FT e FR deduzem IVA
+    .filter(f => {
+      // Primeiro: FS nunca deduz IVA
+      if (f.tipo === 'FS') return false;
+      // Aplicar filtros de configuração
+      if (f.tipo === 'FT') return configuracoes.metricas?.incluirFT !== false;
+      if (f.tipo === 'FR') return configuracoes.metricas?.incluirFR !== false;
+      return true; // Incluir tipos desconhecidos por segurança
+    })
     .reduce((s, f) => s + (f.totalIva || 0), 0);
   
   // IVA Compras (das despesas com categoria "compras") - APENAS TRIMESTRE ATUAL
@@ -10053,16 +10628,17 @@ void 0;
   
   const ratioDespesaFaturacao = totV > 0 ? (totD / totV) * 100 : 0;
 
+  // ✅ LUCRO REAL com filtros aplicados
   let lucroReal = 0;
   let vComC = 0;
-  vendas.forEach(v => { 
+  vendasFiltradas.forEach(v => { 
     const { lucro, temCusto } = calcLucroVenda(v); 
     lucroReal += lucro; 
     if (temCusto) vComC++; 
   });
 
   const vPorDia = {};
-  vendas.forEach(v => {
+  vendasFiltradas.forEach(v => {
     if (!vPorDia[v.data]) vPorDia[v.data] = { total: 0, lucro: 0, qtd: 0 };
     vPorDia[v.data].total += v.valor;
     vPorDia[v.data].qtd += v.quantidade;
@@ -10080,8 +10656,16 @@ void 0;
   
   // IVA das faturas do período
   // ⚠️ EXCLUIR Faturas Simplificadas (FS) - NÃO dão direito à dedução de IVA
-  const ivaFaturasPeriodo = filteredFaturas
-    .filter(f => f.tipo !== 'FS') // ✅ Só FT e FR deduzem IVA
+  // ✅ APLICAR FILTROS DE CONFIGURAÇÃO POR TIPO DE FATURA
+  const ivaFaturasPeriodo = filteredFaturasComConfig
+    .filter(f => {
+      // Primeiro: FS nunca deduz IVA
+      if (f.tipo === 'FS') return false;
+      // Aplicar filtros de configuração
+      if (f.tipo === 'FT') return configuracoes.metricas?.incluirFT !== false;
+      if (f.tipo === 'FR') return configuracoes.metricas?.incluirFR !== false;
+      return true; // Incluir tipos desconhecidos por segurança
+    })
     .reduce((s, f) => s + (f.totalIva || 0), 0);
   
   // IVA das despesas manuais - INCLUI TODAS AS CATEGORIAS COM IVA DEDUTÍVEL
@@ -11983,8 +12567,8 @@ void 0;
 
       {/* Price Change Alert Modal */}
       {showPriceAlert && priceAlertData && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
-          <div className="bg-white rounded-lg shadow-2xl max-w-md w-full">
+        <div className="fixed inset-0 bg-black/50 flex items-start justify-center z-[60] overflow-y-auto p-4 pt-8">
+          <div className="bg-white rounded-lg shadow-2xl max-w-md w-full my-8">
             <div className="bg-orange-500 text-white px-4 py-3 rounded-t-lg flex items-center justify-between">
               <h3 className="font-bold text-lg flex items-center gap-2">
                 <AlertCircle size={20} />
@@ -12818,15 +13402,6 @@ void 0;
 
             {/* Análise Financeira - REMOVIDA (alerta movido para card de Despesas) */}
 
-
-          {/* Painel de Alertas de Stock - No final da página */}
-          <PainelAlertasStock 
-            ingredientes={ingredientes}
-            getStockStatus={getStockStatus}
-            setActiveTab={setActiveTab}
-            setGestaoSubTab={setGestaoSubTab}
-            showNotification={showNotification}
-          />
 
               </>
             )}
@@ -14046,7 +14621,8 @@ void 0;
                             }, 0);
                           
                           // IVA das faturas de COMPRAS apenas (excluir FS)
-                          const ivaFaturasCompras = filteredFaturas
+                          // ✅ APLICAR FILTROS DE CONFIGURAÇÃO
+                          const ivaFaturasCompras = filteredFaturasComConfig
                             .filter(f => f.categoria === 'compras' && f.tipo !== 'FS')
                             .reduce((s, f) => s + (f.totalIva || 0), 0);
                           
@@ -14082,7 +14658,8 @@ void 0;
                             }, 0);
                           
                           // IVA de faturas fixas (excluir FS)
-                          const ivaFaturasFixas = filteredFaturas
+                          // ✅ APLICAR FILTROS DE CONFIGURAÇÃO
+                          const ivaFaturasFixas = filteredFaturasComConfig
                             .filter(f => ['renda', 'eletricidade', 'agua', 'gas', 'internet'].includes(f.categoria) && f.tipo !== 'FS')
                             .reduce((s, f) => s + (f.totalIva || 0), 0);
                           
@@ -14105,7 +14682,8 @@ void 0;
                             }, 0);
                           
                           // IVA de outras faturas (excluir FS)
-                          const ivaOutrasFaturas = filteredFaturas
+                          // ✅ APLICAR FILTROS DE CONFIGURAÇÃO
+                          const ivaOutrasFaturas = filteredFaturasComConfig
                             .filter(f => !['compras', 'renda', 'eletricidade', 'agua', 'gas', 'internet', 'salarios'].includes(f.categoria) && f.tipo !== 'FS')
                             .reduce((s, f) => s + (f.totalIva || 0), 0);
                           
@@ -14860,21 +15438,31 @@ void 0;
                   </select>
                 </div>
 
-                {/* Contador de Resultados */}
-                <div className="mb-2 text-sm text-gray-600">
-                  {(() => {
-                    const total = (ingredientes || []).length;
-                    const filtrados = (ingredientes || []).filter(ing => {
-                      const matchNome = ing.nome.toLowerCase().includes(searchIngredienteGlobal.toLowerCase());
-                      const matchCategoria = categoriaFiltro === 'todas' || ing.categoria === categoriaFiltro;
-                      return matchNome && matchCategoria;
-                    }).length;
-                    
-                    if (categoriaFiltro !== 'todas' || searchIngredienteGlobal) {
-                      return <p>📊 A mostrar <span className="font-bold">{filtrados}</span> de {total} ingredientes</p>;
-                    }
-                    return <p>📊 Total: <span className="font-bold">{total}</span> ingredientes</p>;
-                  })()}
+                {/* Contador de Resultados e Botão Movimentações */}
+                <div className="mb-2 flex items-center justify-between">
+                  <div className="text-sm text-gray-600">
+                    {(() => {
+                      const total = (ingredientes || []).length;
+                      const filtrados = (ingredientes || []).filter(ing => {
+                        const matchNome = ing.nome.toLowerCase().includes(searchIngredienteGlobal.toLowerCase());
+                        const matchCategoria = categoriaFiltro === 'todas' || ing.categoria === categoriaFiltro;
+                        return matchNome && matchCategoria;
+                      }).length;
+                      
+                      if (categoriaFiltro !== 'todas' || searchIngredienteGlobal) {
+                        return <p>📊 A mostrar <span className="font-bold">{filtrados}</span> de {total} ingredientes</p>;
+                      }
+                      return <p>📊 Total: <span className="font-bold">{total}</span> ingredientes</p>;
+                    })()}
+                  </div>
+                  
+                  <button
+                    onClick={() => setMostrarModalMovimentacoes(true)}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition font-semibold text-xs shadow"
+                  >
+                    <BarChart3 className="w-4 h-4" />
+                    📊 Ver Movimentações
+                  </button>
                 </div>
 
                 <div className="overflow-x-auto rounded border">
@@ -14887,7 +15475,7 @@ void 0;
                         <th className="px-2 py-2 text-right font-semibold">Custo</th>
                         <th className="px-2 py-2 text-center font-semibold">IVA</th>
                         <th className="px-2 py-2 text-left font-semibold">📦 Stock</th>
-                        <th className="px-2 py-2 text-left font-semibold">🗑️ Modo/Waste</th>
+                        <th className="px-2 py-2 text-left font-semibold">♻️ Desperdício</th>
                         <th className="px-2 py-2 text-center font-semibold">Ações</th>
                       </tr>
                     </thead>
@@ -14938,6 +15526,17 @@ void 0;
                               
                               return (
                                 <div className="space-y-1">
+                                  {/* ALERTA INLINE se stock crítico/baixo */}
+                                  {(status.status === 'CRITICO' || status.status === 'BAIXO') && (
+                                    <div className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                                      status.status === 'CRITICO' 
+                                        ? 'bg-red-100 text-red-700' 
+                                        : 'bg-orange-100 text-orange-700'
+                                    }`}>
+                                      {status.status === 'CRITICO' ? '🔴 CRÍTICO!' : '🟠 BAIXO'}
+                                    </div>
+                                  )}
+                                  
                                   <div className="flex items-center gap-1">
                                     <span className="text-base">{status.icone}</span>
                                     <div className="flex-1">
@@ -15012,15 +15611,28 @@ void 0;
                             })()}
                           </td>
                           <td className="px-2 py-2">
-                            <div className="space-y-0.5">
-                              <button 
-                                onClick={() => toggleModoWaste(ing.id)}
-                                className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${ing.modoWaste === 'automatico' ? 'bg-green-100 text-green-800 hover:bg-green-200' : 'bg-blue-100 text-blue-800 hover:bg-blue-200'}`}
-                              >
-                                {ing.modoWaste === 'automatico' ? '🤖 Auto' : '👤 Manual'}
-                              </button>
-                              <p className="text-[10px] text-gray-600">{getPercentagemDesperdicio(ing).toFixed(1)}%</p>
-                            </div>
+                            {(() => {
+                              const analise = calcularDesperdicio(ing);
+                              if (!analise || !analise.temDados || movimentacoesStock.length === 0) {
+                                return <span className="text-gray-400 text-xs">-</span>;
+                              }
+                              
+                              return (
+                                <div>
+                                  <div className={`font-bold text-sm ${
+                                    analise.percentualDesperdicio > 25 ? 'text-red-600' :
+                                    analise.percentualDesperdicio > 15 ? 'text-orange-600' :
+                                    analise.percentualDesperdicio > 10 ? 'text-yellow-600' :
+                                    'text-green-600'
+                                  }`}>
+                                    {analise.percentualDesperdicio.toFixed(1)}%
+                                  </div>
+                                  <div className="text-xs text-gray-500">
+                                    Teórico: {analise.stockTeorico.toFixed(1)} {ing.unidade}
+                                  </div>
+                                </div>
+                              );
+                            })()}
                           </td>
                           <td className="px-2 py-2 text-center">
                             <div className="flex items-center justify-center gap-1">
@@ -15553,7 +16165,7 @@ void 0;
                         )}
                       </div>
                       
-                      {/* Linha 2: Categoria e Recorrência */}
+                      {/* Linha 2: Categoria, Ingrediente (se categoria=compras) e Criar Novo */}
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
                         <div>
                           <label className="block text-xs font-medium text-gray-700 mb-1">
@@ -15581,42 +16193,91 @@ void 0;
                           </p>
                         </div>
                         
-                        <div className="md:col-span-2">
-                          <label className="block text-xs font-medium text-gray-700 mb-1">
-                            Despesa Recorrente
-                          </label>
-                          <div className="flex items-center gap-3">
-                            <label className="flex items-center gap-2 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={novaFatura.recorrente}
-                                onChange={(e) => setNovaFatura({...novaFatura, recorrente: e.target.checked})}
-                                className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-                              />
-                              <span className="text-sm text-gray-700">Repetir mensalmente</span>
+                        {/* Campo Ingrediente - só aparece quando categoria = compras */}
+                        {novaFatura.categoria === 'compras' && !criandoIngrediente && (
+                          <div>
+                            <label className="block text-xs font-medium text-gray-700 mb-1">
+                              Ingrediente *
                             </label>
-                            
-                            {novaFatura.recorrente && (
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs text-gray-600">no dia</span>
-                                <input
-                                  type="number"
-                                  min="1"
-                                  max="31"
-                                  value={novaFatura.diaRecorrencia}
-                                  onChange={(e) => setNovaFatura({...novaFatura, diaRecorrencia: parseInt(e.target.value)})}
-                                  className="w-16 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500"
-                                />
-                                <span className="text-xs text-gray-600">de cada mês</span>
-                              </div>
-                            )}
+                            <div className="relative">
+                              <input
+                                type="text"
+                                value={searchIngredienteFatura}
+                                onChange={(e) => {
+                                  setSearchIngredienteFatura(e.target.value);
+                                  setShowDropdownIngrediente(true);
+                                }}
+                                onFocus={() => setShowDropdownIngrediente(true)}
+                                placeholder="🔍 Pesquisar ingrediente..."
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                              />
+                              
+                              {/* Dropdown de Resultados */}
+                              {showDropdownIngrediente && (
+                                <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                                  {ingredientes
+                                    .filter(ing => !searchIngredienteFatura || ing.nome.toLowerCase().includes(searchIngredienteFatura.toLowerCase()))
+                                    .map(ing => (
+                                      <div
+                                        key={ing.id}
+                                        onClick={() => {
+                                          setItemFatura({
+                                            ...itemFatura,
+                                            ingredienteId: ing.id,
+                                            quantidade: '1',
+                                            unidade: ing.unidade,
+                                            precoTotal: ing.custoUnitario.toString(),
+                                            iva: ing.iva.toString()
+                                          });
+                                          setSearchIngredienteFatura(ing.nome);
+                                          setShowDropdownIngrediente(false);
+                                        }}
+                                        className="px-3 py-2 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                                      >
+                                        <div className="font-medium text-sm">{ing.nome}</div>
+                                        <div className="text-xs text-gray-600">
+                                          €{(ing.custoUnitario || ing.preco || 0).toFixed(2)}/{ing.unidade} • IVA {ing.iva}%
+                                        </div>
+                                      </div>
+                                    ))}
+                                  
+                                  {/* Nenhum resultado */}
+                                  {ingredientes.filter(ing => !searchIngredienteFatura || ing.nome.toLowerCase().includes(searchIngredienteFatura.toLowerCase())).length === 0 && (
+                                    <div className="px-3 py-4 text-center text-gray-500 text-sm">
+                                      {searchIngredienteFatura ? 'Nenhum ingrediente encontrado' : 'Nenhum ingrediente criado ainda'}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
                           </div>
-                          {novaFatura.recorrente && (
-                            <p className="text-xs text-gray-500 mt-1">
-                              ✨ Sistema vai criar automaticamente esta despesa todo mês no dia {novaFatura.diaRecorrencia}
-                            </p>
-                          )}
-                        </div>
+                        )}
+                        
+                        {/* Botão Criar Novo - só aparece quando categoria = compras */}
+                        {novaFatura.categoria === 'compras' && !criandoIngrediente && (
+                          <div>
+                            <label className="block text-xs font-medium text-gray-700 mb-1">
+                              &nbsp;
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setNovoIngrediente({ 
+                                  ...novoIngrediente, 
+                                  nome: searchIngredienteFatura,
+                                  iva: itemFatura.iva || '6',
+                                  precoTotal: itemFatura.precoTotal || '',
+                                  quantidade: itemFatura.quantidade || '1'
+                                });
+                                setCriandoIngrediente(true);
+                              }}
+                              className="w-full px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-semibold flex items-center justify-center gap-2"
+                            >
+                              <Plus size={16} /> Criar Novo
+                            </button>
+                          </div>
+                        )}
+
                       </div>
                       
                       {/* Items da Fatura */}
@@ -15628,88 +16289,8 @@ void 0;
                           {/* MODO COMPRAS - Com ingrediente */}
                           {novaFatura.categoria === 'compras' && (
                             <>
-                              {/* Campo Ingrediente com Pesquisa e Criação */}
-                              <div className="mb-3">
-                                <label className="block text-xs font-medium text-gray-700 mb-1">
-                                  Ingrediente *
-                                </label>
-                                
-                                {!criandoIngrediente ? (
-                                  <div className="flex gap-2">
-                                    {/* Input de Pesquisa */}
-                                    <div className="flex-1 relative">
-                                      <input
-                                        type="text"
-                                        value={searchIngredienteFatura}
-                                        onChange={(e) => {
-                                          setSearchIngredienteFatura(e.target.value);
-                                          setShowDropdownIngrediente(true);
-                                        }}
-                                        onFocus={() => setShowDropdownIngrediente(true)}
-                                        placeholder="🔍 Pesquisar ou criar ingrediente..."
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-                                      />
-                                      
-                                      {/* Dropdown de Resultados */}
-                                      {showDropdownIngrediente && (
-                                        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                                          {ingredientes
-                                            .filter(ing => !searchIngredienteFatura || ing.nome.toLowerCase().includes(searchIngredienteFatura.toLowerCase()))
-                                            .map(ing => (
-                                              <div
-                                                key={ing.id}
-                                                onClick={() => {
-                                                  setItemFatura({
-                                                    ...itemFatura,
-                                                    ingredienteId: ing.id,
-                                                    quantidade: '1',
-                                                    unidade: ing.unidade,
-                                                    precoTotal: ing.custoUnitario.toString(),
-                                                    iva: ing.iva.toString()
-                                                  });
-                                                  setSearchIngredienteFatura(ing.nome);
-                                                  setShowDropdownIngrediente(false); // FECHA DROPDOWN
-                                                }}
-                                                className="px-3 py-2 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0"
-                                              >
-                                                <div className="font-medium text-sm">{ing.nome}</div>
-                                                <div className="text-xs text-gray-600">
-                                                  €{(ing.custoUnitario || ing.preco || 0).toFixed(2)}/{ing.unidade} • IVA {ing.iva}%
-                                                </div>
-                                              </div>
-                                            ))}
-                                          
-                                          {/* Nenhum resultado */}
-                                          {ingredientes.filter(ing => !searchIngredienteFatura || ing.nome.toLowerCase().includes(searchIngredienteFatura.toLowerCase())).length === 0 && (
-                                            <div className="px-3 py-4 text-center text-gray-500 text-sm">
-                                              {searchIngredienteFatura ? 'Nenhum ingrediente encontrado' : 'Nenhum ingrediente criado ainda'}
-                                            </div>
-                                          )}
-                                        </div>
-                                      )}
-                                    </div>
-                                    
-                                    {/* Botão Criar Novo */}
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        // Pré-preencher com dados do OCR se disponíveis
-                                        setNovoIngrediente({ 
-                                          ...novoIngrediente, 
-                                          nome: searchIngredienteFatura,
-                                          iva: itemFatura.iva || '6',  // IVA da fatura
-                                          precoTotal: itemFatura.precoTotal || '',  // Preço total da linha
-                                          quantidade: itemFatura.quantidade || '1'  // Quantidade se disponível
-                                        });
-                                        setCriandoIngrediente(true);
-                                      }}
-                                      className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-semibold flex items-center gap-2 whitespace-nowrap"
-                                    >
-                                      <Plus size={16} /> Criar Novo
-                                    </button>
-                                  </div>
-                                ) : (
-                                  /* Form Inline para Criar Ingrediente */
+                              {/* Form Inline para Criar Ingrediente */}
+                              {criandoIngrediente && (
                                   <div className="bg-green-50 border border-green-200 rounded-lg p-3 space-y-2">
                                     <div className="flex items-center justify-between mb-2">
                                       <h5 className="font-semibold text-sm text-green-800">✨ Criar Novo Ingrediente</h5>
@@ -15898,8 +16479,7 @@ void 0;
                                       ✨ Criar e Adicionar à Fatura
                                     </button>
                                   </div>
-                                )}
-                              </div>
+                              )}
                               
                               {/* Resto dos campos (só mostra se ingrediente selecionado) */}
                               {itemFatura.ingredienteId && (
@@ -16109,20 +16689,6 @@ void 0;
                         Nenhum item adicionado. Adicione items acima.
                       </div>
                     )}
-                  </div>
-                  
-                  {/* Notas */}
-                  <div className="mb-3">
-                    <label className="block text-xs font-medium text-gray-700 mb-1">
-                      Notas (opcional)
-                    </label>
-                    <textarea
-                      value={novaFatura.notas}
-                      onChange={(e) => setNovaFatura({...novaFatura, notas: e.target.value})}
-                      placeholder="Observações sobre a fatura..."
-                      rows={2}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-                    />
                   </div>
                   
                   {/* Botões */}
@@ -16704,8 +17270,8 @@ void 0;
                 
                 {/* Modal Venda Manual */}
                 {mostrarVendaManual && (
-                  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+                  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center z-50 p-4 pt-8 overflow-y-auto">
+                    <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6 my-8">
                       <div className="flex items-center justify-between mb-4">
                         <h3 className="text-lg font-bold">Adicionar Venda Manual</h3>
                         <button
@@ -16737,7 +17303,7 @@ void 0;
                           </label>
                           <select
                             value={novaVenda.produtoId}
-                            onChange={(e) => setNovaVenda({...novaVenda, produtoId: parseInt(e.target.value)})}
+                            onChange={(e) => setNovaVenda({...novaVenda, produtoId: e.target.value ? parseInt(e.target.value) : ''})}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
                           >
                             <option value="">Selecione um produto</option>
@@ -16918,8 +17484,8 @@ void 0;
                 
                 {/* Modal Editar Venda */}
                 {mostrarEditarVenda && (
-                  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+                  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center z-50 p-4 pt-8 overflow-y-auto">
+                    <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6 my-8">
                       <div className="flex items-center justify-between mb-4">
                         <h3 className="text-lg font-bold">✏️ Editar Venda</h3>
                         <button
@@ -18184,8 +18750,8 @@ void 0;
       
       {/* Modal de Importação com Mapeamento Automático */}
       {mostrarImportacao && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center z-50 p-4 pt-8 overflow-y-auto">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full my-8">
             <h3 className="text-lg font-bold mb-4">📦 Importar Vendas (Automático)</h3>
             
             <div className="mb-4">
@@ -18226,8 +18792,8 @@ void 0;
                 Escolher Arquivo CSV
                 <input
                   type="file"
-                  accept=".csv"
-                  onChange={importarVendasCSV}
+                  accept={fonteImportacao === 'moloni' ? '.csv' : '.xlsx,.xls'}
+                  onChange={fonteImportacao === 'moloni' ? importarVendasCSV : processarZobaze}
                   className="hidden"
                 />
               </label>
@@ -18247,8 +18813,8 @@ void 0;
       
       {/* 🆕 MODAL DE CONTAGEM MANUAL */}
       {modalContagem && ingredienteContagem && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center z-50 overflow-y-auto p-4 pt-8">
+          <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4 my-8">
             <h3 className="text-xl font-bold mb-4">
               📊 Contagem de Stock - {ingredienteContagem.nome}
             </h3>
@@ -18315,27 +18881,95 @@ void 0;
           </div>
         </div>
       )}
+      
+      {/* 📊 MODAL DE MOVIMENTAÇÕES DE STOCK */}
+      {mostrarModalMovimentacoes && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="bg-gradient-to-r from-indigo-600 to-blue-600 px-6 py-4 flex items-center justify-between">
+              <h2 className="text-xl font-bold text-white">📊 Histórico de Movimentações de Stock</h2>
+              <button onClick={() => setMostrarModalMovimentacoes(false)} className="text-white hover:bg-white/20 rounded-full p-2 transition">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="bg-gray-50 px-6 py-3 border-b grid grid-cols-4 gap-4">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-green-600">{movimentacoesStock.filter(m => m.tipo === 'entrada').length}</div>
+                <div className="text-xs text-gray-600">Entradas</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-red-600">{movimentacoesStock.filter(m => m.tipo === 'saida').length}</div>
+                <div className="text-xs text-gray-600">Saídas</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-purple-600">{movimentacoesStock.filter(m => m.tipo === 'ajuste').length}</div>
+                <div className="text-xs text-gray-600">Ajustes</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-gray-700">{movimentacoesStock.length}</div>
+                <div className="text-xs text-gray-600">Total</div>
+              </div>
+            </div>
+            <div className="flex-1 overflow-auto p-6">
+              {movimentacoesStock.length === 0 ? (
+                <div className="text-center py-12">
+                  <BarChart3 className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                  <p className="text-gray-500 font-medium">Nenhuma movimentação registrada ainda</p>
+                  <p className="text-xs text-gray-400 mt-2">As movimentações serão registradas automaticamente</p>
+                </div>
+              ) : (
+                <table className="w-full"><thead className="bg-gray-100 sticky top-0"><tr>
+                  <th className="px-4 py-3 text-left text-xs font-semibold">Data</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold">Tipo</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold">Ingrediente</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold">Quantidade</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold">Stock Antes</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold">Stock Depois</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold">Observação</th>
+                </tr></thead><tbody className="divide-y divide-gray-200">
+                  {movimentacoesStock.sort((a, b) => new Date(b.data) - new Date(a.data)).map((mov, idx) => (
+                    <tr key={mov.id || idx} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 text-sm">{new Date(mov.data).toLocaleDateString('pt-PT')}</td>
+                      <td className="px-4 py-3">
+                        <span className={`px-2 py-1 text-xs font-semibold rounded ${
+                          mov.tipo === 'entrada' ? 'bg-green-100 text-green-700' : 
+                          mov.tipo === 'ajuste' ? 'bg-purple-100 text-purple-700' :
+                          'bg-red-100 text-red-700'
+                        }`}>
+                          {mov.tipo === 'entrada' ? '↑ Entrada' : 
+                           mov.tipo === 'ajuste' ? '⚙️ Ajuste' :
+                           '↓ Saída'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-sm font-medium">{mov.ingredienteNome}</td>
+                      <td className="px-4 py-3 text-sm text-right font-mono">
+                        <span className={
+                          mov.tipo === 'entrada' ? 'text-green-600' : 
+                          mov.tipo === 'ajuste' ? (mov.quantidade >= 0 ? 'text-purple-600' : 'text-orange-600') :
+                          'text-red-600'
+                        }>
+                          {mov.tipo === 'entrada' || (mov.tipo === 'ajuste' && mov.quantidade >= 0) ? '+' : '-'}
+                          {Math.abs(mov.quantidade).toFixed(2)} {mov.unidade}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-right font-mono text-gray-600">{mov.stockAnterior ? mov.stockAnterior.toFixed(2) : '0.00'}</td>
+                      <td className="px-4 py-3 text-sm text-right font-mono font-semibold">{mov.stockNovo ? mov.stockNovo.toFixed(2) : '0.00'}</td>
+                      <td className="px-4 py-3 text-xs text-gray-600">{mov.observacao}</td>
+                    </tr>
+                  ))}
+                </tbody></table>
+              )}
+            </div>
+            <div className="bg-gray-50 px-6 py-3 border-t flex justify-between items-center">
+              <div className="text-xs text-gray-500">💡 Movimentações automáticas de vendas e compras</div>
+              <button onClick={() => setMostrarModalMovimentacoes(false)} className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition font-semibold text-sm">Fechar</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
-
-
-// AUTO-LOAD 2 MONTHS DATA
-setTimeout(() => {
-  const data = {
-    "versao": "1.0",
-    "dataExport": new Date().toISOString(),
-    "ingredientes": [],
-    "produtos": [],
-    "fornecedores": [],
-    "vendas": [],
-    "despesas": []
-  };
-  
-  // Create a custom event to load data
-  const loadEvent = new CustomEvent('loadBackupData', { detail: data });
-  window.dispatchEvent(loadEvent);
-}, 100);
 
 const root = ReactDOM.createRoot(document.getElementById('root')); root.render(<RestauranteGestor />);
     </script>
