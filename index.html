@@ -4051,42 +4051,15 @@ const RestauranteGestor = () => {
     const savedMovimentacoes = localStorage.getItem('movimentacoesStock');
     if (savedMovimentacoes) {
       try {
-        const todasMovimentacoes = JSON.parse(savedMovimentacoes);
-        
-        // 🧹 LIMPAR movimentações antigas (> 6 meses) só ao CARREGAR
-        const seissMesesAtras = new Date();
-        seissMesesAtras.setMonth(seissMesesAtras.getMonth() - 6);
-        
-        const movimentacoesRecentes = todasMovimentacoes.filter(m => {
-          const dataMovimentacao = new Date(m.data);
-          return dataMovimentacao >= seissMesesAtras;
-        });
-        
-        const removidas = todasMovimentacoes.length - movimentacoesRecentes.length;
-        if (removidas > 0) {
-          console.log(`🧹 Limpeza automática: ${removidas} movimentações antigas (>6 meses) foram removidas`);
-        }
-        
-        setMovimentacoesStock(movimentacoesRecentes);
+        setMovimentacoesStock(JSON.parse(savedMovimentacoes));
       } catch (e) {
         console.error('Erro ao carregar movimentações:', e);
-        setMovimentacoesStock([]);
       }
     }
   }, []);
   
   useEffect(() => {
-    // ✅ SIMPLIFICADO: Só salvar quando mudar, SEM filtrar aqui
-    try {
-      localStorage.setItem('movimentacoesStock', JSON.stringify(movimentacoesStock));
-    } catch (e) {
-      if (e.name === 'QuotaExceededError') {
-        console.error('🚨 ERRO: LocalStorage cheio!');
-        alert('⚠️ LocalStorage cheio! Vá em Definições > Manutenção para limpar dados antigos.');
-      } else {
-        console.error('Erro ao salvar movimentações:', e);
-      }
-    }
+    localStorage.setItem('movimentacoesStock', JSON.stringify(movimentacoesStock));
   }, [movimentacoesStock]);
   
   // 🆕 Inicializar ingredientes com campos de waste/stock quando carregarem
@@ -18725,95 +18698,6 @@ void 0;
                           }
                         }}
                       />
-                      
-                      {/* 🧹 MANUTENÇÃO DO SISTEMA */}
-                      <div className="bg-yellow-50 border-2 border-yellow-300 rounded-lg p-4 mt-4">
-                        <div className="flex items-start gap-3 mb-3">
-                          <div className="bg-yellow-600 rounded-lg p-2 flex-shrink-0">
-                            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                          </div>
-                          <div className="flex-1">
-                            <h4 className="font-bold text-yellow-900 mb-1 text-sm">
-                              🧹 Manutenção de Dados
-                            </h4>
-                            <p className="text-xs text-gray-700 mb-3">
-                              Limpe dados antigos para libertar espaço no navegador.
-                            </p>
-                            
-                            {/* Estatísticas de espaço */}
-                            <div className="bg-white rounded border border-yellow-200 p-2 mb-3 text-xs">
-                              <div className="flex justify-between mb-1">
-                                <span className="text-gray-600">Movimentações de Stock:</span>
-                                <span className="font-semibold">{movimentacoesStock.length.toLocaleString()}</span>
-                              </div>
-                              <div className="flex justify-between mb-1">
-                                <span className="text-gray-600">Faturas:</span>
-                                <span className="font-semibold">{faturas.length.toLocaleString()}</span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span className="text-gray-600">Vendas:</span>
-                                <span className="font-semibold">{vendas.length.toLocaleString()}</span>
-                              </div>
-                            </div>
-                            
-                            {/* Botões de limpeza */}
-                            <div className="space-y-2">
-                              <button
-                                onClick={() => {
-                                  if (confirm('🧹 Limpar movimentações com mais de 6 meses?\n\nIsto vai remover registos antigos mas manter os últimos 6 meses de histórico.')) {
-                                    const seissMesesAtras = new Date();
-                                    seissMesesAtras.setMonth(seissMesesAtras.getMonth() - 6);
-                                    
-                                    const antes = movimentacoesStock.length;
-                                    const movimentacoesRecentes = movimentacoesStock.filter(m => {
-                                      const dataMovimentacao = new Date(m.data);
-                                      return dataMovimentacao >= seissMesesAtras;
-                                    });
-                                    
-                                    setMovimentacoesStock(movimentacoesRecentes);
-                                    const removidas = antes - movimentacoesRecentes.length;
-                                    
-                                    showNotification(`✅ ${removidas} movimentações antigas removidas!`, 'success');
-                                  }
-                                }}
-                                className="w-full bg-yellow-600 hover:bg-yellow-700 text-white px-3 py-2 rounded-lg text-sm font-semibold transition flex items-center justify-center gap-2"
-                              >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                </svg>
-                                Limpar Movimentações (6m+)
-                              </button>
-                              
-                              <button
-                                onClick={() => {
-                                  if (confirm('⚠️ ATENÇÃO: Limpar TODAS as movimentações?\n\nIsto vai remover TODO o histórico de movimentações de stock!\n\nRecomenda-se fazer backup antes.')) {
-                                    if (confirm('⚠️ CONFIRMAR: Tem a certeza ABSOLUTA?\n\nEsta ação NÃO pode ser desfeita!')) {
-                                      const antes = movimentacoesStock.length;
-                                      setMovimentacoesStock([]);
-                                      showNotification(`🗑️ ${antes} movimentações removidas!`, 'success');
-                                    }
-                                  }
-                                }}
-                                className="w-full bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-lg text-sm font-semibold transition flex items-center justify-center gap-2"
-                              >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                </svg>
-                                Limpar TUDO (⚠️ Perigoso)
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                        
-                        <div className="mt-3 p-2 bg-yellow-100 rounded border border-yellow-300">
-                          <p className="text-xs text-yellow-800">
-                            💡 <strong>Dica:</strong> O sistema limpa automaticamente movimentações >6 meses. 
-                            Use esta ferramenta se o LocalStorage ficar cheio.
-                          </p>
-                        </div>
-                      </div>
                     </div>
 
                     {/* Coluna Direita: Google Drive */}
