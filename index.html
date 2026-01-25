@@ -3546,6 +3546,10 @@ const RestauranteGestor = () => {
   const [driveFileId, setDriveFileId] = useState(localStorage.getItem('munchi_drive_file_id'));
   const [driveLastSync, setDriveLastSync] = useState(null);
   const [driveError, setDriveError] = useState(null);
+  // 🆕 Estados para gestão de token
+  const [driveTokenValid, setDriveTokenValid] = useState(false);
+  const [driveTokenTimeLeft, setDriveTokenTimeLeft] = useState(0);
+  const tokenCheckIntervalRef = React.useRef(null);
   
 
   const [dashboardSubTab, setDashboardSubTab] = useState('resumo');
@@ -7772,6 +7776,74 @@ void 0;
     return csvSimples;
   };
 
+  // === GOOGLE DRIVE TOKEN MANAGER ===
+  // Sistema de gestão inteligente de tokens do Google Drive
+  const GoogleDriveTokenManager = {
+    TOKEN_KEY: 'munchi_drive_token',
+    CHECK_INTERVAL: 60000, // Verificar a cada 1 minuto
+    RENEWAL_BUFFER: 5 * 60 * 1000, // Renovar 5 min antes de expirar
+    
+    /**
+     * Verifica se o token ainda é válido
+     */
+    isTokenValid() {
+      const tokenData = this.getTokenData();
+      if (!tokenData || !tokenData.expires_at) return false;
+      
+      const now = Date.now();
+      const expiresAt = tokenData.expires_at;
+      const timeUntilExpiry = expiresAt - now;
+      
+      // Token expirado ou vai expirar em menos de 5 minutos
+      return timeUntilExpiry > this.RENEWAL_BUFFER;
+    },
+    
+    /**
+     * Obtém dados do token guardado
+     */
+    getTokenData() {
+      try {
+        const saved = localStorage.getItem(this.TOKEN_KEY);
+        if (!saved) return null;
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error('Erro ao ler token:', e);
+        return null;
+      }
+    },
+    
+    /**
+     * Guarda token com timestamp de expiração
+     */
+    saveToken(accessToken, expiresIn = 3600) {
+      const tokenData = {
+        access_token: accessToken,
+        expires_at: Date.now() + (expiresIn * 1000),
+        saved_at: Date.now()
+      };
+      localStorage.setItem(this.TOKEN_KEY, JSON.stringify(tokenData));
+      return tokenData;
+    },
+    
+    /**
+     * Remove token
+     */
+    clearToken() {
+      localStorage.removeItem(this.TOKEN_KEY);
+    },
+    
+    /**
+     * Obtém tempo restante até expiração (em minutos)
+     */
+    getTimeUntilExpiry() {
+      const tokenData = this.getTokenData();
+      if (!tokenData || !tokenData.expires_at) return 0;
+      
+      const timeLeft = tokenData.expires_at - Date.now();
+      return Math.max(0, Math.floor(timeLeft / 60000)); // minutos
+    }
+  };
+
   // === GOOGLE IDENTITY SERVICES ===
   // SEGURANÇA: A API Key agora é carregada do ficheiro config.js (não commitado no git)
   // Certifique-se que configurou as restrições na Google Cloud Console!
@@ -7810,11 +7882,8 @@ void 0;
       scope: GOOGLE_DRIVE_CONFIG.SCOPES,
       callback: (response) => {
         if (response.access_token) {
-          const tokenData = {
-            access_token: response.access_token,
-            expires_at: Date.now() + (response.expires_in * 1000)
-          };
-          localStorage.setItem('munchi_drive_token', JSON.stringify(tokenData));
+          // ✅ Usar GoogleDriveTokenManager
+          GoogleDriveTokenManager.saveToken(response.access_token, response.expires_in || 3600);
           setDriveAccessToken(response.access_token);
           setDriveError(null);
           loadUserInfo(response.access_token);
@@ -7839,7 +7908,8 @@ void 0;
     if (driveAccessToken && window.google) {
       window.google.accounts.oauth2.revoke(driveAccessToken);
     }
-    localStorage.removeItem('munchi_drive_token');
+    // ✅ Usar GoogleDriveTokenManager
+    GoogleDriveTokenManager.clearToken();
     localStorage.removeItem('munchi_drive_file_id');
     setDriveAccessToken(null);
     setDriveUser(null);
@@ -7878,7 +7948,8 @@ void 0;
       localStorage.setItem('munchi_drive_file_id', result.id);
       return result.id;
     }
-    throw new Error('Erro ao criar ficheiro');
+    // ✅ Incluir status code no erro
+    throw new Error(`Erro ao criar ficheiro (${response.status})`);
   };
 
   const updateDriveFile = async (token, fileId, data) => {
@@ -7890,7 +7961,10 @@ void 0;
         body: JSON.stringify(data, null, 2)
       }
     );
-    if (!response.ok) throw new Error('Erro ao atualizar');
+    if (!response.ok) {
+      // ✅ Incluir status code no erro
+      throw new Error(`Erro ao atualizar (${response.status})`);
+    }
     return true;
   };
 
@@ -7899,6 +7973,19 @@ void 0;
       showNotification('⚠️ Não conectado', 'error');
       return;
     }
+    
+    // ✅ Verificar se token ainda é válido
+    if (!GoogleDriveTokenManager.isTokenValid()) {
+      const timeLeft = GoogleDriveTokenManager.getTimeUntilExpiry();
+      if (timeLeft > 0) {
+        showNotification(`⚠️ Token expira em ${timeLeft} minutos. Clique em "Renovar Token"`, 'warning');
+      } else {
+        showNotification('🔒 Token expirado. Faça login novamente.', 'error');
+        logoutGoogleDrive();
+      }
+      return;
+    }
+    
     try {
       setDriveSyncing(true);
       setDriveError(null);
@@ -7936,6 +8023,15 @@ void 0;
       showNotification('✅ Sincronizado!', 'success');
     } catch (error) {
       void 0;
+      
+      // ✅ Detetar erro de autenticação (401/403)
+      const errorMessage = error.message || String(error);
+      if (errorMessage.includes('401') || errorMessage.includes('403') || errorMessage.includes('Unauthorized')) {
+        showNotification('🔒 Token inválido. A solicitar nova autenticação...', 'error');
+        logoutGoogleDrive();
+        return;
+      }
+      
       setDriveError('Erro ao sincronizar');
       showNotification('❌ Erro ao sincronizar', 'error');
     } finally {
@@ -10729,24 +10825,69 @@ void 0;
     script.src = 'https://accounts.google.com/gsi/client';
     script.async = true;
     script.onload = () => {
-      const savedToken = localStorage.getItem('munchi_drive_token');
-      if (savedToken) {
-        try {
-          const tokenData = JSON.parse(savedToken);
-          if (tokenData.expires_at && Date.now() < tokenData.expires_at) {
-            setDriveAccessToken(tokenData.access_token);
-            loadUserInfo(tokenData.access_token);
-            loadFromDrive(tokenData.access_token);
-          } else {
-            localStorage.removeItem('munchi_drive_token');
-          }
-        } catch (e) {
-          localStorage.removeItem('munchi_drive_token');
-        }
+      // ✅ Usar GoogleDriveTokenManager
+      const tokenData = GoogleDriveTokenManager.getTokenData();
+      
+      if (tokenData && GoogleDriveTokenManager.isTokenValid()) {
+        setDriveAccessToken(tokenData.access_token);
+        loadUserInfo(tokenData.access_token);
+        loadFromDrive(tokenData.access_token);
+        showNotification('✅ Reconectado automaticamente ao Google Drive', 'success');
+      } else if (tokenData) {
+        // Token existe mas está expirado
+        GoogleDriveTokenManager.clearToken();
+        showNotification('🔒 Sessão Google Drive expirou. Faça login novamente.', 'info');
       }
     };
     document.head.appendChild(script);
   }, []);
+  
+  // ✅ Verificação periódica do token
+  useEffect(() => {
+    if (!driveAccessToken) {
+      // Limpar intervalo se não houver token
+      if (tokenCheckIntervalRef.current) {
+        clearInterval(tokenCheckIntervalRef.current);
+        tokenCheckIntervalRef.current = null;
+      }
+      return;
+    }
+    
+    const checkToken = () => {
+      const valid = GoogleDriveTokenManager.isTokenValid();
+      const timeLeft = GoogleDriveTokenManager.getTimeUntilExpiry();
+      
+      setDriveTokenValid(valid);
+      setDriveTokenTimeLeft(timeLeft);
+      
+      // Alertar quando token está perto de expirar (menos de 10 minutos)
+      if (!valid && timeLeft > 0 && timeLeft <= 10) {
+        showNotification(
+          `⚠️ Token expira em ${timeLeft} minutos. Clique no botão "🔑 Renovar Token" para manter a ligação.`,
+          'warning'
+        );
+      }
+      
+      // Se expirou completamente, fazer logout
+      if (timeLeft === 0) {
+        showNotification('🔒 Sessão Google Drive expirou. Faça login novamente.', 'error');
+        logoutGoogleDrive();
+      }
+    };
+    
+    // Verificar imediatamente
+    checkToken();
+    
+    // Continuar a verificar a cada minuto
+    tokenCheckIntervalRef.current = setInterval(checkToken, GoogleDriveTokenManager.CHECK_INTERVAL);
+    
+    return () => {
+      if (tokenCheckIntervalRef.current) {
+        clearInterval(tokenCheckIntervalRef.current);
+        tokenCheckIntervalRef.current = null;
+      }
+    };
+  }, [driveAccessToken]);
 
   const calcCusto = (p) => {
     if (!p.receita || !p.receita.length) return 0;
@@ -19092,16 +19233,51 @@ void 0;
                             </button>
                           </div>
                           
+                          {/* ✅ Indicador de Status do Token */}
+                          <div className={`mb-3 p-2 rounded-lg border-2 ${
+                            driveTokenValid 
+                              ? 'bg-green-100 border-green-400' 
+                              : driveTokenTimeLeft > 0 
+                                ? 'bg-yellow-100 border-yellow-400' 
+                                : 'bg-red-100 border-red-400'
+                          }`}>
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <div className={`w-2 h-2 rounded-full ${
+                                  driveTokenValid 
+                                    ? 'bg-green-500' 
+                                    : driveTokenTimeLeft > 0 
+                                      ? 'bg-yellow-500 animate-pulse' 
+                                      : 'bg-red-500'
+                                }`}></div>
+                                <span className="text-xs font-semibold">
+                                  {driveTokenValid 
+                                    ? '🔓 Conectado' 
+                                    : driveTokenTimeLeft > 0 
+                                      ? '⚠️ A expirar' 
+                                      : '🔒 Expirado'}
+                                </span>
+                              </div>
+                              {driveTokenTimeLeft > 0 && (
+                                <span className={`text-xs font-mono ${
+                                  driveTokenTimeLeft < 10 ? 'text-red-600 font-bold' : 'text-gray-700'
+                                }`}>
+                                  {driveTokenTimeLeft}min
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          
                           {driveError && (
                             <div className="bg-red-100 border border-red-300 rounded p-2 mb-2">
                               <p className="text-xs text-red-800">⚠️ {driveError}</p>
                             </div>
                           )}
                           
-                          <div className="grid grid-cols-2 gap-2">
+                          <div className="grid grid-cols-2 gap-2 mb-2">
                             <button
                               onClick={saveToDrive}
-                              disabled={driveSyncing}
+                              disabled={driveSyncing || !driveTokenValid}
                               className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-3 py-2 rounded text-xs font-semibold flex items-center justify-center gap-1 transition"
                             >
                               <Upload size={12} />
@@ -19110,13 +19286,21 @@ void 0;
                             
                             <button
                               onClick={() => loadFromDrive()}
-                              disabled={driveSyncing}
+                              disabled={driveSyncing || !driveTokenValid}
                               className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white px-3 py-2 rounded text-xs font-semibold flex items-center justify-center gap-1 transition"
                             >
                               <Download size={12} />
                               Carregar
                             </button>
                           </div>
+                          
+                          {/* ✅ Botão de Renovação de Token */}
+                          <button
+                            onClick={loginGoogleDrive}
+                            className="w-full bg-yellow-600 hover:bg-yellow-700 text-white px-3 py-2 rounded text-xs font-semibold flex items-center justify-center gap-1 transition"
+                          >
+                            🔑 Renovar Token
+                          </button>
                           
                           {driveFileId && (
                             <p className="text-xs text-gray-500 mt-2 text-center">
