@@ -12211,8 +12211,27 @@ void 0;
     // 🧹 6.5 Limpar palavras da lista (MCHEF, AMANH, etc)
     if (palavrasLimpar && palavrasLimpar.length > 0) {
       palavrasLimpar.forEach(palavra => {
-        const regex = new RegExp(`\\b${palavra}\\b`, 'gi'); // Match palavra completa
-        nomeProduto = nomeProduto.replace(regex, '').replace(/\s+/g, ' ').trim();
+        // Escapar caracteres especiais da palavra para usar em regex
+        const palavraEscapada = palavra.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        
+        // 🔥 TENTAR 3 ESTRATÉGIAS DE REMOÇÃO:
+        
+        // 1️⃣ Palavra completa com word boundaries (ex: "MCHEF " ou " MCHEF")
+        const regexCompleta = new RegExp(`\\b${palavraEscapada}\\b`, 'gi');
+        nomeProduto = nomeProduto.replace(regexCompleta, '');
+        
+        // 2️⃣ Palavra no início/fim mesmo sem espaço (ex: "MCHEF123" ou "123MCHEF")
+        const regexInicio = new RegExp(`^${palavraEscapada}(?=\\s|\\d|$)`, 'gi');
+        const regexFim = new RegExp(`(?<=\\s|\\d|^)${palavraEscapada}$`, 'gi');
+        nomeProduto = nomeProduto.replace(regexInicio, '').replace(regexFim, '');
+        
+        // 3️⃣ Palavra COLADA a números/símbolos (ex: "MCHEF123TOMATE" → "123TOMATE")
+        // Remove a palavra se ela está seguida de números ou no meio do texto
+        const regexColada = new RegExp(`${palavraEscapada}(?=\\d)`, 'gi');
+        nomeProduto = nomeProduto.replace(regexColada, '');
+        
+        // Limpar espaços múltiplos e trim
+        nomeProduto = nomeProduto.replace(/\s+/g, ' ').trim();
       });
       OCR_DEBUG.log('PARSE', 'Após limpeza de palavras', { nomeProduto, palavrasRemovidas: palavrasLimpar });
     }
