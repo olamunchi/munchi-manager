@@ -6465,17 +6465,8 @@ void 0;
       }
       
       // 🎯 AGORA verificar blacklist no NOME DO PRODUTO (não na linha toda!)
-      // Usar WORD BOUNDARIES para match de palavra completa
       const nomeLower = parsed.nomeProduto.toLowerCase();
-      let palavraMatch = null;
-      
-      for (const palavra of blacklist) {
-        const regex = new RegExp(`\\b${palavra.toLowerCase()}\\b`);
-        if (regex.test(nomeLower)) {
-          palavraMatch = palavra;
-          break;
-        }
-      }
+      const palavraMatch = blacklist.find(palavra => nomeLower.includes(palavra.toLowerCase()));
       
       if (palavraMatch) {
         console.log(`🚫 [BLACKLIST] Produto rejeitado: "${parsed.nomeProduto}" | Palavra: "${palavraMatch}" | Linha original: "${linha.substring(0, 60)}..."`);
@@ -12080,49 +12071,6 @@ void 0;
       return true;
     }
     
-    // 🆕 FILTROS INTELIGENTES para cabeçalhos/metadata comuns
-    const linhaLower = linha.toLowerCase();
-    
-    // Padrões de cabeçalho/footer/metadata que NUNCA são produtos
-    const padroesCabecalho = [
-      /zona\s*[:\-]\s*\d+/i,           // "Zona : 099" ou "Zona - 099"
-      /cliente\s*[:\-]\s*\d+/i,        // "Cliente : 7431" ou "Cliente - 7431"
-      /oper\s*[:\-]\s*\d+/i,           // "Oper : 136" ou "Oper - 136"
-      /vended\s*[.:\-]?\s*\d+/i,       // "Vended. 8" ou "Vended - 8"
-      /zona.*cliente.*oper/i,          // Linha completa com estas 3 palavras
-      /zona.*cliente.*vended/i,        // Linha completa com estas 3 palavras
-      /descarga/i,                     // "Descarga"
-      /carga/i,                        // "Carga"
-      /operador\s+hortofruticola/i,    // "Operador hortofruticola"
-      /nif\s*[:\/]?\s*\d{9}/i,         // "NIF: 123456789"
-      /contribuinte/i,                 // "Contribuinte"
-      /^data\s*[:]/i,                  // "Data:"
-      /^hora\s*[:]/i,                  // "Hora:"
-      /^obs\s*[:]/i,                   // "Obs:"
-      /^telefone\s*[:]/i,              // "Telefone:"
-      /^fax\s*[:]/i,                   // "Fax:"
-      /email\s*[:]/i,                  // "Email:"
-      /morada\s*[:]/i,                 // "Morada:"
-      /caixa\s+postal/i,               // "Caixa postal"
-      /processado\s+por/i,             // "Processado por"
-      /certificado\s+n/i,              // "Certificado nº"
-      /^pag\.\s*\d+/i,                 // "Pag. 1"
-      /documento\s+original/i,         // "Documento original"
-      /via\s+original/i,               // "Via original"
-      /^cash\s+&\s+carry/i,            // "Cash & carry"
-      /sociedade\s+anonima/i,          // "Sociedade anónima"
-      /capital\s+social/i,             // "Capital social"
-      /atcud\s*[:]/i,                  // "ATCUD:"
-      /codigo[s]?\s+interno/i          // "Códigos internos"
-    ];
-    
-    for (const padrao of padroesCabecalho) {
-      if (padrao.test(linha)) {
-        OCR_DEBUG.log('FILTRO', 'Cabeçalho/metadata detectado', { linha, padrao: padrao.toString() });
-        return true;
-      }
-    }
-    
     // ✅ ACEITAR TODO O RESTO
     // Use a BLACKLIST para filtrar linhas indesejadas por fornecedor
     OCR_DEBUG.log('FILTRO', '✓ Linha aceite', { linha });
@@ -12393,18 +12341,9 @@ void 0;
       }
       
       // 🎯 AGORA verificar blacklist no NOME DO PRODUTO (não na linha toda!)
-      // Usar WORD BOUNDARIES para match de palavra completa
       if (blacklist.length > 0) {
         const nomeLower = parsed.nomeProduto.toLowerCase();
-        let palavraMatch = null;
-        
-        for (const palavra of blacklist) {
-          const regex = new RegExp(`\\b${palavra.toLowerCase()}\\b`);
-          if (regex.test(nomeLower)) {
-            palavraMatch = palavra;
-            break;
-          }
-        }
+        const palavraMatch = blacklist.find(palavra => nomeLower.includes(palavra));
         
         if (palavraMatch) {
           console.log(`🚫 [BLACKLIST] Produto rejeitado: "${parsed.nomeProduto}" | Palavra: "${palavraMatch}" | Linha original: "${linha.substring(0, 60)}..."`);
@@ -18539,33 +18478,12 @@ void 0;
                                       <div className="grid grid-cols-2 gap-4">
                                         {/* COLUNA 1: BLACKLIST */}
                                         <div className="space-y-2">
-                                          <div className="flex items-center justify-between">
-                                            <h4 className="font-semibold text-sm text-gray-700 flex items-center gap-1">
-                                              🚫 Blacklist
-                                              <span className="text-xs bg-red-100 text-red-700 px-1.5 py-0.5 rounded font-semibold">
-                                                {dados.blacklist.length}
-                                              </span>
-                                            </h4>
-                                            {dados.blacklist.length > 0 && (
-                                              <button
-                                                onClick={() => {
-                                                  if (confirm(`⚠️ LIMPAR TODA A BLACKLIST?\n\n${dados.blacklist.length} palavras serão removidas.\n\nTens certeza?`)) {
-                                                    const template = templatesOCR.find(t => t.nifFornecedor === nif);
-                                                    if (template) {
-                                                      const index = templatesOCR.findIndex(t => t.nifFornecedor === nif);
-                                                      const novos = [...templatesOCR];
-                                                      novos[index] = { ...template, blacklist: [] };
-                                                      setTemplatesOCR(novos);
-                                                      showNotification('🗑️ Blacklist limpa!', 'success');
-                                                    }
-                                                  }
-                                                }}
-                                                className="text-xs px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700 transition font-semibold"
-                                              >
-                                                🗑️ Limpar Tudo
-                                              </button>
-                                            )}
-                                          </div>
+                                          <h4 className="font-semibold text-sm text-gray-700 flex items-center gap-1">
+                                            🚫 Blacklist
+                                            <span className="text-xs bg-red-100 text-red-700 px-1.5 py-0.5 rounded font-semibold">
+                                              {dados.blacklist.length}
+                                            </span>
+                                          </h4>
                                           <p className="text-xs text-gray-500 mb-2">Linhas bloqueadas (não aparecem)</p>
                                           
                                           {dados.blacklist.length === 0 ? (
@@ -18605,33 +18523,12 @@ void 0;
                                         
                                         {/* COLUNA 2: PALAVRAS A LIMPAR */}
                                         <div className="space-y-2">
-                                          <div className="flex items-center justify-between">
-                                            <h4 className="font-semibold text-sm text-gray-700 flex items-center gap-1">
-                                              🧹 Limpar
-                                              <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-semibold">
-                                                {dados.palavrasLimpar.length}
-                                              </span>
-                                            </h4>
-                                            {dados.palavrasLimpar.length > 0 && (
-                                              <button
-                                                onClick={() => {
-                                                  if (confirm(`⚠️ LIMPAR TODAS AS PALAVRAS?\n\n${dados.palavrasLimpar.length} palavras serão removidas.\n\nTens certeza?`)) {
-                                                    const template = templatesOCR.find(t => t.nifFornecedor === nif);
-                                                    if (template) {
-                                                      const index = templatesOCR.findIndex(t => t.nifFornecedor === nif);
-                                                      const novos = [...templatesOCR];
-                                                      novos[index] = { ...template, palavrasLimpar: [] };
-                                                      setTemplatesOCR(novos);
-                                                      showNotification('🗑️ Lista de palavras limpa!', 'success');
-                                                    }
-                                                  }
-                                                }}
-                                                className="text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition font-semibold"
-                                              >
-                                                🗑️ Limpar Tudo
-                                              </button>
-                                            )}
-                                          </div>
+                                          <h4 className="font-semibold text-sm text-gray-700 flex items-center gap-1">
+                                            🧹 Limpar
+                                            <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-semibold">
+                                              {dados.palavrasLimpar.length}
+                                            </span>
+                                          </h4>
                                           <p className="text-xs text-gray-500 mb-2">Palavras removidas dos nomes</p>
                                           
                                           {dados.palavrasLimpar.length === 0 ? (
