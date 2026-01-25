@@ -6450,26 +6450,32 @@ void 0;
       const linha = linhas[i];
       if (!linha) continue;
       
-      // Verificar blacklist
-      const linhaLower = linha.toLowerCase();
-      const temPalavraBlacklist = blacklist.some(palavra => linhaLower.includes(palavra.toLowerCase()));
-      
-      if (temPalavraBlacklist) {
-        linhasIgnoradasBlacklist++;
-        continue;
-      }
-      
-      // Verificar filtro geral
+      // Verificar filtro geral PRIMEIRO (linhas obviamente inválidas)
       if (shouldIgnoreLine(linha)) {
         linhasIgnoradasFiltro++;
         continue;
       }
       
-      // Parsear linha (passar palavrasLimpar)
+      // Parsear linha (passar palavrasLimpar) para extrair o NOME do produto
       const parsed = parseLinha(linha, palavrasLimpar);
-      if (parsed && parsed.nomeProduto) {
-        linhasProdutos.push(parsed);
+      
+      // Se não conseguiu extrair nome, ignorar
+      if (!parsed || !parsed.nomeProduto) {
+        continue;
       }
+      
+      // 🎯 AGORA verificar blacklist no NOME DO PRODUTO (não na linha toda!)
+      const nomeLower = parsed.nomeProduto.toLowerCase();
+      const palavraMatch = blacklist.find(palavra => nomeLower.includes(palavra.toLowerCase()));
+      
+      if (palavraMatch) {
+        console.log(`🚫 [BLACKLIST] Produto rejeitado: "${parsed.nomeProduto}" | Palavra: "${palavraMatch}" | Linha original: "${linha.substring(0, 60)}..."`);
+        linhasIgnoradasBlacklist++;
+        continue;
+      }
+      
+      // ✅ Produto válido e não está na blacklist!
+      linhasProdutos.push(parsed);
     }
     
     console.log(`🔍 [TEMPLATE] ${linhasProdutos.length} produtos detectados`);
@@ -12318,32 +12324,38 @@ void 0;
     };
     
     for (const linha of linhas) {
-      // 🚫 CORRIGIDO: Verificar blacklist ANTES de qualquer outra validação
-      if (blacklist.length > 0) {
-        const linhaLower = linha.toLowerCase();
-        const temPalavraBlacklist = blacklist.some(palavra => linhaLower.includes(palavra));
-        
-        if (temPalavraBlacklist) {
-          OCR_DEBUG.log('BLACKLIST', 'Linha rejeitada por blacklist', { linha });
-          stats.blacklist++;
-          continue;
-        }
-      }
-      
+      // Verificar filtro geral PRIMEIRO
       if (shouldIgnoreLine(linha)) {
         stats.ignoradas++;
         continue;
       }
       
+      // Parsear linha para extrair o NOME do produto
       const parsed = parseLinha(linha);
       
-      if (parsed && parsed.nomeProduto) {
-        linhasProdutos.push(parsed);
-        stats.validas++;
-      } else {
+      // Se não conseguiu extrair nome válido, ignorar
+      if (!parsed || !parsed.nomeProduto) {
         stats.semNome++;
         OCR_DEBUG.log('PARSE', 'Linha sem nome válido', { linha, parsed });
+        continue;
       }
+      
+      // 🎯 AGORA verificar blacklist no NOME DO PRODUTO (não na linha toda!)
+      if (blacklist.length > 0) {
+        const nomeLower = parsed.nomeProduto.toLowerCase();
+        const palavraMatch = blacklist.find(palavra => nomeLower.includes(palavra));
+        
+        if (palavraMatch) {
+          console.log(`🚫 [BLACKLIST] Produto rejeitado: "${parsed.nomeProduto}" | Palavra: "${palavraMatch}" | Linha original: "${linha.substring(0, 60)}..."`);
+          OCR_DEBUG.log('BLACKLIST', 'Produto rejeitado por blacklist', { nomeProduto: parsed.nomeProduto, palavraMatch, linha });
+          stats.blacklist++;
+          continue;
+        }
+      }
+      
+      // ✅ Produto válido e não está na blacklist!
+      linhasProdutos.push(parsed);
+      stats.validas++;
     }
     
     // 5. Resumo final
