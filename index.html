@@ -6465,8 +6465,17 @@ void 0;
       }
       
       // 🎯 AGORA verificar blacklist no NOME DO PRODUTO (não na linha toda!)
+      // Usar WORD BOUNDARIES para match de palavra completa
       const nomeLower = parsed.nomeProduto.toLowerCase();
-      const palavraMatch = blacklist.find(palavra => nomeLower.includes(palavra.toLowerCase()));
+      let palavraMatch = null;
+      
+      for (const palavra of blacklist) {
+        const regex = new RegExp(`\\b${palavra.toLowerCase()}\\b`);
+        if (regex.test(nomeLower)) {
+          palavraMatch = palavra;
+          break;
+        }
+      }
       
       if (palavraMatch) {
         console.log(`🚫 [BLACKLIST] Produto rejeitado: "${parsed.nomeProduto}" | Palavra: "${palavraMatch}" | Linha original: "${linha.substring(0, 60)}..."`);
@@ -12384,9 +12393,18 @@ void 0;
       }
       
       // 🎯 AGORA verificar blacklist no NOME DO PRODUTO (não na linha toda!)
+      // Usar WORD BOUNDARIES para match de palavra completa
       if (blacklist.length > 0) {
         const nomeLower = parsed.nomeProduto.toLowerCase();
-        const palavraMatch = blacklist.find(palavra => nomeLower.includes(palavra));
+        let palavraMatch = null;
+        
+        for (const palavra of blacklist) {
+          const regex = new RegExp(`\\b${palavra.toLowerCase()}\\b`);
+          if (regex.test(nomeLower)) {
+            palavraMatch = palavra;
+            break;
+          }
+        }
         
         if (palavraMatch) {
           console.log(`🚫 [BLACKLIST] Produto rejeitado: "${parsed.nomeProduto}" | Palavra: "${palavraMatch}" | Linha original: "${linha.substring(0, 60)}..."`);
