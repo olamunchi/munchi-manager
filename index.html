@@ -6450,32 +6450,26 @@ void 0;
       const linha = linhas[i];
       if (!linha) continue;
       
-      // Verificar filtro geral PRIMEIRO (linhas obviamente inválidas)
+      // Verificar blacklist
+      const linhaLower = linha.toLowerCase();
+      const temPalavraBlacklist = blacklist.some(palavra => linhaLower.includes(palavra.toLowerCase()));
+      
+      if (temPalavraBlacklist) {
+        linhasIgnoradasBlacklist++;
+        continue;
+      }
+      
+      // Verificar filtro geral
       if (shouldIgnoreLine(linha)) {
         linhasIgnoradasFiltro++;
         continue;
       }
       
-      // Parsear linha (passar palavrasLimpar) para extrair o NOME do produto
+      // Parsear linha (passar palavrasLimpar)
       const parsed = parseLinha(linha, palavrasLimpar);
-      
-      // Se não conseguiu extrair nome, ignorar
-      if (!parsed || !parsed.nomeProduto) {
-        continue;
+      if (parsed && parsed.nomeProduto) {
+        linhasProdutos.push(parsed);
       }
-      
-      // 🎯 AGORA verificar blacklist no NOME DO PRODUTO (não na linha toda!)
-      const nomeLower = parsed.nomeProduto.toLowerCase();
-      const palavraMatch = blacklist.find(palavra => nomeLower.includes(palavra.toLowerCase()));
-      
-      if (palavraMatch) {
-        console.log(`🚫 [BLACKLIST] Produto rejeitado: "${parsed.nomeProduto}" | Palavra: "${palavraMatch}" | Linha original: "${linha.substring(0, 60)}..."`);
-        linhasIgnoradasBlacklist++;
-        continue;
-      }
-      
-      // ✅ Produto válido e não está na blacklist!
-      linhasProdutos.push(parsed);
     }
     
     console.log(`🔍 [TEMPLATE] ${linhasProdutos.length} produtos detectados`);
@@ -12211,27 +12205,8 @@ void 0;
     // 🧹 6.5 Limpar palavras da lista (MCHEF, AMANH, etc)
     if (palavrasLimpar && palavrasLimpar.length > 0) {
       palavrasLimpar.forEach(palavra => {
-        // Escapar caracteres especiais da palavra para usar em regex
-        const palavraEscapada = palavra.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        
-        // 🔥 TENTAR 3 ESTRATÉGIAS DE REMOÇÃO:
-        
-        // 1️⃣ Palavra completa com word boundaries (ex: "MCHEF " ou " MCHEF")
-        const regexCompleta = new RegExp(`\\b${palavraEscapada}\\b`, 'gi');
-        nomeProduto = nomeProduto.replace(regexCompleta, '');
-        
-        // 2️⃣ Palavra no início/fim mesmo sem espaço (ex: "MCHEF123" ou "123MCHEF")
-        const regexInicio = new RegExp(`^${palavraEscapada}(?=\\s|\\d|$)`, 'gi');
-        const regexFim = new RegExp(`(?<=\\s|\\d|^)${palavraEscapada}$`, 'gi');
-        nomeProduto = nomeProduto.replace(regexInicio, '').replace(regexFim, '');
-        
-        // 3️⃣ Palavra COLADA a números/símbolos (ex: "MCHEF123TOMATE" → "123TOMATE")
-        // Remove a palavra se ela está seguida de números ou no meio do texto
-        const regexColada = new RegExp(`${palavraEscapada}(?=\\d)`, 'gi');
-        nomeProduto = nomeProduto.replace(regexColada, '');
-        
-        // Limpar espaços múltiplos e trim
-        nomeProduto = nomeProduto.replace(/\s+/g, ' ').trim();
+        const regex = new RegExp(`\\b${palavra}\\b`, 'gi'); // Match palavra completa
+        nomeProduto = nomeProduto.replace(regex, '').replace(/\s+/g, ' ').trim();
       });
       OCR_DEBUG.log('PARSE', 'Após limpeza de palavras', { nomeProduto, palavrasRemovidas: palavrasLimpar });
     }
@@ -12343,38 +12318,32 @@ void 0;
     };
     
     for (const linha of linhas) {
-      // Verificar filtro geral PRIMEIRO
-      if (shouldIgnoreLine(linha)) {
-        stats.ignoradas++;
-        continue;
-      }
-      
-      // Parsear linha para extrair o NOME do produto
-      const parsed = parseLinha(linha);
-      
-      // Se não conseguiu extrair nome válido, ignorar
-      if (!parsed || !parsed.nomeProduto) {
-        stats.semNome++;
-        OCR_DEBUG.log('PARSE', 'Linha sem nome válido', { linha, parsed });
-        continue;
-      }
-      
-      // 🎯 AGORA verificar blacklist no NOME DO PRODUTO (não na linha toda!)
+      // 🚫 CORRIGIDO: Verificar blacklist ANTES de qualquer outra validação
       if (blacklist.length > 0) {
-        const nomeLower = parsed.nomeProduto.toLowerCase();
-        const palavraMatch = blacklist.find(palavra => nomeLower.includes(palavra));
+        const linhaLower = linha.toLowerCase();
+        const temPalavraBlacklist = blacklist.some(palavra => linhaLower.includes(palavra));
         
-        if (palavraMatch) {
-          console.log(`🚫 [BLACKLIST] Produto rejeitado: "${parsed.nomeProduto}" | Palavra: "${palavraMatch}" | Linha original: "${linha.substring(0, 60)}..."`);
-          OCR_DEBUG.log('BLACKLIST', 'Produto rejeitado por blacklist', { nomeProduto: parsed.nomeProduto, palavraMatch, linha });
+        if (temPalavraBlacklist) {
+          OCR_DEBUG.log('BLACKLIST', 'Linha rejeitada por blacklist', { linha });
           stats.blacklist++;
           continue;
         }
       }
       
-      // ✅ Produto válido e não está na blacklist!
-      linhasProdutos.push(parsed);
-      stats.validas++;
+      if (shouldIgnoreLine(linha)) {
+        stats.ignoradas++;
+        continue;
+      }
+      
+      const parsed = parseLinha(linha);
+      
+      if (parsed && parsed.nomeProduto) {
+        linhasProdutos.push(parsed);
+        stats.validas++;
+      } else {
+        stats.semNome++;
+        OCR_DEBUG.log('PARSE', 'Linha sem nome válido', { linha, parsed });
+      }
     }
     
     // 5. Resumo final
