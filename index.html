@@ -11620,44 +11620,8 @@ void 0;
   
   // Ignorar linhas
   const shouldIgnoreLine = (linha) => {
-    const lower = linha.toLowerCase();
-    
-    // Lista de padrões a ignorar (REDUZIDA - menos agressiva)
-    const ignorePatterns = [
-      // Headers óbvios
-      { pattern: /^(fatura|factura|invoice|recibo|receipt|talao|talão)/i, motivo: 'header-fatura' },
-      { pattern: /^(nif|nipc|vat|contribuinte|tax id)[\s:]/i, motivo: 'nif' },
-      { pattern: /^(data|date)[\s:]/i, motivo: 'data' },
-      
-      // Empresa info
-      { pattern: /(lda|limitada|s\.a\.|unipessoal|ltda|sa\s)/i, motivo: 'empresa' },
-      { pattern: /^(rua|avenida|av\.|praça|largo|estrada|morada|address)/i, motivo: 'morada' },
-      { pattern: /^\d{4}-\d{3}\s/i, motivo: 'codigo-postal' },
-      { pattern: /(email|e-mail|tel|telefone|phone|fax|telef|www\.)[\s:]/i, motivo: 'contacto' },
-      
-      // Footer info
-      { pattern: /^(total|subtotal|sub-total)[\s:]/i, motivo: 'total' },
-      { pattern: /^(método|metodo|forma|pagamento|payment)/i, motivo: 'pagamento' },
-      { pattern: /(iban|nib|swift|bic)[\s:]/i, motivo: 'iban' },
-      { pattern: /^(referência|reference|ref)[\s:]/i, motivo: 'referencia' },
-      { pattern: /(processado|emitido|certificado)\s+por/i, motivo: 'processado' },
-      { pattern: /(conservatória|registo|matricula|capital social)/i, motivo: 'registo' },
-      { pattern: /^atcud/i, motivo: 'atcud' },
-      
-      // Apenas números/códigos
-      { pattern: /^pt\d{2}\s*\d{4}/i, motivo: 'iban' },
-      { pattern: /^\d{9}$/, motivo: 'nif-numero' },
-      { pattern: /^\d+\/\d+\/\d+$/, motivo: 'data-numero' },
-      { pattern: /^[\s\-\+\.€%]+$/, motivo: 'simbolos' },
-    ];
-    
-    // Verificar padrões
-    for (const { pattern, motivo } of ignorePatterns) {
-      if (pattern.test(linha)) {
-        OCR_DEBUG.log('FILTRO', `Linha ignorada: ${motivo}`, { linha });
-        return true;
-      }
-    }
+    // ✅ FILTROS MÍNIMOS - Só validações básicas
+    // O resto é gerido pela BLACKLIST (personalizável por fornecedor)
     
     // Ignorar linhas muito curtas (< 3 caracteres)
     if (linha.length < 3) {
@@ -11665,14 +11629,14 @@ void 0;
       return true;
     }
     
-    // REMOVIDO: Filtro agressivo "só números/símbolos"
-    // NOVO: Só ignorar se NÃO tem letras
+    // Ignorar linhas sem letras (só números/símbolos)
     if (!/[a-zA-ZÀ-ÿ]/.test(linha)) {
       OCR_DEBUG.log('FILTRO', 'Sem letras', { linha });
       return true;
     }
     
-    // ACEITAR todo o resto
+    // ✅ ACEITAR TODO O RESTO
+    // Use a BLACKLIST para filtrar linhas indesejadas por fornecedor
     OCR_DEBUG.log('FILTRO', '✓ Linha aceite', { linha });
     return false;
   };
