@@ -1743,12 +1743,8 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
                                       setShowDropdownOCR({...showDropdownOCR, [index]: false});
                                     }, 200);
                                   }}
-                                  placeholder={!linha.ingredienteConfirmado && !linha.ingredienteSugerido 
-                                    ? "⚠️ Sem match - Criar ingrediente →" 
-                                    : "Digite para buscar..."}
+                                  placeholder="Digite para buscar..."
                                   className={`w-full px-2 py-1 text-sm border-2 rounded ${
-                                    !linha.ingredienteConfirmado && !linha.ingredienteSugerido
-                                      ? 'border-orange-500 bg-orange-50 placeholder-orange-700 font-semibold' :
                                     confianca >= 80 ? 'border-green-400 bg-green-50' :
                                     confianca >= 60 ? 'border-yellow-400 bg-yellow-50' :
                                     confianca > 0 ? 'border-orange-300 bg-orange-50' :
@@ -1819,49 +1815,20 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
                             
                             <button
                               onClick={() => {
-                                // 🆕 Auto-sugerir categoria e unidade baseado no nome
-                                let categoriaSugerida = 'outros';
-                                let unidadeSugerida = linha.unidade || 'kg';
-                                
-                                const nomeLower = (linha.nomeProduto || '').toLowerCase();
-                                
-                                // Detectar categoria automaticamente
-                                if (nomeLower.includes('carne') || nomeLower.includes('bacon') || nomeLower.includes('presunto')) {
-                                  categoriaSugerida = 'carnes';
-                                } else if (nomeLower.includes('peixe') || nomeLower.includes('atum') || nomeLower.includes('sardinha')) {
-                                  categoriaSugerida = 'peixes';
-                                } else if (nomeLower.includes('queijo') || nomeLower.includes('nata') || nomeLower.includes('leite') || nomeLower.includes('manteiga')) {
-                                  categoriaSugerida = 'laticinios';
-                                } else if (nomeLower.includes('tomate') || nomeLower.includes('cebola') || nomeLower.includes('alface') || nomeLower.includes('batata')) {
-                                  categoriaSugerida = 'vegetais';
-                                } else if (nomeLower.includes('massa') || nomeLower.includes('arroz') || nomeLower.includes('farinha')) {
-                                  categoriaSugerida = 'massas_cereais';
-                                  unidadeSugerida = 'kg';
-                                } else if (nomeLower.includes('cerveja') || nomeLower.includes('vinho') || nomeLower.includes('refrigerante')) {
-                                  categoriaSugerida = 'bebidas';
-                                  unidadeSugerida = 'un';
-                                }
-                                
                                 setNovoIngrediente({
                                   nome: linha.nomeProduto || '',
-                                  categoria: categoriaSugerida,
-                                  unidade: unidadeSugerida,
+                                  categoria: 'outros',
+                                  unidade: linha.unidade || 'kg',
                                   custo: linha.preco ? linha.preco.toString() : '',
                                   iva: linha.iva ? linha.iva.toString() : (metadata?.iva ? metadata.iva.toString() : '13')
                                 });
                                 setLinhaIndexCriando(index);
                                 setMostrarModalCriarIng(true);
                               }}
-                              className={`ml-1 px-3 py-1 rounded text-xs font-semibold transition ${
-                                !linha.ingredienteConfirmado && !linha.ingredienteSugerido
-                                  ? 'bg-orange-500 text-white hover:bg-orange-600 animate-pulse'
-                                  : 'bg-green-600 text-white hover:bg-green-700'
-                              }`}
-                              title={!linha.ingredienteConfirmado && !linha.ingredienteSugerido 
-                                ? '⚠️ Nenhum ingrediente encontrado - Clique para criar!' 
-                                : 'Criar novo ingrediente'}
+                              className="ml-1 px-2 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700"
+                              title="Criar novo ingrediente"
                             >
-                              {!linha.ingredienteConfirmado && !linha.ingredienteSugerido ? '➕ Criar' : '+'}
+                              +
                             </button>
                           </div>
 
