@@ -10,6 +10,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+  <!-- IndexedDB Library - Dexie.js -->
+  <script src="https://unpkg.com/dexie@3.2.4/dist/dexie.min.js"></script>
   <!-- OCR Libraries - PDF.js Legacy + Tesseract -->
   <!-- Versão 3.11 é mais estável que 4.x -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -93,6 +95,98 @@ const Users = (props) => <svg className={props.className || "w-5 h-5"} fill="non
 const Paperclip = (props) => <svg className={props.className || "w-5 h-5"} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>;
 const FilePdf = (props) => <svg className={props.className || "w-5 h-5"} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>;
 const Eye = (props) => <svg className={props.className || "w-5 h-5"} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>;
+
+// ==================== INDEXEDDB CONFIGURATION ====================
+// Configuração da base de dados IndexedDB usando Dexie
+const db = new Dexie('MunchiManagerDB');
+
+// Definir schema da base de dados
+db.version(1).stores({
+  movimentacoesStock: '++id, data, tipo, ingredienteId, produtoId',
+  // Outras tabelas podem ser adicionadas aqui no futuro se necessário
+});
+
+// Helper functions para IndexedDB
+const IndexedDBStorage = {
+  // Salvar movimentações
+  async saveMovimentacoes(movimentacoes) {
+    try {
+      await db.movimentacoesStock.clear(); // Limpar tabela
+      if (movimentacoes && movimentacoes.length > 0) {
+        await db.movimentacoesStock.bulkAdd(movimentacoes);
+      }
+      console.log(`✅ IndexedDB: ${movimentacoes.length} movimentações salvas`);
+      return true;
+    } catch (error) {
+      console.error('❌ Erro ao salvar no IndexedDB:', error);
+      return false;
+    }
+  },
+
+  // Carregar movimentações
+  async loadMovimentacoes() {
+    try {
+      const movimentacoes = await db.movimentacoesStock.toArray();
+      console.log(`✅ IndexedDB: ${movimentacoes.length} movimentações carregadas`);
+      return movimentacoes;
+    } catch (error) {
+      console.error('❌ Erro ao carregar do IndexedDB:', error);
+      return [];
+    }
+  },
+
+  // Obter estatísticas
+  async getStats() {
+    try {
+      const total = await db.movimentacoesStock.count();
+      const entradas = await db.movimentacoesStock.where('tipo').equals('entrada').count();
+      const saidas = await db.movimentacoesStock.where('tipo').equals('saida').count();
+      const ajustes = await db.movimentacoesStock.where('tipo').equals('ajuste').count();
+      
+      return { total, entradas, saidas, ajustes };
+    } catch (error) {
+      console.error('❌ Erro ao obter estatísticas:', error);
+      return { total: 0, entradas: 0, saidas: 0, ajustes: 0 };
+    }
+  },
+
+  // Limpar todos os dados
+  async clearAll() {
+    try {
+      await db.movimentacoesStock.clear();
+      console.log('✅ IndexedDB limpo');
+      return true;
+    } catch (error) {
+      console.error('❌ Erro ao limpar IndexedDB:', error);
+      return false;
+    }
+  },
+
+  // Migrar dados do localStorage para IndexedDB (apenas primeira vez)
+  async migrateFromLocalStorage() {
+    try {
+      const localData = localStorage.getItem('movimentacoesStock');
+      if (localData) {
+        const movimentacoes = JSON.parse(localData);
+        const count = await db.movimentacoesStock.count();
+        
+        // Só migrar se IndexedDB estiver vazio
+        if (count === 0 && movimentacoes.length > 0) {
+          await db.movimentacoesStock.bulkAdd(movimentacoes);
+          console.log(`✅ Migração: ${movimentacoes.length} movimentações de localStorage → IndexedDB`);
+          
+          // Remover do localStorage após migração bem-sucedida
+          localStorage.removeItem('movimentacoesStock');
+          return true;
+        }
+      }
+      return false;
+    } catch (error) {
+      console.error('❌ Erro na migração:', error);
+      return false;
+    }
+  }
+};
 
 // ==================== GITHUB GIST SYNC ====================
 const GitHubSync = {
@@ -4115,21 +4209,56 @@ const RestauranteGestor = () => {
     localStorage.setItem('contagens', JSON.stringify(contagens));
   }, [contagens]);
   
-  // 🆕 Salvar e carregar movimentacoesStock
+  // 🆕 CARREGAR MOVIMENTAÇÕES DO INDEXEDDB (inicialização)
   useEffect(() => {
-    const savedMovimentacoes = localStorage.getItem('movimentacoesStock');
-    if (savedMovimentacoes) {
+    const loadData = async () => {
       try {
-        setMovimentacoesStock(JSON.parse(savedMovimentacoes));
-      } catch (e) {
-        console.error('Erro ao carregar movimentações:', e);
+        console.log('📥 Carregando dados do IndexedDB...');
+        
+        // Primeiro, tentar migrar do localStorage se houver dados lá
+        const migrated = await IndexedDBStorage.migrateFromLocalStorage();
+        if (migrated) {
+          console.log('✅ Dados migrados do localStorage para IndexedDB');
+        }
+        
+        // Carregar dados do IndexedDB
+        const movimentacoes = await IndexedDBStorage.loadMovimentacoes();
+        setMovimentacoesStock(movimentacoes);
+        
+        // Carregar estatísticas se houver
+        const stats = await IndexedDBStorage.getStats();
+        console.log(`📊 Estatísticas: ${stats.total} total (${stats.entradas} entradas, ${stats.saidas} saídas, ${stats.ajustes} ajustes)`);
+      } catch (error) {
+        console.error('❌ Erro ao carregar dados:', error);
       }
-    }
+    };
+    
+    loadData();
   }, []);
   
+  // 🆕 SALVAR MOVIMENTAÇÕES NO INDEXEDDB (quando houver mudanças)
   useEffect(() => {
-    localStorage.setItem('movimentacoesStock', JSON.stringify(movimentacoesStock));
+    if (movimentacoesStock.length === 0) return;
+    
+    const saveData = async () => {
+      try {
+        await IndexedDBStorage.saveMovimentacoes(movimentacoesStock);
+      } catch (error) {
+        console.error('❌ Erro ao salvar dados:', error);
+        
+        // Se falhar, mostrar aviso
+        if (error.name === 'QuotaExceededError') {
+          alert(`⚠️ Espaço de armazenamento cheio!\n\nTente:\n1. Fazer backup no Google Drive\n2. Exportar JSON\n3. Limpar dados antigos nas configurações\n\nSe o problema persistir, contacte o suporte.`);
+        }
+      }
+    };
+    
+    // Debounce para não salvar a cada mudança mínima
+    const timeoutId = setTimeout(saveData, 500);
+    return () => clearTimeout(timeoutId);
   }, [movimentacoesStock]);
+
+
   
   // 🆕 Inicializar ingredientes com campos de waste/stock quando carregarem
   useEffect(() => {
@@ -13192,6 +13321,17 @@ void 0;
               )}
             </div>
           </div>
+        </div>
+
+        {/* IndexedDB Status Indicator */}
+        <div className="mb-2 flex items-center justify-between text-xs px-3 py-2 bg-gradient-to-r from-green-50 to-blue-50 border border-green-200 rounded-lg">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+            <span className="text-gray-700 font-medium">💾 IndexedDB Ativo</span>
+            <span className="text-gray-500">|</span>
+            <span className="text-gray-600">{movimentacoesStock.length.toLocaleString('pt-PT')} movimentações</span>
+          </div>
+          <div className="text-gray-500 italic">Sem limites de 5MB ✓</div>
         </div>
 
         {/* Main Tabs */}
