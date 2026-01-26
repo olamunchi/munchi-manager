@@ -6070,7 +6070,7 @@ void 0;
   /**
    * Adiciona ou atualiza entrada no vocabulário
    */
-  const aprenderAssociacao = (textoOCR, ingredienteId, nifFornecedor, foiCorrecao = false) => {
+  const aprenderAssociacao = (textoOCR, ingredienteId, nifFornecedor, foiCorrecao = false, dadosLinha = {}) => {
     if (!textoOCR || !ingredienteId || !nifFornecedor) return;
     
     const textoNorm = normalizarTexto(textoOCR);
@@ -6091,6 +6091,18 @@ void 0;
         atualizado[indexExistente].confirmacoes = (atualizado[indexExistente].confirmacoes || 0) + 1;
       }
       atualizado[indexExistente].ultimaConfirmacao = new Date().toISOString();
+      
+      // 🆕 Atualizar últimos valores usados (para sugestão futura)
+      if (dadosLinha.quantidade !== undefined) {
+        atualizado[indexExistente].ultimaQuantidade = dadosLinha.quantidade;
+      }
+      if (dadosLinha.unidade) {
+        atualizado[indexExistente].ultimaUnidade = dadosLinha.unidade;
+      }
+      if (dadosLinha.preco !== undefined) {
+        atualizado[indexExistente].ultimoPreco = dadosLinha.preco;
+      }
+      
       setVocabularioFornecedor(atualizado);
       
       void 0;
@@ -6104,7 +6116,11 @@ void 0;
         ingredienteId: ingredienteId,
         confirmacoes: foiCorrecao ? 0 : 1,
         correcoes: foiCorrecao ? 1 : 0,
-        ultimaConfirmacao: new Date().toISOString()
+        ultimaConfirmacao: new Date().toISOString(),
+        // 🆕 Guardar valores da primeira vez
+        ultimaQuantidade: dadosLinha.quantidade,
+        ultimaUnidade: dadosLinha.unidade,
+        ultimoPreco: dadosLinha.preco
       };
       
       setVocabularioFornecedor([...vocabularioFornecedor, novo]);
@@ -6355,7 +6371,30 @@ void 0;
    * Preenche automaticamente quantidade, unidade e sugere preço baseado em compras anteriores
    */
   const aplicarHistoricoAoMatch = (linha, ingredienteId, nifFornecedor) => {
-    // Buscar histórico
+    // 🆕 PRIORIDADE 1: Buscar no vocabulário de aprendizagem (mais específico)
+    const vocabEntry = vocabularioFornecedor.find(
+      v => v.fornecedorNIF === nifFornecedor && 
+           v.ingredienteId === ingredienteId &&
+           v.confirmacoes >= 2 // Só usar se já confirmado 2+ vezes
+    );
+    
+    if (vocabEntry) {
+      void 0;
+      
+      return {
+        ...linha,
+        // Auto-preencher com últimos valores usados
+        quantidade: linha.quantidade || vocabEntry.ultimaQuantidade,
+        unidade: linha.unidade || vocabEntry.ultimaUnidade,
+        preco: linha.preco || vocabEntry.ultimoPreco,
+        // Sugestão de preço (sempre mostrar)
+        precoSugerido: vocabEntry.ultimoPreco,
+        // Flag
+        preenchidoComVocabulario: true
+      };
+    }
+    
+    // FALLBACK: Buscar histórico nas faturas antigas
     const historico = buscarHistoricoIngrediente(ingredienteId, nifFornecedor);
     
     if (historico) {
@@ -13168,8 +13207,15 @@ void 0;
           const foiAlterado = linha.ingredienteSugerido && 
                              linha.ingredienteConfirmado !== linha.ingredienteSugerido;
           
-          // Aprender a associação
-          aprenderAssociacao(textoOCR, ingredienteId, nifFornecedor, foiAlterado);
+          // 🆕 Passar dados da linha para aprendizagem
+          const dadosLinha = {
+            quantidade: linha.quantidade,
+            unidade: linha.unidade,
+            preco: linha.preco
+          };
+          
+          // Aprender a associação COM dados completos
+          aprenderAssociacao(textoOCR, ingredienteId, nifFornecedor, foiAlterado, dadosLinha);
           
           if (foiAlterado) {
             const ingrediente = ingredientes.find(i => i.id === ingredienteId);
