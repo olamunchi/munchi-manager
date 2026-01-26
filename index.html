@@ -326,20 +326,9 @@ if (typeof window.storage === 'undefined') {
       });
     },
     set: (key, value) => { 
-      return Promise.resolve().then(() => {
-        try { 
-          localStorage.setItem(key, value); 
-          return { key, value, shared: false }; 
-        } catch (e) { 
-          console.error('Storage set error:', e);
-          // Se falhar por quota excedida, tentar limpar espaço
-          if (e.name === 'QuotaExceededError') {
-            console.warn('⚠️ LocalStorage cheio! Tentando limpar espaço...');
-            // Não fazer nada - deixar o Drive gerir tudo
-          }
-          throw e; // Re-throw para o catch apanhar
-        }
-      });
+      // 🚫 DESATIVADO: LocalStorage causa crashes quando cheio
+      // Google Drive é a única fonte de verdade
+      return Promise.resolve({ key, value, shared: false });
     },
     delete: (key) => { 
       return Promise.resolve().then(() => {
@@ -4269,14 +4258,14 @@ const RestauranteGestor = () => {
     }
   }, []);
   
-  // 🆕 Salvar configurações automaticamente quando mudar
-  useEffect(() => {
-    localStorage.setItem('configuracaoWaste', JSON.stringify(configuracaoWaste));
-  }, [configuracaoWaste]);
+  // 🚫 LocalStorage desativado - tudo vai pro Google Drive
+  // useEffect(() => {
+  //   localStorage.setItem('configuracaoWaste', JSON.stringify(configuracaoWaste));
+  // }, [configuracaoWaste]);
   
-  useEffect(() => {
-    localStorage.setItem('contagens', JSON.stringify(contagens));
-  }, [contagens]);
+  // useEffect(() => {
+  //   localStorage.setItem('contagens', JSON.stringify(contagens));
+  // }, [contagens]);
   
   // 🆕 CARREGAR MOVIMENTAÇÕES DO INDEXEDDB (inicialização)
   useEffect(() => {
@@ -4906,14 +4895,14 @@ const RestauranteGestor = () => {
   const handleAdicionarBlacklist = (item) => {
     const novaBlacklist = [...blacklist, item];
     setBlacklist(novaBlacklist);
-    localStorage.setItem('munchi_blacklist', JSON.stringify(novaBlacklist));
+    // 🚫 localStorage.setItem('munchi_blacklist', JSON.stringify(novaBlacklist));
     showNotification(`✅ "${item}" adicionado à blacklist. 💾 Sincroniza com Drive para guardar!`, 'success', 5000);
   };
 
   const handleRemoverBlacklist = (item) => {
     const novaBlacklist = blacklist.filter(i => i !== item);
     setBlacklist(novaBlacklist);
-    localStorage.setItem('munchi_blacklist', JSON.stringify(novaBlacklist));
+    // 🚫 localStorage.setItem('munchi_blacklist', JSON.stringify(novaBlacklist));
     showNotification(`✅ "${item}" removido da blacklist. 💾 Sincroniza com Drive para guardar!`, 'success', 5000);
   };
 
@@ -6555,9 +6544,14 @@ void 0;
 
 
   const exportarDados = () => {
+    // 💾 Nota: Este export usa os estados React atuais
+    // Estes estados são os mesmos que estão no Google Drive
+    // LocalStorage NÃO é usado - só Google Drive
+    
     const dados = {
       versao: '2.0',
       dataExport: new Date().toISOString(),
+      fonte: 'Estados React (mesmos dados do Google Drive)',
       produtos,
       ingredientes,
       vendas,
@@ -6581,7 +6575,7 @@ void 0;
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    showNotification('Backup exportado!', 'success');
+    showNotification('✅ Backup exportado! (Dados do Google Drive)', 'success');
   };
 
   const importarDados = (event) => {
@@ -8493,10 +8487,10 @@ void 0;
         if (data.dadosEmpresa) setDadosEmpresa(data.dadosEmpresa);
         if (data.deliveryApps) setDeliveryApps(data.deliveryApps);
         
-        // ✅ BLACKLIST: Merge com local
+        // ✅ BLACKLIST: Carregar do Drive
         if (data.blacklist && data.blacklist.length > 0) {
           setBlacklist(data.blacklist);
-          localStorage.setItem('munchi_blacklist', JSON.stringify(data.blacklist));
+          // 🚫 localStorage.setItem('munchi_blacklist', JSON.stringify(data.blacklist));
           void 0;
         } else {
           const localBlacklist = localStorage.getItem('munchi_blacklist');
@@ -8645,32 +8639,25 @@ void 0;
     setShowIngredienteSuggestions(false);
   }, [activeTab, gestaoSubTab]);
 
-  // 🆕 Guardar última fatura inserida
-  useEffect(() => {
-    if (ultimaFaturaInserida !== null) {
-      window.storage.set('ultimaFaturaInserida', JSON.stringify(ultimaFaturaInserida)).catch(() => {});
-    }
-  }, [ultimaFaturaInserida]);
+  // 🚫 LocalStorage desativado - ultimaFaturaInserida só vai pro Google Drive
+  // useEffect(() => {
+  //   if (ultimaFaturaInserida !== null) {
+  //     window.storage.set('ultimaFaturaInserida', JSON.stringify(ultimaFaturaInserida)).catch(() => {});
+  //   }
+  // }, [ultimaFaturaInserida]);
 
+  // 🚫 LocalStorage desativado - apenas Google Drive é usado
+  // Os dados são guardados automaticamente no Drive quando mudarem
+  // useEffect(() => {
+  //   const salvar = async () => {
+  //     await Promise.all([...]);
+  //   };
+  //   salvar();
+  // }, [produtos, ingredientes, ...]);
+  
+  // 🆕 Log para debug - remover depois
   useEffect(() => {
-    const salvar = async () => {
-      try {
-        await Promise.all([
-          window.storage.set('produtos', JSON.stringify(produtos)).catch(e => console.warn('Erro ao guardar produtos:', e)),
-          window.storage.set('ingredientes', JSON.stringify(ingredientes)).catch(e => console.warn('Erro ao guardar ingredientes:', e)),
-          window.storage.set('vendas', JSON.stringify(vendas)).catch(e => console.warn('Erro ao guardar vendas:', e)),
-          window.storage.set('despesas', JSON.stringify(despesas)).catch(e => console.warn('Erro ao guardar despesas:', e)),
-          window.storage.set('fornecedores', JSON.stringify(fornecedores)).catch(e => console.warn('Erro ao guardar fornecedores:', e)),
-          window.storage.set('dadosEmpresa', JSON.stringify(dadosEmpresa)).catch(e => console.warn('Erro ao guardar dadosEmpresa:', e)),
-          window.storage.set('faturas', JSON.stringify(faturas)).catch(e => console.warn('Erro ao guardar faturas:', e)),
-          window.storage.set('vocabularioFornecedor', JSON.stringify(vocabularioFornecedor)).catch(e => console.warn('Erro ao guardar vocabulario:', e)), // 🧠 Salvar aprendizagem
-          window.storage.set('templatesOCR', JSON.stringify(templatesOCR)).catch(e => console.warn('Erro ao guardar templates:', e)) // 📋 Salvar templates
-        ]);
-      } catch (e) { 
-        console.warn('⚠️ Erro ao guardar no localStorage. Os dados estão seguros no Google Drive.');
-      }
-    };
-    salvar();
+    console.log('💾 Dados alterados - serão sincronizados no próximo save do Google Drive');
   }, [produtos, ingredientes, vendas, despesas, fornecedores, dadosEmpresa, faturas, vocabularioFornecedor, templatesOCR]);
 
 
@@ -19271,11 +19258,12 @@ void 0;
                             Exportar
                           </h4>
                           <p className="text-xs text-gray-600 mb-2">
-                            Backup local (JSON)
+                            Backup local (JSON) - Dados do Google Drive
                           </p>
                           <button 
                             onClick={exportarDados}
                             className="w-full bg-green-600 hover:bg-green-700 text-white rounded px-3 py-2 text-xs font-semibold flex items-center justify-center gap-1 transition"
+                            title="Exporta os dados atuais (mesmos que estão no Google Drive)"
                           >
                             <Download size={12} />
                             Exportar
