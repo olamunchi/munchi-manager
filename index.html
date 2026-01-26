@@ -108,22 +108,14 @@ db.version(1).stores({
 
 // Helper functions para IndexedDB
 const IndexedDBStorage = {
-  // Salvar movimentações
+  // Salvar movimentações - 🚫 DESATIVADO
   async saveMovimentacoes(movimentacoes) {
-    try {
-      await db.movimentacoesStock.clear(); // Limpar tabela
-      if (movimentacoes && movimentacoes.length > 0) {
-        await db.movimentacoesStock.bulkAdd(movimentacoes);
-      }
-      console.log(`✅ IndexedDB: ${movimentacoes.length} movimentações salvas`);
-      return true;
-    } catch (error) {
-      console.error('❌ Erro ao salvar no IndexedDB:', error);
-      return false;
-    }
+    // 🚫 DESATIVADO: IndexedDB desativado, só Google Drive
+    console.log(`💾 IndexedDB desativado - dados vão apenas para Google Drive`);
+    return true;
   },
 
-  // Carregar movimentações
+  // Carregar movimentações - ✅ ATIVO (leitura OK)
   async loadMovimentacoes() {
     try {
       const movimentacoes = await db.movimentacoesStock.toArray();
@@ -135,7 +127,7 @@ const IndexedDBStorage = {
     }
   },
 
-  // Obter estatísticas
+  // Obter estatísticas - ✅ ATIVO (leitura OK)
   async getStats() {
     try {
       const total = await db.movimentacoesStock.count();
@@ -4268,53 +4260,32 @@ const RestauranteGestor = () => {
   // }, [contagens]);
   
   // 🆕 CARREGAR MOVIMENTAÇÕES DO INDEXEDDB (inicialização)
+  // 🚫 INDEXEDDB DESATIVADO - Não carrega nada
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        console.log('📥 Carregando dados do IndexedDB...');
-        
-        // Primeiro, tentar migrar do localStorage se houver dados lá
-        const migrated = await IndexedDBStorage.migrateFromLocalStorage();
-        if (migrated) {
-          console.log('✅ Dados migrados do localStorage para IndexedDB');
-        }
-        
-        // Carregar dados do IndexedDB
-        const movimentacoes = await IndexedDBStorage.loadMovimentacoes();
-        setMovimentacoesStock(movimentacoes);
-        
-        // Carregar estatísticas se houver
-        const stats = await IndexedDBStorage.getStats();
-        console.log(`📊 Estatísticas: ${stats.total} total (${stats.entradas} entradas, ${stats.saidas} saídas, ${stats.ajustes} ajustes)`);
-      } catch (error) {
-        console.error('❌ Erro ao carregar dados:', error);
-      }
-    };
-    
-    loadData();
+    console.log('💾 IndexedDB e LocalStorage desativados - Só Google Drive');
   }, []);
   
-  // 🆕 SALVAR MOVIMENTAÇÕES NO INDEXEDDB (quando houver mudanças)
-  useEffect(() => {
-    if (movimentacoesStock.length === 0) return;
-    
-    const saveData = async () => {
-      try {
-        await IndexedDBStorage.saveMovimentacoes(movimentacoesStock);
-      } catch (error) {
-        console.error('❌ Erro ao salvar dados:', error);
-        
-        // Se falhar, mostrar aviso
-        if (error.name === 'QuotaExceededError') {
-          alert(`⚠️ Espaço de armazenamento cheio!\n\nTente:\n1. Fazer backup no Google Drive\n2. Exportar JSON\n3. Limpar dados antigos nas configurações\n\nSe o problema persistir, contacte o suporte.`);
-        }
-      }
-    };
-    
-    // Debounce para não salvar a cada mudança mínima
-    const timeoutId = setTimeout(saveData, 500);
-    return () => clearTimeout(timeoutId);
-  }, [movimentacoesStock]);
+  // 🚫 INDEXEDDB DESATIVADO - movimentações só vão para Google Drive
+  // useEffect(() => {
+  //   if (movimentacoesStock.length === 0) return;
+  //   
+  //   const saveData = async () => {
+  //     try {
+  //       await IndexedDBStorage.saveMovimentacoes(movimentacoesStock);
+  //     } catch (error) {
+  //       console.error('❌ Erro ao salvar dados:', error);
+  //       
+  //       // Se falhar, mostrar aviso
+  //       if (error.name === 'QuotaExceededError') {
+  //         alert(`⚠️ Espaço de armazenamento cheio!\n\nTente:\n1. Fazer backup no Google Drive\n2. Exportar JSON\n3. Limpar dados antigos nas configurações\n\nSe o problema persistir, contacte o suporte.`);
+  //       }
+  //     }
+  //   };
+  //   
+  //   // Debounce para não salvar a cada mudança mínima
+  //   const timeoutId = setTimeout(saveData, 500);
+  //   return () => clearTimeout(timeoutId);
+  // }, [movimentacoesStock]);
 
 
   
@@ -13595,15 +13566,15 @@ void 0;
           </div>
         </div>
 
-        {/* IndexedDB Status Indicator */}
-        <div className="mb-2 flex items-center justify-between text-xs px-3 py-2 bg-gradient-to-r from-green-50 to-blue-50 border border-green-200 rounded-lg">
+        {/* Storage Status Indicator */}
+        <div className="mb-2 flex items-center justify-between text-xs px-3 py-2 bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg">
           <div className="flex items-center gap-2">
-            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-            <span className="text-gray-700 font-medium">💾 IndexedDB Ativo</span>
+            <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+            <span className="text-gray-700 font-medium">☁️ Só Google Drive</span>
             <span className="text-gray-500">|</span>
-            <span className="text-gray-600">{movimentacoesStock.length.toLocaleString('pt-PT')} movimentações</span>
+            <span className="text-gray-600">LocalStorage & IndexedDB desativados</span>
           </div>
-          <div className="text-gray-500 italic">Sem limites de 5MB ✓</div>
+          <div className="text-gray-500 italic">Zero crashes ✓</div>
         </div>
 
         {/* Main Tabs */}
