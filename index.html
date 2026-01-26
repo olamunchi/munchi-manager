@@ -6500,8 +6500,8 @@ void 0;
       
       if (palavrasBloqueadoras.length > 0) {
         // 🆕 LOG DETALHADO para template
-        console.log(`🚫 [BLACKLIST/TEMPLATE] Linha bloqueada: "${linha}"`);
-        console.log(`   ↳ Bloqueada por: ${palavrasBloqueadoras.map(p => `"${p}"`).join(', ')}`);
+        const mensagemBlacklist = `Bloqueada por: ${palavrasBloqueadoras.map(p => `"${p}"`).join(', ')}`;
+        console.log(`🚫 [BLACKLIST/TEMPLATE] Linha bloqueada: "${linha}" - ${mensagemBlacklist}`);
         
         linhasIgnoradasBlacklist++;
         continue;
@@ -12423,10 +12423,10 @@ void 0;
         
         if (palavrasBloqueadoras.length > 0) {
           // 🆕 LOG DETALHADO: Mostrar linha bloqueada + palavras que a bloquearam
-          console.log(`🚫 [BLACKLIST] Linha bloqueada: "${linha}"`);
-          console.log(`   ↳ Bloqueada por: ${palavrasBloqueadoras.map(p => `"${p}"`).join(', ')}`);
+          const mensagemBlacklist = `Bloqueada por: ${palavrasBloqueadoras.map(p => `"${p}"`).join(', ')}`;
+          console.log(`🚫 [BLACKLIST] Linha: "${linha}" - ${mensagemBlacklist}`);
           
-          OCR_DEBUG.log('BLACKLIST', 'Linha rejeitada', { 
+          OCR_DEBUG.log('BLACKLIST', mensagemBlacklist, { 
             linha, 
             palavrasBloqueadoras,
             linhaCompleta: linha
