@@ -4155,6 +4155,9 @@ const RestauranteGestor = () => {
   const [fornecedorFiltro, setFornecedorFiltro] = useState(''); // '' = todos os fornecedores
   const [exportDateEnd, setExportDateEnd] = useState('');
   
+  // 🆕 Estado para destacar última fatura inserida
+  const [ultimaFaturaInserida, setUltimaFaturaInserida] = useState(null);
+  
   // 🆕 Auto-ajustar ano selecionado quando faturas mudarem
   React.useEffect(() => {
     if (faturas.length === 0) return;
@@ -5053,6 +5056,7 @@ const RestauranteGestor = () => {
     // Criar fatura completa
     const novaFaturaCompleta = {
       id: Date.now(),
+      criadoEm: new Date().toISOString(), // 🆕 Timestamp de criação
       numero: metadata?.numero || metadata?.numeroFatura || '',
       tipo: metadata?.tipo || metadata?.tipoFatura || 'FT',
       tipoDocumento: 'fatura',
@@ -5094,6 +5098,7 @@ const RestauranteGestor = () => {
     
     // Salvar fatura
     setFaturas([...faturas, novaFaturaCompleta]);
+    setUltimaFaturaInserida(novaFaturaCompleta.id); // 🆕 Marcar como última inserida
     
     // Fechar modal
     setModalDespesaSimples({ mostrar: false, dados: null });
@@ -9863,6 +9868,7 @@ void 0;
     
     const novaFaturaCompleta = {
       id: Date.now(),
+      criadoEm: new Date().toISOString(), // 🆕 Timestamp de criação
       numero: faturaParaGuardar.numero,
       tipo: faturaParaGuardar.tipo || 'FT', // ✅ TIPO DE FATURA (FT/FR/FS)
       tipoDocumento: faturaParaGuardar.tipoDocumento || 'fatura', // NOVO: tipo de documento
@@ -9903,6 +9909,7 @@ void 0;
     void 0;
     
     setFaturas([...faturas, novaFaturaCompleta]);
+    setUltimaFaturaInserida(novaFaturaCompleta.id); // 🆕 Marcar como última inserida
     
     // Resetar formulário
     setNovaFatura({
@@ -17607,7 +17614,7 @@ void 0;
                       Nenhuma fatura registada. Crie a primeira fatura acima!
                     </div>
                   ) : (
-                    <div className="space-y-3">
+                    <div className="space-y-3 pt-16">
                       {(faturas || [])
                         .filter(fatura => {
                           // Filtro de ano
@@ -17638,15 +17645,40 @@ void 0;
                         })
                         .sort((a, b) => new Date(b.data) - new Date(a.data))
                         .map(fatura => (
-                        <div key={fatura.id} className="border rounded-lg overflow-hidden hover:shadow-md transition">
+                        <div key={fatura.id} className="border rounded-lg hover:shadow-md transition relative group">
+                          {/* 🆕 Tooltip com nome do PDF (hover) - MELHORADO */}
+                          {fatura.nomeDocumento && fatura.id === ultimaFaturaInserida && (
+                            <div className="absolute -top-14 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-sm px-4 py-2 rounded-lg shadow-xl invisible group-hover:visible transition-all duration-200 whitespace-nowrap z-50 pointer-events-none">
+                              <div className="flex items-center gap-2">
+                                <FilePdf size={16} className="text-red-400" />
+                                <span className="font-mono font-semibold">{fatura.nomeDocumento}</span>
+                              </div>
+                              {/* Seta para baixo */}
+                              <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
+                                <div className="border-8 border-transparent border-t-gray-800"></div>
+                              </div>
+                            </div>
+                          )}
+                          
                           {/* Cabeçalho da Fatura (sempre visível) */}
                           <div 
                             onClick={() => setExpandedFatura(expandedFatura === fatura.id ? null : fatura.id)}
-                            className="bg-gradient-to-r from-blue-50 to-purple-50 p-4 cursor-pointer hover:from-blue-100 hover:to-purple-100 transition"
+                            className={`p-4 cursor-pointer transition rounded-lg ${
+                              fatura.id === ultimaFaturaInserida
+                                ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-l-4 border-green-500 hover:from-green-100 hover:to-emerald-100'
+                                : 'bg-gradient-to-r from-blue-50 to-purple-50 hover:from-blue-100 hover:to-purple-100'
+                            }`}
                           >
                             <div className="flex items-center justify-between">
                               <div className="flex-1">
                                 <div className="flex items-center gap-3 mb-1">
+                                  {/* 🆕 Badge ÚLTIMA INSERIDA */}
+                                  {fatura.id === ultimaFaturaInserida && (
+                                    <span className="flex items-center gap-1 bg-green-600 text-white text-xs px-2 py-1 rounded font-bold shadow-md">
+                                      ⚡ ÚLTIMA INSERIDA
+                                    </span>
+                                  )}
+                                  
                                   <span className="font-bold text-blue-700">
                                     {fatura.tipo === 'rapido' ? '⚡' : '📄'} {fatura.numero || 'Recibo'}
                                   </span>
@@ -17714,7 +17746,15 @@ void 0;
                                   
                                   <span className="text-sm text-gray-600">{fatura.fornecedorNome}</span>
                                   <span className="text-xs text-gray-500">{new Date(fatura.data).toLocaleDateString('pt-PT')}</span>
+                                  
+                                  {/* 🆕 Nome do PDF - SEMPRE VISÍVEL se for última inserida (na mesma linha) */}
+                                  {fatura.nomeDocumento && fatura.id === ultimaFaturaInserida && (
+                                    <span className="text-xs bg-yellow-50 border border-yellow-300 px-2 py-1 rounded font-mono text-gray-800 font-semibold">
+                                      {fatura.nomeDocumento}
+                                    </span>
+                                  )}
                                 </div>
+                                
                                 <div className="flex items-center gap-4 text-sm">
                                   <span className="text-gray-600">{(fatura.itens || []).length} {(fatura.itens || []).length === 1 ? 'item' : 'items'}</span>
                                   <span className="font-bold text-blue-700">Total: €{(fatura.total || 0).toFixed(2)}</span>
