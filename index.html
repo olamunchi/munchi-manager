@@ -1834,16 +1834,7 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
                 </div>
               </div>
               
-              {/* Barra de progresso de aprendizagem */}
-              {stats.percentagemAuto > 0 && (
-                <div className="bg-gradient-to-r from-purple-500 to-blue-500 text-white px-3 py-2 rounded flex items-center gap-2">
-                  <span className="text-lg">🧠</span>
-                  <div className="flex-1">
-                    <div className="font-bold text-sm">Sistema Inteligente: {stats.percentagemAuto}% reconhecidos automaticamente</div>
-                    <div className="text-xs opacity-90">Baseado em {stats.altaConfianca} confirmações anteriores com este fornecedor</div>
-                  </div>
-                </div>
-              )}
+              {/* Barra de progresso removida - não é necessária */}
             </div>
           )}
         </div>
@@ -2110,22 +2101,7 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
           )}
         </div>
         <div className="p-6 border-t bg-gray-50">
-          <div className="flex justify-between items-center mb-3">
-            <div className="text-sm text-gray-600">
-              {stats && stats.comSugestao > 0 ? (
-                <span>
-                  🧠 <strong>{stats.comSugestao}/{stats.total}</strong> reconhecidos automaticamente
-                  {stats.altaConfianca > 0 && ` (${stats.altaConfianca} com alta confiança)`}
-                </span>
-              ) : (
-                <span>📚 Primeira vez com este fornecedor - sistema vai aprender!</span>
-              )}
-            </div>
-          </div>
-          <div className="flex justify-between items-center">
-            <div className="text-xs text-gray-500">
-              💡 Verde (≥80%) = alta confiança | Amarelo (60-79%) = verificar | Cinza = escolher manualmente
-            </div>
+          <div className="flex justify-end items-center">
             <div className="flex gap-3">
             <button
               onClick={onCancelar}
@@ -13566,16 +13542,7 @@ void 0;
           </div>
         </div>
 
-        {/* Storage Status Indicator */}
-        <div className="mb-2 flex items-center justify-between text-xs px-3 py-2 bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg">
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-            <span className="text-gray-700 font-medium">☁️ Só Google Drive</span>
-            <span className="text-gray-500">|</span>
-            <span className="text-gray-600">LocalStorage & IndexedDB desativados</span>
-          </div>
-          <div className="text-gray-500 italic">Zero crashes ✓</div>
-        </div>
+        {/* Storage indicator removido - não é necessário */}
 
         {/* Main Tabs */}
         <div className={`rounded-lg shadow mb-3 bg-white`}>
