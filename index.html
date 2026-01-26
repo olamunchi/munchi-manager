@@ -6457,9 +6457,15 @@ void 0;
       
       // Verificar blacklist
       const linhaLower = linha.toLowerCase();
-      const temPalavraBlacklist = blacklist.some(palavra => linhaLower.includes(palavra.toLowerCase()));
       
-      if (temPalavraBlacklist) {
+      // 🔍 Encontrar QUAL palavra da blacklist bloqueou
+      const palavrasBloqueadoras = blacklist.filter(palavra => linhaLower.includes(palavra.toLowerCase()));
+      
+      if (palavrasBloqueadoras.length > 0) {
+        // 🆕 LOG DETALHADO para template
+        console.log(`🚫 [BLACKLIST/TEMPLATE] Linha bloqueada: "${linha}"`);
+        console.log(`   ↳ Bloqueada por: ${palavrasBloqueadoras.map(p => `"${p}"`).join(', ')}`);
+        
         linhasIgnoradasBlacklist++;
         continue;
       }
@@ -8008,6 +8014,7 @@ void 0;
         configuracaoWaste: configuracaoWaste || {}, // 🆕 Waste tracking config
         contagens: contagens || [], // 🆕 Histórico de contagens
         movimentacoesStock: movimentacoesStock || [], // 🆕 STOCK INTELIGENTE
+        ultimaFaturaInserida: ultimaFaturaInserida || null, // 🆕 Última fatura inserida
         lastUpdate: new Date().toISOString()
       };
       let fileId = driveFileId;
@@ -8464,6 +8471,12 @@ void 0;
           void 0;
         }
         
+        // 🆕 ÚLTIMA FATURA INSERIDA: Carregar
+        if (data.ultimaFaturaInserida !== undefined) {
+          setUltimaFaturaInserida(data.ultimaFaturaInserida);
+          void 0;
+        }
+        
         setDriveLastSync(new Date(file.modifiedTime));
         showNotification('✅ Dados carregados!', 'success');
       }
@@ -8478,7 +8491,7 @@ void 0;
   useEffect(() => {
     const carregar = async () => {
       try {
-        const [p, i, v, d, f, de, ft, voc, templ] = await Promise.all([
+        const [p, i, v, d, f, de, ft, voc, templ, ultFat] = await Promise.all([
           window.storage.get('produtos').catch(() => null),
           window.storage.get('ingredientes').catch(() => null),
           window.storage.get('vendas').catch(() => null),
@@ -8487,7 +8500,8 @@ void 0;
           window.storage.get('dadosEmpresa').catch(() => null),
           window.storage.get('faturas').catch(() => null),
           window.storage.get('vocabularioFornecedor').catch(() => null), // 🧠 Carregar aprendizagem
-          window.storage.get('templatesOCR').catch(() => null) // 📋 Carregar templates
+          window.storage.get('templatesOCR').catch(() => null), // 📋 Carregar templates
+          window.storage.get('ultimaFaturaInserida').catch(() => null) // 🆕 Carregar última fatura
         ]);
         if (p) setProdutos(JSON.parse(p.value));
         if (i) setIngredientes(JSON.parse(i.value));
@@ -8527,6 +8541,7 @@ void 0;
         }
         if (voc) setVocabularioFornecedor(JSON.parse(voc.value)); // 🧠 Restaurar aprendizagem
         if (templ) setTemplatesOCR(JSON.parse(templ.value)); // 📋 Restaurar templates
+        if (ultFat) setUltimaFaturaInserida(JSON.parse(ultFat.value)); // 🆕 Restaurar última fatura
       } catch (e) { void 0; }
     };
     carregar();
@@ -8546,6 +8561,13 @@ void 0;
   useEffect(() => {
     setShowIngredienteSuggestions(false);
   }, [activeTab, gestaoSubTab]);
+
+  // 🆕 Guardar última fatura inserida
+  useEffect(() => {
+    if (ultimaFaturaInserida !== null) {
+      window.storage.set('ultimaFaturaInserida', JSON.stringify(ultimaFaturaInserida)).catch(() => {});
+    }
+  }, [ultimaFaturaInserida]);
 
   useEffect(() => {
     const salvar = async () => {
@@ -12278,6 +12300,15 @@ void 0;
       const template = buscarTemplateOCR(nifFornecedor);
       if (template && template.blacklist) {
         blacklist = template.blacklist;
+        
+        // 🆕 LOG DETALHADO DA BLACKLIST
+        console.log(`\n🚫 ============== BLACKLIST ATIVA ==============`);
+        console.log(`📋 Total de ${blacklist.length} palavras bloqueadas:`);
+        blacklist.forEach((palavra, index) => {
+          console.log(`   ${index + 1}. "${palavra}"`);
+        });
+        console.log(`🚫 ============================================\n`);
+        
         OCR_DEBUG.log('BLACKLIST', `${blacklist.length} palavras carregadas`, { blacklist });
       }
     }
@@ -12328,10 +12359,21 @@ void 0;
       // 🚫 CORRIGIDO: Verificar blacklist ANTES de qualquer outra validação
       if (blacklist.length > 0) {
         const linhaLower = linha.toLowerCase();
-        const temPalavraBlacklist = blacklist.some(palavra => linhaLower.includes(palavra));
         
-        if (temPalavraBlacklist) {
-          OCR_DEBUG.log('BLACKLIST', 'Linha rejeitada por blacklist', { linha });
+        // 🔍 Encontrar QUAL palavra da blacklist bloqueou
+        const palavrasBloqueadoras = blacklist.filter(palavra => linhaLower.includes(palavra));
+        
+        if (palavrasBloqueadoras.length > 0) {
+          // 🆕 LOG DETALHADO: Mostrar linha bloqueada + palavras que a bloquearam
+          console.log(`🚫 [BLACKLIST] Linha bloqueada: "${linha}"`);
+          console.log(`   ↳ Bloqueada por: ${palavrasBloqueadoras.map(p => `"${p}"`).join(', ')}`);
+          
+          OCR_DEBUG.log('BLACKLIST', 'Linha rejeitada', { 
+            linha, 
+            palavrasBloqueadoras,
+            linhaCompleta: linha
+          });
+          
           stats.blacklist++;
           continue;
         }
@@ -12359,6 +12401,15 @@ void 0;
       produtosDetectados: linhasProdutos.length
     });
     
+    // 🆕 RESUMO DA BLACKLIST
+    if (stats.blacklist > 0) {
+      console.log(`\n🚫 =============== RESUMO BLACKLIST ===============`);
+      console.log(`❌ Total de ${stats.blacklist} linhas bloqueadas pela blacklist`);
+      console.log(`✅ Total de ${stats.validas} linhas válidas processadas`);
+      console.log(`ℹ️  Para ver TODAS as linhas bloqueadas, procure por "[BLACKLIST]" nos logs acima`);
+      console.log(`🚫 ================================================\n`);
+    }
+    
     OCR_DEBUG.showSummary();
     
     // 6. Guardar logs no window para análise
@@ -12368,6 +12419,7 @@ void 0;
     console.log('\n💡 DICA: Para ver logs detalhados, execute no console:');
     console.log('   window.lastOCRLogs');
     console.log('   OCR_DEBUG.exportLogs()');
+    console.log('   // Para ver só blacklist: console.log(window.lastOCRLogs.filter(l => l.etapa === "BLACKLIST"))');
     
     if (linhasProdutos.length === 0) {
       void 0;
