@@ -3866,19 +3866,26 @@ const RestauranteGestor = () => {
   
   // 🔄 RECALCULAR TODO O HISTÓRICO DE MOVIMENTAÇÕES
   const recalcularMovimentacoes = () => {
+    console.log('🔄 Botão Recalcular pressionado');
+    console.log('📦 Faturas:', faturas.length);
+    console.log('🛒 Vendas:', vendas.length);
+    console.log('🥕 Ingredientes:', ingredientes.length);
+    
     if (!window.confirm('⚠️ Isso irá recalcular todas as movimentações baseado nos dados atuais.\n\n✅ Serão recalculadas:\n- Entradas de compras\n- Saídas de vendas\n\n❌ Serão removidos:\n- Todos os ajustes manuais\n\nDeseja continuar?')) {
+      console.log('❌ Recálculo cancelado pelo usuário');
       return;
     }
 
+    console.log('✅ Iniciando recálculo...');
     const novasMovimentacoes = [];
     
-    // 1️⃣ RECALCULAR ENTRADAS (das compras)
-    compras.forEach(compra => {
-      compra.itens.forEach(item => {
+    // 1️⃣ RECALCULAR ENTRADAS (das faturas/compras)
+    faturas.forEach(fatura => {
+      fatura.itens.forEach(item => {
         const ingrediente = ingredientes.find(ing => ing.id === item.ingredienteId);
         if (!ingrediente) return;
         
-        // Converter quantidade da compra para unidade base do ingrediente
+        // Converter quantidade da fatura para unidade base do ingrediente
         const quantidadeConvertida = converterParaUnidadeBase(
           item.quantidade,
           item.unidade || ingrediente.unidade,
@@ -3887,7 +3894,7 @@ const RestauranteGestor = () => {
         
         const movimentacao = {
           id: Date.now() + Math.random(),
-          data: compra.data || new Date().toISOString().split('T')[0],
+          data: fatura.data || new Date().toISOString().split('T')[0],
           tipo: 'entrada',
           ingredienteId: ingrediente.id,
           ingredienteNome: ingrediente.nome,
@@ -3897,14 +3904,16 @@ const RestauranteGestor = () => {
           precoTotal: item.precoTotal,
           stockAnterior: 0, // Será recalculado na ordenação
           stockNovo: 0,     // Será recalculado na ordenação
-          fornecedor: compra.fornecedor || 'N/A',
-          numeroDocumento: compra.numeroDocumento || 'N/A',
+          fornecedor: fatura.fornecedor || 'N/A',
+          numeroDocumento: fatura.numeroDocumento || 'N/A',
           observacao: `Compra: +${quantidadeConvertida.toFixed(2)} ${ingrediente.unidade}`
         };
         
         novasMovimentacoes.push(movimentacao);
       });
     });
+    
+    console.log('✅ Entradas recalculadas:', novasMovimentacoes.filter(m => m.tipo === 'entrada').length);
     
     // 2️⃣ RECALCULAR SAÍDAS (das vendas)
     vendas.forEach(venda => {
@@ -3944,6 +3953,8 @@ const RestauranteGestor = () => {
       });
     });
     
+    console.log('✅ Saídas recalculadas:', novasMovimentacoes.filter(m => m.tipo === 'saida').length);
+    
     // 3️⃣ ORDENAR POR DATA e RECALCULAR STOCKS
     novasMovimentacoes.sort((a, b) => new Date(a.data) - new Date(b.data));
     
@@ -3965,15 +3976,19 @@ const RestauranteGestor = () => {
       mov.stockNovo = stocksPorIngrediente[mov.ingredienteId];
     });
     
+    console.log('✅ Stocks recalculados por ingrediente:', Object.keys(stocksPorIngrediente).length);
+    
     // 4️⃣ ATUALIZAR STOCKS ATUAIS DOS INGREDIENTES
     const novosIngredientes = ingredientes.map(ing => ({
       ...ing,
       stockAtual: stocksPorIngrediente[ing.id] || 0
     }));
     
+    console.log('✅ Atualizando estado...');
     setIngredientes(novosIngredientes);
     setMovimentacoesStock(novasMovimentacoes);
     
+    console.log('✅ Estado atualizado! Total movimentações:', novasMovimentacoes.length);
     alert(`✅ Histórico recalculado com sucesso!\n\n📊 Total de movimentações: ${novasMovimentacoes.length}\n↑ Entradas: ${novasMovimentacoes.filter(m => m.tipo === 'entrada').length}\n↓ Saídas: ${novasMovimentacoes.filter(m => m.tipo === 'saida').length}`);
   };
   
