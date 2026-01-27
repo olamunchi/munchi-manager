@@ -72,6 +72,7 @@ const normalizeText = (text) => {
 // Icons
 const Plus = (props) => <svg className={props.className || "w-5 h-5"} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>;
 const Trash2 = (props) => <svg className={props.className || "w-5 h-5"} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>;
+const RefreshCw = (props) => <svg className={props.className || "w-5 h-5"} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>;
 const Upload = (props) => <svg className={props.className || "w-5 h-5"} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>;
 const Download = (props) => <svg className={props.className || "w-5 h-5"} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" /></svg>;
 const TrendingUp = (props) => <svg className={props.className || "w-5 h-5"} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>;
@@ -3862,6 +3863,155 @@ const RestauranteGestor = () => {
     
     setIngredientes(novosIngredientes);
     setMovimentacoesStock(prev => [...prev, ...novasMovimentacoes]);
+  };
+  
+  // 🔄 RECALCULAR TODO O HISTÓRICO DE MOVIMENTAÇÕES
+  const recalcularMovimentacoes = () => {
+    if (!window.confirm('⚠️ Isso irá recalcular todas as movimentações baseado nos dados atuais.\n\n✅ Serão recalculadas:\n- Entradas de compras\n- Saídas de vendas\n\n❌ Serão removidos:\n- Todos os ajustes manuais\n\nDeseja continuar?')) {
+      return;
+    }
+
+    const novasMovimentacoes = [];
+    
+    // 1️⃣ RECALCULAR ENTRADAS (das compras)
+    compras.forEach(compra => {
+      compra.itens.forEach(item => {
+        const ingrediente = ingredientes.find(ing => ing.id === item.ingredienteId);
+        if (!ingrediente) return;
+        
+        // Converter quantidade da compra para unidade base do ingrediente
+        const quantidadeConvertida = converterParaUnidadeBase(
+          item.quantidade,
+          item.unidade || ingrediente.unidade,
+          ingrediente.unidade
+        );
+        
+        const movimentacao = {
+          id: Date.now() + Math.random(),
+          data: compra.data || new Date().toISOString().split('T')[0],
+          tipo: 'entrada',
+          ingredienteId: ingrediente.id,
+          ingredienteNome: ingrediente.nome,
+          quantidade: quantidadeConvertida,
+          unidade: ingrediente.unidade,
+          precoUnitario: item.precoTotal / item.quantidade,
+          precoTotal: item.precoTotal,
+          stockAnterior: 0, // Será recalculado na ordenação
+          stockNovo: 0,     // Será recalculado na ordenação
+          fornecedor: compra.fornecedor || 'N/A',
+          numeroDocumento: compra.numeroDocumento || 'N/A',
+          observacao: `Compra: +${quantidadeConvertida.toFixed(2)} ${ingrediente.unidade}`
+        };
+        
+        novasMovimentacoes.push(movimentacao);
+      });
+    });
+    
+    // 2️⃣ RECALCULAR SAÍDAS (das vendas)
+    vendas.forEach(venda => {
+      const produto = produtos.find(p => p.id === venda.produtoId);
+      if (!produto || !produto.receita || produto.receita.length === 0) return;
+      
+      produto.receita.forEach(receitaItem => {
+        const ingrediente = ingredientes.find(ing => ing.id === receitaItem.ingredienteId);
+        if (!ingrediente) return;
+        
+        // Converter unidade da receita para unidade do ingrediente
+        const quantidadeReceitaConvertida = converterParaUnidadeBase(
+          receitaItem.quantidade,
+          receitaItem.unidade || ingrediente.unidade,
+          ingrediente.unidade
+        );
+        
+        const quantidadeUsada = arredondar(quantidadeReceitaConvertida * venda.quantidade);
+        
+        const movimentacao = {
+          id: Date.now() + Math.random(),
+          data: venda.data || new Date().toISOString().split('T')[0],
+          tipo: 'saida',
+          ingredienteId: ingrediente.id,
+          ingredienteNome: ingrediente.nome,
+          quantidade: quantidadeUsada,
+          unidade: ingrediente.unidade,
+          stockAnterior: 0, // Será recalculado na ordenação
+          stockNovo: 0,     // Será recalculado na ordenação
+          produtoId: produto.id,
+          produtoNome: produto.nome,
+          quantidadeProdutos: venda.quantidade,
+          observacao: `Venda: -${quantidadeUsada.toFixed(2)} ${ingrediente.unidade} (${venda.quantidade}x ${produto.nome})`
+        };
+        
+        novasMovimentacoes.push(movimentacao);
+      });
+    });
+    
+    // 3️⃣ ORDENAR POR DATA e RECALCULAR STOCKS
+    novasMovimentacoes.sort((a, b) => new Date(a.data) - new Date(b.data));
+    
+    const stocksPorIngrediente = {};
+    
+    novasMovimentacoes.forEach(mov => {
+      if (!stocksPorIngrediente[mov.ingredienteId]) {
+        stocksPorIngrediente[mov.ingredienteId] = 0;
+      }
+      
+      mov.stockAnterior = stocksPorIngrediente[mov.ingredienteId];
+      
+      if (mov.tipo === 'entrada') {
+        stocksPorIngrediente[mov.ingredienteId] += mov.quantidade;
+      } else if (mov.tipo === 'saida') {
+        stocksPorIngrediente[mov.ingredienteId] = Math.max(0, stocksPorIngrediente[mov.ingredienteId] - mov.quantidade);
+      }
+      
+      mov.stockNovo = stocksPorIngrediente[mov.ingredienteId];
+    });
+    
+    // 4️⃣ ATUALIZAR STOCKS ATUAIS DOS INGREDIENTES
+    const novosIngredientes = ingredientes.map(ing => ({
+      ...ing,
+      stockAtual: stocksPorIngrediente[ing.id] || 0
+    }));
+    
+    setIngredientes(novosIngredientes);
+    setMovimentacoesStock(novasMovimentacoes);
+    
+    alert(`✅ Histórico recalculado com sucesso!\n\n📊 Total de movimentações: ${novasMovimentacoes.length}\n↑ Entradas: ${novasMovimentacoes.filter(m => m.tipo === 'entrada').length}\n↓ Saídas: ${novasMovimentacoes.filter(m => m.tipo === 'saida').length}`);
+  };
+  
+  // 🗑️ REMOVER MOVIMENTAÇÃO MANUAL (apenas ajustes)
+  const removerMovimentacao = (movimentacaoId) => {
+    const mov = movimentacoesStock.find(m => m.id === movimentacaoId);
+    if (!mov) return;
+    
+    if (mov.tipo !== 'ajuste') {
+      alert('❌ Só é possível remover ajustes manuais.\n\nEntradas e saídas são geradas automaticamente das compras e vendas.');
+      return;
+    }
+    
+    if (!window.confirm(`🗑️ Remover ajuste manual?\n\nIngrediente: ${mov.ingredienteNome}\nQuantidade: ${mov.quantidade > 0 ? '+' : ''}${mov.quantidade.toFixed(2)} ${mov.unidade}\nData: ${new Date(mov.data).toLocaleDateString('pt-PT')}`)) {
+      return;
+    }
+    
+    // Remover movimentação
+    const novasMovimentacoes = movimentacoesStock.filter(m => m.id !== movimentacaoId);
+    
+    // Reverter o ajuste no stock do ingrediente
+    const ingrediente = ingredientes.find(ing => ing.id === mov.ingredienteId);
+    if (ingrediente) {
+      const novosIngredientes = ingredientes.map(ing => {
+        if (ing.id === mov.ingredienteId) {
+          return {
+            ...ing,
+            stockAtual: arredondar((ing.stockAtual || 0) - mov.quantidade)
+          };
+        }
+        return ing;
+      });
+      setIngredientes(novosIngredientes);
+    }
+    
+    setMovimentacoesStock(novasMovimentacoes);
+    alert('✅ Ajuste manual removido com sucesso!');
   };
   
   // Calcular desperdício real
@@ -19810,9 +19960,19 @@ void 0;
           <div className="bg-white rounded-lg shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
             <div className="bg-gradient-to-r from-indigo-600 to-blue-600 px-6 py-4 flex items-center justify-between">
               <h2 className="text-xl font-bold text-white">📊 Histórico de Movimentações de Stock</h2>
-              <button onClick={() => setMostrarModalMovimentacoes(false)} className="text-white hover:bg-white/20 rounded-full p-2 transition">
-                <X className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={recalcularMovimentacoes} 
+                  className="text-white hover:bg-white/20 rounded-lg px-3 py-2 transition flex items-center gap-2 text-sm font-semibold"
+                  title="Recalcular todo o histórico baseado nas compras e vendas atuais"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  Recalcular
+                </button>
+                <button onClick={() => setMostrarModalMovimentacoes(false)} className="text-white hover:bg-white/20 rounded-full p-2 transition">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
             <div className="bg-gray-50 px-6 py-3 border-b grid grid-cols-4 gap-4">
               <div className="text-center">
@@ -19848,6 +20008,7 @@ void 0;
                   <th className="px-4 py-3 text-right text-xs font-semibold">Stock Antes</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold">Stock Depois</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold">Observação</th>
+                  <th className="px-4 py-3 text-center text-xs font-semibold">Ações</th>
                 </tr></thead><tbody className="divide-y divide-gray-200">
                   {movimentacoesStock.sort((a, b) => new Date(b.data) - new Date(a.data)).map((mov, idx) => (
                     <tr key={mov.id || idx} className="hover:bg-gray-50">
@@ -19877,6 +20038,19 @@ void 0;
                       <td className="px-4 py-3 text-sm text-right font-mono text-gray-600">{mov.stockAnterior ? mov.stockAnterior.toFixed(2) : '0.00'}</td>
                       <td className="px-4 py-3 text-sm text-right font-mono font-semibold">{mov.stockNovo ? mov.stockNovo.toFixed(2) : '0.00'}</td>
                       <td className="px-4 py-3 text-xs text-gray-600">{mov.observacao}</td>
+                      <td className="px-4 py-3 text-center">
+                        {mov.tipo === 'ajuste' ? (
+                          <button
+                            onClick={() => removerMovimentacao(mov.id)}
+                            className="text-red-600 hover:bg-red-50 rounded p-1 transition"
+                            title="Remover ajuste manual"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        ) : (
+                          <span className="text-gray-300 text-xs">—</span>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody></table>
