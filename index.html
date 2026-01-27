@@ -3661,6 +3661,8 @@ const RestauranteGestor = () => {
   const [stockRastreamentoAtivo, setStockRastreamentoAtivo] = useState(true);
   const [alertasStock, setAlertasStock] = useState([]);
   const [mostrarModalMovimentacoes, setMostrarModalMovimentacoes] = useState(false);
+  const [mostrarConfirmacaoRecalculo, setMostrarConfirmacaoRecalculo] = useState(false);
+  const [recalculando, setRecalculando] = useState(false);
 
   // Auto-save GitHub (handled by GitHubSync internally)
 
@@ -9051,6 +9053,201 @@ void 0;
     setModalContagem(false);
     setIngredienteContagem(null);
     setValorContagem(0);
+  };
+
+  // 🔄 FUNÇÃO PARA REMOVER MOVIMENTAÇÃO MANUAL
+  const removerMovimentacaoManual = (movimentacaoId) => {
+    const movimentacao = movimentacoesStock.find(m => m.id === movimentacaoId);
+    
+    if (!movimentacao) {
+      showNotification('❌ Movimentação não encontrada!', 'error');
+      return;
+    }
+    
+    // Confirmação
+    if (!confirm(`⚠️ Remover esta movimentação manual?\n\n` +
+      `Ingrediente: ${movimentacao.ingredienteNome}\n` +
+      `Quantidade: ${movimentacao.quantidade >= 0 ? '+' : ''}${movimentacao.quantidade.toFixed(2)} ${movimentacao.unidade}\n` +
+      `Data: ${new Date(movimentacao.data).toLocaleDateString('pt-PT')}\n\n` +
+      `⚠️ Esta ação não pode ser desfeita!`)) {
+      return;
+    }
+    
+    // Reverter o ajuste no stock do ingrediente
+    const ingrediente = ingredientes.find(i => i.id === movimentacao.ingredienteId);
+    if (ingrediente) {
+      ingrediente.stockAtual = ingrediente.stockAtual - movimentacao.quantidade;
+      ingrediente.stock = ingrediente.stock - movimentacao.quantidade;
+      setIngredientes([...ingredientes]);
+    }
+    
+    // Remover a movimentação
+    setMovimentacoesStock(movimentacoesStock.filter(m => m.id !== movimentacaoId));
+    
+    showNotification('✅ Movimentação manual removida!', 'success');
+  };
+
+  // 🔄 FUNÇÃO PRINCIPAL: RECALCULAR STOCK COMPLETO
+  const recalcularStockCompleto = async () => {
+    try {
+      setRecalculando(true);
+      setMostrarConfirmacaoRecalculo(false);
+      
+      void 0;
+      
+      // PASSO 1: Guardar contagens manuais (para preservar)
+      const contagensManuais = movimentacoesStock.filter(m => 
+        m.tipo === 'ajuste' && m.subTipo && (m.subTipo === 'desperdício' || m.subTipo === 'excesso')
+      );
+      void 0;
+      
+      // PASSO 2: ZERAR stock de todos os ingredientes
+      const ingredientesZerados = ingredientes.map(ing => ({
+        ...ing,
+        stockAtual: 0,
+        stock: 0
+      }));
+      void 0;
+      
+      // PASSO 3: REPROCESSAR FATURAS (entradas de stock)
+      let entradasProcessadas = 0;
+      faturas.forEach(fatura => {
+        (fatura.itens || []).forEach(item => {
+          const ingrediente = ingredientesZerados.find(i => i.id === item.ingredienteId);
+          if (ingrediente) {
+            // Converter para unidade base do ingrediente
+            const qtdBase = converterParaUnidadeBase(
+              parseFloat(item.quantidade || 0),
+              item.unidade,
+              ingrediente.unidade
+            );
+            ingrediente.stockAtual += qtdBase;
+            ingrediente.stock += qtdBase;
+            entradasProcessadas++;
+          }
+        });
+      });
+      void 0;
+      
+      // PASSO 4: REPROCESSAR VENDAS (saídas de stock)
+      let saidasProcessadas = 0;
+      vendas.forEach(venda => {
+        // Processar cada produto vendido
+        (venda.produtos || []).forEach(prodVendido => {
+          const produto = produtos.find(p => p.id === prodVendido.produtoId);
+          if (produto && produto.receita) {
+            // Para cada ingrediente na receita
+            produto.receita.forEach(receitaItem => {
+              const ingrediente = ingredientesZerados.find(i => i.id === receitaItem.ingredienteId);
+              if (ingrediente) {
+                const qtdUsada = receitaItem.quantidade * prodVendido.quantidade;
+                ingrediente.stockAtual -= qtdUsada;
+                ingrediente.stock -= qtdUsada;
+                saidasProcessadas++;
+              }
+            });
+          }
+        });
+      });
+      void 0;
+      
+      // PASSO 5: APLICAR CONTAGENS MANUAIS (preservar ajustes do utilizador)
+      contagensManuais.forEach(contagem => {
+        const ingrediente = ingredientesZerados.find(i => i.id === contagem.ingredienteId);
+        if (ingrediente) {
+          // Aplicar o ajuste da contagem manual
+          ingrediente.stockAtual = contagem.stockNovo;
+          ingrediente.stock = contagem.stockNovo;
+        }
+      });
+      void 0;
+      
+      // PASSO 6: REGENERAR HISTÓRICO DE MOVIMENTAÇÕES
+      const novasMovimentacoes = [];
+      
+      // 6.1: Movimentações de FATURAS
+      faturas.forEach(fatura => {
+        (fatura.itens || []).forEach(item => {
+          const ingrediente = ingredientes.find(i => i.id === item.ingredienteId);
+          if (ingrediente) {
+            const qtdBase = converterParaUnidadeBase(
+              parseFloat(item.quantidade || 0),
+              item.unidade,
+              ingrediente.unidade
+            );
+            
+            novasMovimentacoes.push({
+              id: `fatura-${fatura.id}-${item.ingredienteId}-${Date.now()}-${Math.random()}`,
+              data: fatura.data,
+              tipo: 'entrada',
+              ingredienteId: item.ingredienteId,
+              ingredienteNome: ingrediente.nome,
+              quantidade: qtdBase,
+              unidade: ingrediente.unidade,
+              observacao: `Fatura ${fatura.numero || fatura.id} - ${fatura.fornecedorNome || 'Fornecedor'}`
+            });
+          }
+        });
+      });
+      
+      // 6.2: Movimentações de VENDAS
+      vendas.forEach(venda => {
+        (venda.produtos || []).forEach(prodVendido => {
+          const produto = produtos.find(p => p.id === prodVendido.produtoId);
+          if (produto && produto.receita) {
+            produto.receita.forEach(receitaItem => {
+              const ingrediente = ingredientes.find(i => i.id === receitaItem.ingredienteId);
+              if (ingrediente) {
+                const qtdUsada = receitaItem.quantidade * prodVendido.quantidade;
+                
+                novasMovimentacoes.push({
+                  id: `venda-${venda.id}-${receitaItem.ingredienteId}-${Date.now()}-${Math.random()}`,
+                  data: venda.data,
+                  tipo: 'saida',
+                  ingredienteId: receitaItem.ingredienteId,
+                  ingredienteNome: ingrediente.nome,
+                  quantidade: qtdUsada,
+                  unidade: ingrediente.unidade,
+                  observacao: `Venda: ${prodVendido.quantidade}x ${produto.nome}`
+                });
+              }
+            });
+          }
+        });
+      });
+      
+      // 6.3: Preservar CONTAGENS MANUAIS no histórico
+      novasMovimentacoes.push(...contagensManuais);
+      
+      // Ordenar por data
+      novasMovimentacoes.sort((a, b) => new Date(a.data) - new Date(b.data));
+      
+      void 0;
+      
+      // PASSO 7: ATUALIZAR ESTADOS
+      setIngredientes(ingredientesZerados);
+      setMovimentacoesStock(novasMovimentacoes);
+      
+      // PASSO 8: GUARDAR
+      await saveToDrive();
+      
+      showNotification(
+        `✅ Stock recalculado com sucesso!\n\n` +
+        `📦 ${ingredientesZerados.length} ingredientes atualizados\n` +
+        `📥 ${entradasProcessadas} entradas de faturas\n` +
+        `📤 ${saidasProcessadas} saídas de vendas\n` +
+        `🔢 ${contagensManuais.length} contagens manuais preservadas\n` +
+        `📊 ${novasMovimentacoes.length} movimentações no histórico`,
+        'success',
+        8000
+      );
+      
+    } catch (error) {
+      void 0;
+      showNotification('❌ Erro ao recalcular stock: ' + error.message, 'error');
+    } finally {
+      setRecalculando(false);
+    }
   };
 
   const adicionarProduto = () => {
@@ -19848,6 +20045,7 @@ void 0;
                   <th className="px-4 py-3 text-right text-xs font-semibold">Stock Antes</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold">Stock Depois</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold">Observação</th>
+                  <th className="px-4 py-3 text-center text-xs font-semibold">Ações</th>
                 </tr></thead><tbody className="divide-y divide-gray-200">
                   {movimentacoesStock.sort((a, b) => new Date(b.data) - new Date(a.data)).map((mov, idx) => (
                     <tr key={mov.id || idx} className="hover:bg-gray-50">
@@ -19877,6 +20075,17 @@ void 0;
                       <td className="px-4 py-3 text-sm text-right font-mono text-gray-600">{mov.stockAnterior ? mov.stockAnterior.toFixed(2) : '0.00'}</td>
                       <td className="px-4 py-3 text-sm text-right font-mono font-semibold">{mov.stockNovo ? mov.stockNovo.toFixed(2) : '0.00'}</td>
                       <td className="px-4 py-3 text-xs text-gray-600">{mov.observacao}</td>
+                      <td className="px-4 py-3 text-center">
+                        {mov.tipo === 'ajuste' && mov.subTipo && (mov.subTipo === 'desperdício' || mov.subTipo === 'excesso') && (
+                          <button
+                            onClick={() => removerMovimentacaoManual(mov.id)}
+                            className="text-red-600 hover:text-red-800 hover:bg-red-50 p-1 rounded transition"
+                            title="Remover ajuste manual"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody></table>
@@ -19884,7 +20093,84 @@ void 0;
             </div>
             <div className="bg-gray-50 px-6 py-3 border-t flex justify-between items-center">
               <div className="text-xs text-gray-500">💡 Movimentações automáticas de vendas e compras</div>
-              <button onClick={() => setMostrarModalMovimentacoes(false)} className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition font-semibold text-sm">Fechar</button>
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => setMostrarConfirmacaoRecalculo(true)}
+                  disabled={recalculando}
+                  className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition font-semibold text-sm disabled:opacity-50"
+                >
+                  {recalculando ? '🔄 A recalcular...' : '🔄 Recalcular Stock'}
+                </button>
+                <button onClick={() => setMostrarModalMovimentacoes(false)} className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition font-semibold text-sm">Fechar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* 🔄 MODAL DE CONFIRMAÇÃO DE RECÁLCULO */}
+      {mostrarConfirmacaoRecalculo && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-2xl max-w-lg w-full">
+            <div className="bg-gradient-to-r from-yellow-600 to-orange-600 px-6 py-4">
+              <h2 className="text-xl font-bold text-white">⚠️ Confirmar Recálculo Completo</h2>
+            </div>
+            <div className="p-6">
+              <div className="bg-yellow-50 border-l-4 border-yellow-500 p-4 mb-4">
+                <p className="font-semibold text-yellow-800 mb-2">Esta ação vai:</p>
+                <ul className="space-y-2 text-sm text-yellow-700">
+                  <li className="flex items-start">
+                    <span className="mr-2">1️⃣</span>
+                    <span><strong>Zerar</strong> o stock de todos os ingredientes</span>
+                  </li>
+                  <li className="flex items-start">
+                    <span className="mr-2">2️⃣</span>
+                    <span><strong>Reprocessar {faturas.length} faturas</strong> (entradas)</span>
+                  </li>
+                  <li className="flex items-start">
+                    <span className="mr-2">3️⃣</span>
+                    <span><strong>Reprocessar {vendas.length} vendas</strong> (saídas)</span>
+                  </li>
+                  <li className="flex items-start">
+                    <span className="mr-2">4️⃣</span>
+                    <span><strong>Recalcular</strong> stock de {ingredientes.length} ingredientes</span>
+                  </li>
+                  <li className="flex items-start">
+                    <span className="mr-2">5️⃣</span>
+                    <span><strong>Regenerar</strong> histórico de movimentações</span>
+                  </li>
+                </ul>
+              </div>
+              
+              <div className="bg-green-50 border-l-4 border-green-500 p-4 mb-4">
+                <p className="text-sm text-green-700">
+                  ✅ <strong>Contagens manuais de inventário serão preservadas</strong> automaticamente
+                </p>
+              </div>
+              
+              <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-4">
+                <p className="text-sm text-red-700">
+                  ⚠️ <strong>Esta ação não pode ser desfeita.</strong> Certifique-se de que todas as faturas e vendas estão corretas.
+                </p>
+              </div>
+              
+              <p className="text-xs text-gray-600 mb-4">
+                💡 Tempo estimado: ~{Math.ceil((faturas.length + vendas.length) / 100)} segundos
+              </p>
+            </div>
+            <div className="bg-gray-50 px-6 py-4 flex gap-3">
+              <button 
+                onClick={recalcularStockCompleto}
+                className="flex-1 px-4 py-3 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition font-bold"
+              >
+                ✅ Sim, Recalcular Tudo
+              </button>
+              <button 
+                onClick={() => setMostrarConfirmacaoRecalculo(false)}
+                className="flex-1 px-4 py-3 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition font-semibold"
+              >
+                ❌ Cancelar
+              </button>
             </div>
           </div>
         </div>
