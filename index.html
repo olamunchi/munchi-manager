@@ -8464,7 +8464,43 @@ void 0;
         if (data.deliveryApps) setDeliveryApps(data.deliveryApps);
         if (data.blacklist) setBlacklist(data.blacklist);
         if (data.templatesOCR) setTemplatesOCR(data.templatesOCR);
-        if (data.vocabularioFornecedor) setVocabularioFornecedor(data.vocabularioFornecedor);
+        if (data.vocabularioFornecedor) {
+          // 🧠 MERGE vocabulário: combinar Drive + Local sem perder dados
+          const vocabLocal = vocabularioFornecedor || [];
+          const vocabDrive = data.vocabularioFornecedor || [];
+          
+          // Criar mapa por chave única (fornecedor+texto+ingrediente)
+          const vocabMap = new Map();
+          
+          // Adicionar do Drive primeiro
+          vocabDrive.forEach(v => {
+            const key = `${v.fornecedorNIF}_${v.textoNormalizado}_${v.ingredienteId}`;
+            vocabMap.set(key, v);
+          });
+          
+          // Fazer merge com local (manter o mais recente)
+          vocabLocal.forEach(vLocal => {
+            const key = `${vLocal.fornecedorNIF}_${vLocal.textoNormalizado}_${vLocal.ingredienteId}`;
+            const vDrive = vocabMap.get(key);
+            
+            if (!vDrive) {
+              // Não existe no Drive, adicionar do local
+              vocabMap.set(key, vLocal);
+            } else {
+              // Existe em ambos, manter o mais recente
+              const dataLocal = new Date(vLocal.ultimaConfirmacao);
+              const dataDrive = new Date(vDrive.ultimaConfirmacao);
+              
+              if (dataLocal > dataDrive) {
+                vocabMap.set(key, vLocal);
+              }
+            }
+          });
+          
+          const vocabMerged = Array.from(vocabMap.values());
+          console.log(`🧠 MERGE vocabulário: Drive(${vocabDrive.length}) + Local(${vocabLocal.length}) = ${vocabMerged.length}`);
+          setVocabularioFornecedor(vocabMerged);
+        }
         if (data.configuracaoWaste) setConfiguracaoWaste(data.configuracaoWaste);
         if (data.contagens) setContagens(data.contagens);
         if (data.movimentacoesStock) setMovimentacoesStock(data.movimentacoesStock);
