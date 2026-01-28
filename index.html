@@ -9155,6 +9155,15 @@ void 0;
   //   }
   // }, [ultimaFaturaInserida]);
 
+  // 🧠 EXCEÇÃO: Vocabulário É guardado no localStorage (é pequeno e crítico)
+  useEffect(() => {
+    if (vocabularioFornecedor && vocabularioFornecedor.length > 0) {
+      window.storage.set('vocabularioFornecedor', JSON.stringify(vocabularioFornecedor)).catch(() => {
+        console.warn('⚠️ Falha ao guardar vocabulário no localStorage');
+      });
+    }
+  }, [vocabularioFornecedor]);
+
   // 🚫 LocalStorage desativado - apenas Google Drive é usado
   // Os dados são guardados automaticamente no Drive quando mudarem
   // useEffect(() => {
