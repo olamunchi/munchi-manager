@@ -1501,13 +1501,21 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
   const [searchIngredienteOCR, setSearchIngredienteOCR] = useState(() => {
     // ✅ INICIALIZAR com nomes dos ingredientes auto-preenchidos OU sugeridos com alta confiança
     const initial = {};
+    console.log('🔍 INICIALIZANDO searchIngredienteOCR com', linhas.length, 'linhas');
     linhas.forEach((linha, index) => {
+      console.log(`Linha ${index}:`, {
+        nomeProduto: linha.nomeProduto,
+        ingredienteConfirmado: linha.ingredienteConfirmado,
+        ingredienteSugerido: linha.ingredienteSugerido,
+        confiancaSugestao: linha.confiancaSugestao
+      });
+      
       // Prioridade 1: ingrediente já confirmado
       if (linha.ingredienteConfirmado) {
         const ing = ingredientes.find(i => i.id === linha.ingredienteConfirmado);
         if (ing) {
           initial[index] = ing.nome;
-          void 0;
+          console.log(`  ✅ Confirmado: ${ing.nome}`);
         }
       } 
       // Prioridade 2: sugestão com confiança >= 80% (auto-insert)
@@ -1515,13 +1523,48 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
         const ing = ingredientes.find(i => i.id === linha.ingredienteSugerido.id);
         if (ing) {
           initial[index] = ing.nome;
-          void 0;
+          console.log(`  ✅ Auto-insert (${linha.confiancaSugestao}%): ${ing.nome}`);
+        } else {
+          console.log(`  ❌ Ingrediente não encontrado:`, linha.ingredienteSugerido);
         }
       }
     });
+    console.log('📋 Initial search:', initial);
     return initial;
   });
   const [showDropdownOCR, setShowDropdownOCR] = useState({});
+  
+  // 🆕 Atualizar search quando linhas mudarem (especialmente com auto-insert)
+  useEffect(() => {
+    const novoSearch = { ...searchIngredienteOCR };
+    let houveMudancas = false;
+    
+    linhasEditadas.forEach((linha, index) => {
+      // Se já tem valor no search, não mexer
+      if (searchIngredienteOCR[index]) return;
+      
+      // Se tem ingrediente confirmado
+      if (linha.ingredienteConfirmado) {
+        const ing = ingredientes.find(i => i.id === linha.ingredienteConfirmado);
+        if (ing && !searchIngredienteOCR[index]) {
+          novoSearch[index] = ing.nome;
+          houveMudancas = true;
+        }
+      }
+      // Se tem sugestão com alta confiança (>= 80%)
+      else if (linha.ingredienteSugerido && linha.confiancaSugestao >= 80) {
+        const ing = ingredientes.find(i => i.id === linha.ingredienteSugerido.id);
+        if (ing && !searchIngredienteOCR[index]) {
+          novoSearch[index] = ing.nome;
+          houveMudancas = true;
+        }
+      }
+    });
+    
+    if (houveMudancas) {
+      setSearchIngredienteOCR(novoSearch);
+    }
+  }, [linhasEditadas]); // Reagir quando linhas mudarem
   
   // 🆕 Auto-preencher ingredienteConfirmado quando há sugestão com alta confiança
   useEffect(() => {
@@ -5221,6 +5264,12 @@ const RestauranteGestor = () => {
               metodo: 'VOCABULARIO'
             } : null;
             
+            console.log(`🎯 Criando ingredienteSugerido para "${linha.nomeProduto}":`, {
+              confianca: confianca,
+              ingredienteSugeridoObj: ingredienteSugeridoObj,
+              autoPreencherConfirmado: confianca >= 80
+            });
+            
             // ✅ AUTO-PREENCHER SE CONFIANÇA >= 80%
             if (confianca >= 80) {
               // 🆕 APLICAR HISTÓRICO DE COMPRAS
@@ -8421,16 +8470,16 @@ void 0;
       return;
     }
     
-    // ✅ Verificar se token ainda é válido
-    if (!GoogleDriveTokenManager.isTokenValid()) {
-      const timeLeft = GoogleDriveTokenManager.getTimeUntilExpiry();
-      if (timeLeft > 0) {
-        showNotification(`⚠️ Token expira em ${timeLeft} minutos. Clique em "Renovar Token"`, 'warning');
-      } else {
-        showNotification('🔒 Token expirado. Faça login novamente.', 'error');
-        logoutGoogleDrive();
-      }
+    // ✅ Verificar se token EXPIROU COMPLETAMENTE (0 minutos)
+    const timeLeft = GoogleDriveTokenManager.getTimeUntilExpiry();
+    if (timeLeft === 0) {
+      showNotification('🔒 Token expirado. Clique no indicador do Drive para renovar.', 'error');
       return;
+    }
+    
+    // ⚠️ Avisar se está a expirar em breve, mas PERMITIR sync
+    if (timeLeft > 0 && timeLeft <= 5) {
+      showNotification(`⚠️ Token expira em ${timeLeft} min. Renove após o sync!`, 'warning');
     }
     
     try {
@@ -13979,14 +14028,22 @@ void 0;
             <div className="flex items-center gap-3">
               {driveAccessToken ? (
                 <>
-                  {/* 🆕 Indicador de Status do Drive - sempre visível */}
-                  <div className={`backdrop-blur-sm rounded-lg px-3 py-2 border-2 flex items-center gap-2 ${
-                    driveTokenValid 
-                      ? 'bg-green-500/20 border-green-300' 
+                  {/* 🆕 Indicador de Status do Drive - CLICÁVEL para renovar */}
+                  <button
+                    onClick={loginGoogleDrive}
+                    className={`backdrop-blur-sm rounded-lg px-3 py-2 border-2 flex items-center gap-2 transition hover:scale-105 ${
+                      driveTokenValid 
+                        ? 'bg-green-500/20 border-green-300 hover:bg-green-500/30' 
+                        : driveTokenTimeLeft > 0 
+                          ? 'bg-yellow-500/20 border-yellow-300 hover:bg-yellow-500/30' 
+                          : 'bg-red-500/20 border-red-300 hover:bg-red-500/30'
+                    }`}
+                    title={driveTokenValid 
+                      ? 'Clique para renovar token (mesmo que ainda válido)' 
                       : driveTokenTimeLeft > 0 
-                        ? 'bg-yellow-500/20 border-yellow-300' 
-                        : 'bg-red-500/20 border-red-300'
-                  }`}>
+                        ? `Token expira em ${driveTokenTimeLeft}min - Clique para renovar agora!` 
+                        : 'Token expirado - Clique para renovar'}
+                  >
                     <div className={`w-2 h-2 rounded-full ${
                       driveTokenValid 
                         ? 'bg-green-400' 
@@ -14001,13 +14058,15 @@ void 0;
                           ? `⚠️ ${driveTokenTimeLeft}min` 
                           : '🔒 Expirado'}
                     </div>
-                  </div>
+                  </button>
                   
                   <button
                     onClick={() => saveToDrive()}
-                    disabled={driveSyncing}
+                    disabled={driveSyncing || driveTokenTimeLeft === 0}
                     className="bg-white/20 hover:bg-white/30 disabled:bg-white/10 backdrop-blur-sm text-white px-4 py-2 rounded-lg font-semibold transition flex items-center gap-2 text-sm"
-                    title="Sincronizar manualmente com Google Drive"
+                    title={driveTokenTimeLeft === 0 
+                      ? 'Token expirado - Clique no indicador verde/amarelo para renovar' 
+                      : 'Sincronizar manualmente com Google Drive'}
                   >
                     <RefreshCw className={`w-4 h-4 ${driveSyncing ? 'animate-spin' : ''}`} />
                     <span className="hidden sm:inline">{driveSyncing ? 'A sincronizar...' : 'Sync Manual'}</span>
