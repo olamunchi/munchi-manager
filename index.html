@@ -6435,7 +6435,12 @@ void 0;
    * Adiciona ou atualiza entrada no vocabulário
    */
   const aprenderAssociacao = (textoOCR, ingredienteId, nifFornecedor, foiCorrecao = false, dadosLinha = {}) => {
-    if (!textoOCR || !ingredienteId || !nifFornecedor) return;
+    console.log('🧠 aprenderAssociacao CHAMADA:', {textoOCR, ingredienteId, nifFornecedor, foiCorrecao});
+    
+    if (!textoOCR || !ingredienteId || !nifFornecedor) {
+      console.warn('⚠️ aprenderAssociacao ABORTADA - faltam dados:', {textoOCR: !!textoOCR, ingredienteId: !!ingredienteId, nifFornecedor: !!nifFornecedor});
+      return;
+    }
     
     const textoNorm = normalizarTexto(textoOCR);
     
@@ -6469,7 +6474,7 @@ void 0;
       
       setVocabularioFornecedor(atualizado);
       
-      void 0;
+      console.log('✅ Vocabulário ATUALIZADO:', textoOCR, foiCorrecao ? '+1 correção' : '+1 confirmação');
     } else {
       // Criar novo
       const novo = {
@@ -6488,7 +6493,7 @@ void 0;
       };
       
       setVocabularioFornecedor([...vocabularioFornecedor, novo]);
-      void 0;
+      console.log('✅ Vocabulário NOVO criado:', textoOCR, '→', ingredienteId);
     }
   };
 
@@ -13731,8 +13736,10 @@ void 0;
     const nifFornecedor = metadata.nif || novaFatura.fornecedorNIF;
     
     // 🧠 FASE 2: APRENDER COM AS CONFIRMAÇÕES DO UTILIZADOR
+    console.log('🧠 FASE 2: APRENDER - nifFornecedor:', nifFornecedor, '| linhas:', linhasValidadas.length);
     if (nifFornecedor) {
       linhasValidadas.forEach(linha => {
+        console.log('  📋 Linha:', {nomeProduto: linha.nomeProduto, ingredienteConfirmado: linha.ingredienteConfirmado, ingredienteSugerido: linha.ingredienteSugerido?.id});
         if (linha.ingredienteConfirmado && linha.nomeProduto) {
           const textoOCR = linha.nomeProduto;
           const ingredienteId = linha.ingredienteConfirmado;
