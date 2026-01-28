@@ -1499,11 +1499,20 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
   
   // States para search de ingredientes
   const [searchIngredienteOCR, setSearchIngredienteOCR] = useState(() => {
-    // ✅ INICIALIZAR com nomes dos ingredientes auto-preenchidos
+    // ✅ INICIALIZAR com nomes dos ingredientes auto-preenchidos OU sugeridos com alta confiança
     const initial = {};
     linhas.forEach((linha, index) => {
+      // Prioridade 1: ingrediente já confirmado
       if (linha.ingredienteConfirmado) {
         const ing = ingredientes.find(i => i.id === linha.ingredienteConfirmado);
+        if (ing) {
+          initial[index] = ing.nome;
+          void 0;
+        }
+      } 
+      // Prioridade 2: sugestão com confiança >= 80% (auto-insert)
+      else if (linha.ingredienteSugerido && linha.confiancaSugestao >= 80) {
+        const ing = ingredientes.find(i => i.id === linha.ingredienteSugerido.id);
         if (ing) {
           initial[index] = ing.nome;
           void 0;
@@ -1513,6 +1522,33 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
     return initial;
   });
   const [showDropdownOCR, setShowDropdownOCR] = useState({});
+  
+  // 🆕 Auto-preencher ingredienteConfirmado quando há sugestão com alta confiança
+  useEffect(() => {
+    const novasLinhas = linhasEditadas.map(linha => {
+      // Se já tem ingrediente confirmado, não alterar
+      if (linha.ingredienteConfirmado) return linha;
+      
+      // Se tem sugestão com confiança >= 80%, auto-preencher
+      if (linha.ingredienteSugerido && linha.confiancaSugestao >= 80) {
+        return {
+          ...linha,
+          ingredienteConfirmado: linha.ingredienteSugerido.id
+        };
+      }
+      
+      return linha;
+    });
+    
+    // Só atualizar se houve mudanças
+    const houveMudancas = novasLinhas.some((linha, idx) => 
+      linha.ingredienteConfirmado !== linhasEditadas[idx].ingredienteConfirmado
+    );
+    
+    if (houveMudancas) {
+      setLinhasEditadas(novasLinhas);
+    }
+  }, []); // Executar apenas uma vez ao montar o componente
   
   // States para documento
   const [numeroFaturaManual, setNumeroFaturaManual] = useState(metadata?.numeroFatura || '');
@@ -1859,8 +1895,7 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
             </thead>
             <tbody>
               {linhasEditadas.map((linha, index) => {
-                const ingredienteSugerido = linha.ingredienteSugerido ? 
-                  ingredientesLocais.find(i => i.id === linha.ingredienteConfirmado) : null;
+                const ingredienteSugerido = linha.ingredienteSugerido || null;
                 const confianca = linha.confiancaSugestao || 0;
                 const historico = linha.historicoSugestao;
                 
@@ -5177,13 +5212,22 @@ const RestauranteGestor = () => {
           if (ingrediente) {
             void 0;
             
+            // ✅ Criar objeto ingrediente sugerido consistente
+            const ing = ingredientes.find(i => i.id === ingredienteId);
+            const ingredienteSugeridoObj = ing ? {
+              id: ing.id,
+              nome: ing.nome,
+              confianca: confianca,
+              metodo: 'VOCABULARIO'
+            } : null;
+            
             // ✅ AUTO-PREENCHER SE CONFIANÇA >= 80%
             if (confianca >= 80) {
               // 🆕 APLICAR HISTÓRICO DE COMPRAS
               const linhaBase = {
                 ...linha,
                 ingredienteConfirmado: ingredienteId,
-                ingredienteSugerido: ingredienteId,
+                ingredienteSugerido: ingredienteSugeridoObj,
                 confiancaSugestao: confianca,
                 similaridadeSugestao: similaridade,
                 historicoSugestao: { confirmacoes, correcoes }
@@ -5195,7 +5239,7 @@ const RestauranteGestor = () => {
               // Só sugerir
               const linhaSugestao = {
                 ...linha,
-                ingredienteSugerido: ingredienteId,
+                ingredienteSugerido: ingredienteSugeridoObj,
                 confiancaSugestao: confianca,
                 similaridadeSugestao: similaridade,
                 historicoSugestao: { confirmacoes, correcoes }
@@ -13240,6 +13284,14 @@ void 0;
               
               const ingrediente = ingredientes.find(i => i.id === ingredienteId);
               
+              // ✅ Criar objeto ingrediente sugerido consistente
+              const ingredienteSugeridoObj = ingrediente ? {
+                id: ingrediente.id,
+                nome: ingrediente.nome,
+                confianca: confianca,
+                metodo: 'VOCABULARIO'
+              } : null;
+              
               // 🆕 BUSCAR ÚLTIMA UNIDADE USADA do histórico
               const historico = buscarHistoricoIngrediente(ingredienteId, nifFornecedor);
               const unidadeUltimaVez = historico?.unidade || ingrediente?.unidade || 'kg';
@@ -13248,7 +13300,7 @@ void 0;
               return {
                 ...linha,
                 ingredienteConfirmado: ingredienteId, // Auto-preencher nome
-                ingredienteSugerido: ingredienteId,   // Guardar ID da sugestão
+                ingredienteSugerido: ingredienteSugeridoObj,   // Guardar objeto completo
                 confiancaSugestao: confianca,
                 similaridadeSugestao: similaridade,
                 historicoSugestao: { confirmacoes, correcoes },
@@ -13263,10 +13315,18 @@ void 0;
               // Confiança baixa - só sugerir, não auto-preencher
               void 0;
               
+              const ingrediente = ingredientes.find(i => i.id === ingredienteId);
+              const ingredienteSugeridoObj = ingrediente ? {
+                id: ingrediente.id,
+                nome: ingrediente.nome,
+                confianca: confianca,
+                metodo: 'VOCABULARIO'
+              } : null;
+              
               // SÓ SUGERIR O NOME - sem preencher quantidade/preço
               return {
                 ...linha,
-                ingredienteSugerido: ingredienteId, // Sugestão do nome
+                ingredienteSugerido: ingredienteSugeridoObj, // Objeto completo
                 confiancaSugestao: confianca,
                 similaridadeSugestao: similaridade,
                 historicoSugestao: { confirmacoes, correcoes }
@@ -13279,14 +13339,14 @@ void 0;
         // Se não encontrou no vocabulário, tentar FUZZY MATCH
         const fuzzyMatch = findBestMatch(linha.nomeProduto, ingredientes);
         
-        if (fuzzyMatch && fuzzyMatch.score >= 60) {
+        if (fuzzyMatch && fuzzyMatch.confianca >= 60) {
           void 0;
           
           return {
             ...linha,
-            ingredienteSugerido: fuzzyMatch.ingrediente.id,
-            confiancaSugestao: fuzzyMatch.score,
-            similaridadeSugestao: fuzzyMatch.score,
+            ingredienteSugerido: fuzzyMatch, // Objeto completo
+            confiancaSugestao: fuzzyMatch.confianca,
+            similaridadeSugestao: fuzzyMatch.confianca,
             historicoSugestao: { confirmacoes: 0, correcoes: 0 }
           };
         }
@@ -13589,7 +13649,7 @@ void 0;
           
           // Verificar se foi alterado (correção) ou confirmado (sugestão aceite)
           const foiAlterado = linha.ingredienteSugerido && 
-                             linha.ingredienteConfirmado !== linha.ingredienteSugerido;
+                             linha.ingredienteConfirmado !== linha.ingredienteSugerido.id;
           
           // 🆕 Passar dados da linha para aprendizagem
           const dadosLinha = {
