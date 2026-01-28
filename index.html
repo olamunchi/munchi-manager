@@ -1839,6 +1839,57 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
           )}
         </div>
         <div className="flex-1 overflow-auto p-6">
+          {/* 🆕 Stats de Aprendizagem */}
+          {metadata?.categoria === 'compras' && linhasEditadas.length > 0 && (() => {
+            const comHistorico = linhasEditadas.filter(l => l.confiancaSugestao > 0).length;
+            const autoInsert = linhasEditadas.filter(l => l.confiancaSugestao >= 80).length;
+            const quaseAuto = linhasEditadas.filter(l => l.confiancaSugestao >= 70 && l.confiancaSugestao < 80).length;
+            
+            if (comHistorico === 0) return null;
+            
+            return (
+              <div className="mb-4 bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-blue-200 rounded-lg p-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2">
+                      <div className="bg-blue-600 rounded-full p-2">
+                        <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35 2.524 1 1 0 01-1.4 0zM6 18a1 1 0 001-1v-2.065a8.935 8.935 0 00-2-.712V17a1 1 0 001 1z"/>
+                        </svg>
+                      </div>
+                      <div>
+                        <div className="font-bold text-sm text-blue-900">🧠 Sistema de Aprendizagem</div>
+                        <div className="text-xs text-blue-700">{comHistorico} de {linhasEditadas.length} ingredientes reconhecidos</div>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-3">
+                      {autoInsert > 0 && (
+                        <div className="bg-green-100 border border-green-400 rounded px-3 py-1">
+                          <div className="text-xs text-green-600">Auto-Insert</div>
+                          <div className="text-lg font-bold text-green-800">{autoInsert}</div>
+                        </div>
+                      )}
+                      
+                      {quaseAuto > 0 && (
+                        <div className="bg-yellow-100 border border-yellow-400 rounded px-3 py-1">
+                          <div className="text-xs text-yellow-600">Quase lá</div>
+                          <div className="text-lg font-bold text-yellow-800">{quaseAuto}</div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {quaseAuto > 0 && (
+                    <div className="text-xs text-blue-700 bg-blue-100 rounded px-3 py-2 border border-blue-300">
+                      💡 <strong>{quaseAuto}</strong> {quaseAuto === 1 ? 'ingrediente precisa' : 'ingredientes precisam'} de mais 1 confirmação para auto-insert
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
+          
           <table className="w-full border-collapse">
             <thead className="sticky top-0 bg-gray-100">
               <tr>
@@ -1907,12 +1958,68 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
                                 />
                                 {/* Badge de confiança */}
                                 {confianca > 0 && (
-                                  <div className={`absolute -top-2 -right-2 px-1.5 py-0.5 rounded-full text-xs font-bold ${
-                                    confianca >= 80 ? 'bg-green-500 text-white' :
-                                    confianca >= 60 ? 'bg-yellow-500 text-white' :
-                                    'bg-orange-500 text-white'
-                                  }`}>
-                                    {confianca}%
+                                  <div className="relative group">
+                                    <div className={`absolute -top-2 -right-2 px-1.5 py-0.5 rounded-full text-xs font-bold cursor-help ${
+                                      confianca >= 80 ? 'bg-green-500 text-white' :
+                                      confianca >= 60 ? 'bg-yellow-500 text-white' :
+                                      'bg-orange-500 text-white'
+                                    }`}>
+                                      {confianca}%
+                                    </div>
+                                    
+                                    {/* 🆕 Tooltip com breakdown da confiança */}
+                                    {historico && (
+                                      <div className="absolute right-0 top-6 mt-1 bg-gray-900 text-white text-xs rounded-lg p-3 shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 w-64">
+                                        <div className="font-semibold mb-2 border-b border-gray-600 pb-1">
+                                          {confianca >= 80 ? '✅ Auto-Insert Ativo' : '📊 Progresso de Aprendizagem'}
+                                        </div>
+                                        
+                                        <div className="space-y-1 mb-2">
+                                          <div className="flex justify-between">
+                                            <span className="text-gray-400">Confirmações:</span>
+                                            <span className="font-bold text-green-300">{historico.confirmacoes || 0}</span>
+                                          </div>
+                                          {historico.correcoes > 0 && (
+                                            <div className="flex justify-between">
+                                              <span className="text-gray-400">Correções:</span>
+                                              <span className="font-bold text-red-300">{historico.correcoes}</span>
+                                            </div>
+                                          )}
+                                          <div className="flex justify-between">
+                                            <span className="text-gray-400">Similaridade:</span>
+                                            <span className="font-bold">{linha.similaridadeSugestao || 0}%</span>
+                                          </div>
+                                        </div>
+                                        
+                                        {confianca < 80 ? (
+                                          <div className="border-t border-gray-600 pt-2 mt-2">
+                                            <div className="text-yellow-300 font-semibold mb-1">
+                                              ⚡ Para atingir 80%:
+                                            </div>
+                                            <div className="text-xs">
+                                              {historico.confirmacoes === 0 ? (
+                                                '• Confirme este ingrediente 2x'
+                                              ) : historico.confirmacoes === 1 ? (
+                                                '• Confirme mais 1x (total: 2)'
+                                              ) : (
+                                                '• Melhore a similaridade do texto'
+                                              )}
+                                            </div>
+                                            {(historico.confirmacoes || 0) < 2 && (
+                                              <div className="mt-2 bg-blue-900 rounded p-1.5">
+                                                <div className="text-xs">
+                                                  Próxima confirmação → <strong className="text-green-300">{historico.confirmacoes === 0 ? '76.5%' : '85.5%'}</strong>
+                                                </div>
+                                              </div>
+                                            )}
+                                          </div>
+                                        ) : (
+                                          <div className="border-t border-green-600 pt-2 mt-2 text-green-300">
+                                            ✅ Ingrediente será inserido automaticamente!
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
                                   </div>
                                 )}
                               </div>
@@ -6193,30 +6300,37 @@ void 0;
     vocabFornecedor.forEach(vocab => {
       const similaridade = calcularSimilaridade(textoNorm, vocab.textoNormalizado);
       
-      if (similaridade > melhorSimilaridade && similaridade >= 70) {
-        // ✅ NOVA FÓRMULA: Atinge 80% com apenas 2 confirmações
+      // 🆕 THRESHOLD REDUZIDO: 60% (era 70%) - Captura mais variações
+      if (similaridade > melhorSimilaridade && similaridade >= 60) {
+        // 🚀 NOVA FÓRMULA AGRESSIVA: Atinge 80% com apenas 2 confirmações
         const confirmacoes = vocab.confirmacoes || 0;
         const correcoes = vocab.correcoes || 0;
         
-        // Fator histórico mais agressivo
-        // 1 confirmação → 70%
-        // 2 confirmações → 85%
-        // 3+ confirmações → 95%
+        // 🔥 Fatores históricos mais agressivos:
+        // 1 confirmação → 85% (era 70%)
+        // 2 confirmações → 95% (era 90%)
+        // 3+ confirmações → 100% (era 98%)
         let fatorHistorico;
         if (confirmacoes === 1 && correcoes === 0) {
-          fatorHistorico = 0.70; // 1ª confirmação = 70% do potencial
+          fatorHistorico = 0.85; // 1ª confirmação = 85% do potencial
         } else if (confirmacoes === 2 && correcoes === 0) {
-          fatorHistorico = 0.90; // 2ª confirmação = 90% (atinge 80%+ facilmente)
+          fatorHistorico = 0.95; // 2ª confirmação = 95% (ATINGE 80% facilmente!)
         } else if (confirmacoes >= 3 && correcoes === 0) {
-          fatorHistorico = 0.98; // 3+ confirmações = 98% (quase certeza)
+          fatorHistorico = 1.00; // 3+ confirmações = 100% (certeza absoluta)
         } else {
-          // Com correções, penalizar proporcionalmente
-          fatorHistorico = Math.max(0.5, confirmacoes / (confirmacoes + correcoes * 2 + 1));
+          // Com correções, penalizar proporcionalmente (mas menos severo)
+          fatorHistorico = Math.max(0.60, confirmacoes / (confirmacoes + correcoes * 1.5 + 1));
         }
         
-        const confianca = (similaridade / 100) * fatorHistorico * 100;
+        // 🚀 BOOST INICIAL: Se similaridade muito alta (90%+), dar boost extra
+        let boostInicial = 1.0;
+        if (confirmacoes === 1 && similaridade >= 90) {
+          boostInicial = 1.05; // +5% boost para matches perfeitos na primeira vez
+        }
         
-        void 0;
+        const confianca = (similaridade / 100) * fatorHistorico * boostInicial * 100;
+        
+        console.log(`🧠 Match encontrado: "${vocab.textoOriginal}" → Similaridade: ${similaridade}%, Confirmações: ${confirmacoes}, Correções: ${correcoes}, Fator: ${(fatorHistorico*100).toFixed(0)}%, Boost: ${(boostInicial*100).toFixed(0)}%, Confiança FINAL: ${Math.round(confianca)}%`);
         
         melhorMatch = {
           ingredienteId: vocab.ingredienteId,
