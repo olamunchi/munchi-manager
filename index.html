@@ -16953,9 +16953,22 @@ void 0;
                               <p className="text-xs text-red-700 mb-0.5">Custo</p>
                               <p className="font-bold text-sm text-red-800">€{custo.toFixed(2)}</p>
                             </div>
-                            <div className="bg-green-50 rounded p-2 border border-green-200">
-                              <p className="text-xs text-green-700 mb-0.5">Margem</p>
+                            <div className="bg-green-50 rounded p-2 border border-green-200 relative group">
+                              <p className="text-xs text-green-700 mb-0.5">
+                                Margem 
+                                <span className="ml-1 text-gray-400 cursor-help">ℹ️</span>
+                              </p>
                               <p className="font-bold text-sm text-green-800">€{margem.toFixed(2)}</p>
+                              
+                              {/* Tooltip com breakdown do cálculo */}
+                              <div className="absolute left-0 top-full mt-1 bg-gray-900 text-white text-xs rounded p-2 shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 whitespace-nowrap">
+                                <div className="font-semibold mb-1 border-b border-gray-600 pb-1">Cálculo da Margem:</div>
+                                <div>PVP: €{p.precoVenda.toFixed(2)}</div>
+                                <div className="text-gray-400">- IVA ({p.iva}%): €{(p.precoVenda - p.precoVenda / (1 + p.iva / 100)).toFixed(2)}</div>
+                                <div className="border-t border-gray-600 pt-1 mt-1">= Preço s/IVA: €{(p.precoVenda / (1 + p.iva / 100)).toFixed(2)}</div>
+                                <div className="text-red-300">- Custo: €{custo.toFixed(2)}</div>
+                                <div className="border-t border-gray-600 pt-1 mt-1 font-bold text-green-300">= Margem: €{margem.toFixed(2)}</div>
+                              </div>
                             </div>
                             <div className={`rounded p-2 border ${
                               margemPercentual >= (configuracoes?.alertas?.margemBaixa || 70)
