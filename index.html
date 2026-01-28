@@ -1536,17 +1536,20 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
   
   // 🆕 Atualizar search quando linhas mudarem (especialmente com auto-insert)
   useEffect(() => {
-    const novoSearch = { ...searchIngredienteOCR };
+    const novoSearch = {};
     let houveMudancas = false;
     
     linhasEditadas.forEach((linha, index) => {
-      // Se já tem valor no search, não mexer
-      if (searchIngredienteOCR[index]) return;
+      // ✅ Copiar valor existente primeiro (se houver)
+      if (searchIngredienteOCR[index]) {
+        novoSearch[index] = searchIngredienteOCR[index];
+        return;
+      }
       
       // Se tem ingrediente confirmado
       if (linha.ingredienteConfirmado) {
         const ing = ingredientes.find(i => i.id === linha.ingredienteConfirmado);
-        if (ing && !searchIngredienteOCR[index]) {
+        if (ing) {
           novoSearch[index] = ing.nome;
           houveMudancas = true;
         }
@@ -1554,7 +1557,7 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
       // Se tem sugestão com alta confiança (>= 80%)
       else if (linha.ingredienteSugerido && linha.confiancaSugestao >= 80) {
         const ing = ingredientes.find(i => i.id === linha.ingredienteSugerido.id);
-        if (ing && !searchIngredienteOCR[index]) {
+        if (ing) {
           novoSearch[index] = ing.nome;
           houveMudancas = true;
         }
@@ -2433,24 +2436,32 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
                     return;
                   }
                   
-                  // Criar fornecedor temporário
+                  // Criar fornecedor com ID permanente
                   const novoFornTemp = {
-                    id: 'temp_' + Date.now(),
+                    id: Date.now(),
                     nome: novoFornecedor.nome.trim(),
                     nif: novoFornecedor.nif.trim(),
-                    contacto: novoFornecedor.contacto.trim(),
-                    email: novoFornecedor.email.trim()
+                    telefone: novoFornecedor.contacto.trim(),
+                    email: novoFornecedor.email.trim(),
+                    morada: '',
+                    dataCriacao: new Date().toISOString()
                   };
+                  
+                  // ✅ ADICIONAR IMEDIATAMENTE AO ESTADO GLOBAL (guardado permanentemente)
+                  setFornecedores([...fornecedores, novoFornTemp]);
                   
                   // Adicionar à lista LOCAL (aparece no dropdown imediatamente)
                   setFornecedoresLocais([...fornecedoresLocais, novoFornTemp]);
                   
-                  // Adicionar ao metadata para ser processado depois
+                  // Adicionar ao metadata para ser processado depois (fallback)
                   if (!window._novosFornecedores) window._novosFornecedores = [];
                   window._novosFornecedores.push(novoFornTemp);
                   
                   // Selecionar o fornecedor recém-criado
                   setFornecedorManual(novoFornTemp.id);
+                  
+                  // Mostrar notificação de sucesso
+                  showNotification('✅ Fornecedor criado com sucesso!', 'success');
                   
                   // Fechar modal
                   setMostrarModalNovoFornecedor(false);
@@ -3128,24 +3139,32 @@ const ModalConfirmacaoFatura = ({ dadosFatura, onConfirmar, onCancelar, forneced
                     return;
                   }
                   
-                  // Criar fornecedor temporário
+                  // Criar fornecedor com ID permanente
                   const novoFornTemp = {
-                    id: 'temp_' + Date.now(),
+                    id: Date.now(),
                     nome: novoFornecedor.nome.trim(),
                     nif: novoFornecedor.nif.trim(),
-                    contacto: novoFornecedor.contacto.trim(),
-                    email: novoFornecedor.email.trim()
+                    telefone: novoFornecedor.contacto.trim(),
+                    email: novoFornecedor.email.trim(),
+                    morada: '',
+                    dataCriacao: new Date().toISOString()
                   };
+                  
+                  // ✅ ADICIONAR IMEDIATAMENTE AO ESTADO GLOBAL (guardado permanentemente)
+                  setFornecedores([...fornecedores, novoFornTemp]);
                   
                   // Adicionar à lista LOCAL (aparece no dropdown imediatamente)
                   setFornecedoresLocais([...fornecedoresLocais, novoFornTemp]);
                   
-                  // Adicionar ao metadata para ser processado depois
+                  // Adicionar ao metadata para ser processado depois (fallback)
                   if (!window._novosFornecedores) window._novosFornecedores = [];
                   window._novosFornecedores.push(novoFornTemp);
                   
                   // Selecionar o fornecedor recém-criado
                   setFornecedorSelecionado(novoFornTemp);
+                  
+                  // Mostrar notificação de sucesso
+                  showNotification('✅ Fornecedor criado com sucesso!', 'success');
                   
                   // Fechar modal
                   setMostrarModalNovoFornecedor(false);
