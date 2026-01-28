@@ -1477,7 +1477,7 @@ const Tooltip = ({ children, text, position = 'top' }) => {
 };
 
 // ===== MODAL CONFIRMAÇÃO OCR =====
-const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCancelar, fornecedores }) => {
+const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCancelar, fornecedores, showNotification, setFornecedores }) => {
   const [linhasEditadas, setLinhasEditadas] = useState(linhas);
   const [stats, setStats] = useState(null);
   const [ingredientesLocais, setIngredientesLocais] = useState(ingredientes); // Lista local que pode crescer
@@ -20213,6 +20213,8 @@ void 0;
           fornecedores={fornecedores}
           onConfirmar={handleConfirmarOCR}
           onCancelar={() => setMostrarModalOCR(false)}
+          showNotification={showNotification}
+          setFornecedores={setFornecedores}
         />
       )}
       
