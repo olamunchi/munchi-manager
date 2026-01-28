@@ -1536,38 +1536,39 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
   
   // 🆕 Atualizar search quando linhas mudarem (especialmente com auto-insert)
   useEffect(() => {
-    const novoSearch = {};
-    let houveMudancas = false;
-    
-    linhasEditadas.forEach((linha, index) => {
-      // ✅ Copiar valor existente primeiro (se houver)
-      if (searchIngredienteOCR[index]) {
-        novoSearch[index] = searchIngredienteOCR[index];
-        return;
-      }
+    setSearchIngredienteOCR(prevSearch => {
+      const novoSearch = {};
+      let houveMudancas = false;
       
-      // Se tem ingrediente confirmado
-      if (linha.ingredienteConfirmado) {
-        const ing = ingredientes.find(i => i.id === linha.ingredienteConfirmado);
-        if (ing) {
-          novoSearch[index] = ing.nome;
-          houveMudancas = true;
+      linhasEditadas.forEach((linha, index) => {
+        // ✅ Primeiro: copiar valor existente se houver
+        if (prevSearch[index]) {
+          novoSearch[index] = prevSearch[index];
+          return;
         }
-      }
-      // Se tem sugestão com alta confiança (>= 80%)
-      else if (linha.ingredienteSugerido && linha.confiancaSugestao >= 80) {
-        const ing = ingredientes.find(i => i.id === linha.ingredienteSugerido.id);
-        if (ing) {
-          novoSearch[index] = ing.nome;
-          houveMudancas = true;
+        
+        // Se tem ingrediente confirmado
+        if (linha.ingredienteConfirmado) {
+          const ing = ingredientes.find(i => i.id === linha.ingredienteConfirmado);
+          if (ing) {
+            novoSearch[index] = ing.nome;
+            houveMudancas = true;
+          }
         }
-      }
+        // Se tem sugestão com alta confiança (>= 80%)
+        else if (linha.ingredienteSugerido && linha.confiancaSugestao >= 80) {
+          const ing = ingredientes.find(i => i.id === linha.ingredienteSugerido.id);
+          if (ing) {
+            novoSearch[index] = ing.nome;
+            houveMudancas = true;
+          }
+        }
+      });
+      
+      // Só retornar novo objeto se houve mudanças
+      return houveMudancas ? novoSearch : prevSearch;
     });
-    
-    if (houveMudancas) {
-      setSearchIngredienteOCR(novoSearch);
-    }
-  }, [linhasEditadas]); // Reagir quando linhas mudarem
+  }, [linhasEditadas, ingredientes]); // Reagir quando linhas ou ingredientes mudarem
   
   // 🆕 Auto-preencher ingredienteConfirmado quando há sugestão com alta confiança
   useEffect(() => {
@@ -1965,18 +1966,18 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
                                   value={searchIngredienteOCR[index] || ''}
                                   onChange={(e) => {
                                     const valor = e.target.value;
-                                    setSearchIngredienteOCR({...searchIngredienteOCR, [index]: valor});
-                                    setShowDropdownOCR({...showDropdownOCR, [index]: valor.length >= 2});
+                                    setSearchIngredienteOCR(prev => ({...prev, [index]: valor}));
+                                    setShowDropdownOCR(prev => ({...prev, [index]: valor.length >= 2}));
                                   }}
                                   onFocus={() => {
                                     if ((searchIngredienteOCR[index] || '').length >= 2) {
-                                      setShowDropdownOCR({...showDropdownOCR, [index]: true});
+                                      setShowDropdownOCR(prev => ({...prev, [index]: true}));
                                     }
                                   }}
                                   onBlur={() => {
                                     // Delay para permitir click no dropdown
                                     setTimeout(() => {
-                                      setShowDropdownOCR({...showDropdownOCR, [index]: false});
+                                      setShowDropdownOCR(prev => ({...prev, [index]: false}));
                                     }, 200);
                                   }}
                                   placeholder="Digite para buscar..."
@@ -2073,8 +2074,8 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
                                           onMouseDown={(e) => {
                                             e.preventDefault();
                                             handleIngredienteChange(index, ing.id);
-                                            setSearchIngredienteOCR({...searchIngredienteOCR, [index]: ing.nome});
-                                            setShowDropdownOCR({...showDropdownOCR, [index]: false});
+                                            setSearchIngredienteOCR(prev => ({...prev, [index]: ing.nome}));
+                                            setShowDropdownOCR(prev => ({...prev, [index]: false}));
                                           }}
                                           className="p-2 hover:bg-blue-50 cursor-pointer border-b"
                                         >
