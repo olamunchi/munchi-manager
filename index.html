@@ -1502,8 +1502,10 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
     // ✅ INICIALIZAR com nomes dos ingredientes auto-preenchidos OU sugeridos com alta confiança
     const initial = {};
     console.log('🔍 INICIALIZANDO searchIngredienteOCR com', linhas.length, 'linhas');
+    console.log('📦 Linhas completas recebidas:', JSON.stringify(linhas, null, 2));
+    
     linhas.forEach((linha, index) => {
-      console.log(`Linha ${index}:`, {
+      console.log(`\n🔎 Processando Linha ${index}:`, {
         nomeProduto: linha.nomeProduto,
         ingredienteConfirmado: linha.ingredienteConfirmado,
         ingredienteSugerido: linha.ingredienteSugerido,
@@ -1515,7 +1517,7 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
         const ing = ingredientes.find(i => i.id === linha.ingredienteConfirmado);
         if (ing) {
           initial[index] = ing.nome;
-          console.log(`  ✅ Confirmado: ${ing.nome}`);
+          console.log(`  ✅ [${index}] Confirmado: ${ing.nome}`);
         }
       } 
       // Prioridade 2: sugestão com confiança >= 80% (auto-insert)
@@ -1523,52 +1525,79 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
         const ing = ingredientes.find(i => i.id === linha.ingredienteSugerido.id);
         if (ing) {
           initial[index] = ing.nome;
-          console.log(`  ✅ Auto-insert (${linha.confiancaSugestao}%): ${ing.nome}`);
+          console.log(`  ✅ [${index}] Auto-insert (${linha.confiancaSugestao}%): ${ing.nome}`);
         } else {
-          console.log(`  ❌ Ingrediente não encontrado:`, linha.ingredienteSugerido);
+          console.log(`  ❌ [${index}] Ingrediente não encontrado:`, linha.ingredienteSugerido);
         }
+      } else {
+        console.log(`  ⚪ [${index}] Sem sugestão ou confiança < 80%`);
       }
     });
-    console.log('📋 Initial search:', initial);
+    console.log('\n📋 Initial search FINAL:', initial);
+    console.log('📋 Keys do initial:', Object.keys(initial));
     return initial;
   });
   const [showDropdownOCR, setShowDropdownOCR] = useState({});
   
   // 🆕 Atualizar search quando linhas mudarem (especialmente com auto-insert)
   useEffect(() => {
-    setSearchIngredienteOCR(prevSearch => {
-      const novoSearch = {};
-      let houveMudancas = false;
-      
-      linhasEditadas.forEach((linha, index) => {
-        // ✅ Primeiro: copiar valor existente se houver
-        if (prevSearch[index]) {
-          novoSearch[index] = prevSearch[index];
-          return;
-        }
-        
-        // Se tem ingrediente confirmado
-        if (linha.ingredienteConfirmado) {
-          const ing = ingredientes.find(i => i.id === linha.ingredienteConfirmado);
-          if (ing) {
-            novoSearch[index] = ing.nome;
-            houveMudancas = true;
-          }
-        }
-        // Se tem sugestão com alta confiança (>= 80%)
-        else if (linha.ingredienteSugerido && linha.confiancaSugestao >= 80) {
-          const ing = ingredientes.find(i => i.id === linha.ingredienteSugerido.id);
-          if (ing) {
-            novoSearch[index] = ing.nome;
-            houveMudancas = true;
-          }
-        }
+    console.log('🔄 useEffect TRIGGERED - linhasEditadas mudaram');
+    console.log('📦 linhasEditadas atuais:', linhasEditadas.length, 'linhas');
+    console.log('📦 searchIngredienteOCR atual:', searchIngredienteOCR);
+    
+    const novoSearch = { ...searchIngredienteOCR };
+    let houveMudancas = false;
+    
+    linhasEditadas.forEach((linha, index) => {
+      console.log(`\n🔍 useEffect processando linha ${index}:`, {
+        nomeProduto: linha.nomeProduto,
+        ingredienteConfirmado: linha.ingredienteConfirmado,
+        ingredienteSugerido: linha.ingredienteSugerido,
+        confiancaSugestao: linha.confiancaSugestao,
+        searchAtual: searchIngredienteOCR[index]
       });
       
-      // Só retornar novo objeto se houve mudanças
-      return houveMudancas ? novoSearch : prevSearch;
+      // Se já tem valor no search, não mexer
+      if (searchIngredienteOCR[index]) {
+        console.log(`  ⏭️ [${index}] Já tem valor: "${searchIngredienteOCR[index]}" - SKIP`);
+        return;
+      }
+      
+      // Se tem ingrediente confirmado
+      if (linha.ingredienteConfirmado) {
+        const ing = ingredientes.find(i => i.id === linha.ingredienteConfirmado);
+        if (ing && !searchIngredienteOCR[index]) {
+          novoSearch[index] = ing.nome;
+          houveMudancas = true;
+          console.log(`  ✅ [${index}] Adicionando confirmado: "${ing.nome}"`);
+        }
+      }
+      // Se tem sugestão com alta confiança (>= 80%)
+      else if (linha.ingredienteSugerido && linha.confiancaSugestao >= 80) {
+        const ing = ingredientes.find(i => i.id === linha.ingredienteSugerido.id);
+        if (ing && !searchIngredienteOCR[index]) {
+          novoSearch[index] = ing.nome;
+          houveMudancas = true;
+          console.log(`  ✅ [${index}] Adicionando sugestão: "${ing.nome}"`);
+        }
+      } else {
+        console.log(`  ⚪ [${index}] Sem ação necessária`);
+      }
     });
-  }, [linhasEditadas, ingredientes]); // Reagir quando linhas ou ingredientes mudarem
+    
+    console.log('\n📊 Resultado useEffect:', {
+      houveMudancas,
+      novoSearch,
+      keysNovoSearch: Object.keys(novoSearch)
+    });
+    
+    if (houveMudancas) {
+      console.log('✅ Aplicando novoSearch ao state');
+      setSearchIngredienteOCR(novoSearch);
+    } else {
+      console.log('⏭️ Nenhuma mudança - não atualiza state');
+    }
+  }, [linhasEditadas]); // Reagir quando linhas mudarem
   
   // 🆕 Auto-preencher ingredienteConfirmado quando há sugestão com alta confiança
   useEffect(() => {
@@ -1946,6 +1975,14 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
                 const confianca = linha.confiancaSugestao || 0;
                 const historico = linha.historicoSugestao;
                 
+                // 🐛 DEBUG: Log do valor renderizado
+                console.log(`🎨 RENDER linha ${index}:`, {
+                  nomeProduto: linha.nomeProduto,
+                  searchValue: searchIngredienteOCR[index],
+                  ingredienteConfirmado: linha.ingredienteConfirmado,
+                  confianca
+                });
+                
                 return (
                   <tr key={index} className="hover:bg-gray-50">
                     <td className="border p-2 text-sm">
@@ -1966,18 +2003,18 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
                                   value={searchIngredienteOCR[index] || ''}
                                   onChange={(e) => {
                                     const valor = e.target.value;
-                                    setSearchIngredienteOCR(prev => ({...prev, [index]: valor}));
-                                    setShowDropdownOCR(prev => ({...prev, [index]: valor.length >= 2}));
+                                    setSearchIngredienteOCR({...searchIngredienteOCR, [index]: valor});
+                                    setShowDropdownOCR({...showDropdownOCR, [index]: valor.length >= 2});
                                   }}
                                   onFocus={() => {
                                     if ((searchIngredienteOCR[index] || '').length >= 2) {
-                                      setShowDropdownOCR(prev => ({...prev, [index]: true}));
+                                      setShowDropdownOCR({...showDropdownOCR, [index]: true});
                                     }
                                   }}
                                   onBlur={() => {
                                     // Delay para permitir click no dropdown
                                     setTimeout(() => {
-                                      setShowDropdownOCR(prev => ({...prev, [index]: false}));
+                                      setShowDropdownOCR({...showDropdownOCR, [index]: false});
                                     }, 200);
                                   }}
                                   placeholder="Digite para buscar..."
@@ -2074,8 +2111,8 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
                                           onMouseDown={(e) => {
                                             e.preventDefault();
                                             handleIngredienteChange(index, ing.id);
-                                            setSearchIngredienteOCR(prev => ({...prev, [index]: ing.nome}));
-                                            setShowDropdownOCR(prev => ({...prev, [index]: false}));
+                                            setSearchIngredienteOCR({...searchIngredienteOCR, [index]: ing.nome});
+                                            setShowDropdownOCR({...showDropdownOCR, [index]: false});
                                           }}
                                           className="p-2 hover:bg-blue-50 cursor-pointer border-b"
                                         >
