@@ -1502,10 +1502,13 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
     // ✅ INICIALIZAR com nomes dos ingredientes auto-preenchidos OU sugeridos com alta confiança
     const initial = {};
     console.log('🔍 INICIALIZANDO searchIngredienteOCR com', linhas.length, 'linhas');
-    console.log('📦 Linhas completas recebidas:', JSON.stringify(linhas, null, 2));
-    
     linhas.forEach((linha, index) => {
-      console.log(`\n🔎 Processando Linha ${index}:`, {
+      // ✅ CRIAR ID ÚNICO para cada linha baseado no conteúdo
+      const linhaId = `${linha.nomeProduto}_${index}`;
+      linha._id = linhaId; // Adicionar ID à linha
+      
+      console.log(`Linha ${index}:`, {
+        _id: linhaId,
         nomeProduto: linha.nomeProduto,
         ingredienteConfirmado: linha.ingredienteConfirmado,
         ingredienteSugerido: linha.ingredienteSugerido,
@@ -1516,86 +1519,61 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
       if (linha.ingredienteConfirmado) {
         const ing = ingredientes.find(i => i.id === linha.ingredienteConfirmado);
         if (ing) {
-          initial[index] = ing.nome;
-          console.log(`  ✅ [${index}] Confirmado: ${ing.nome}`);
+          initial[linhaId] = ing.nome;
+          console.log(`  ✅ Confirmado: ${ing.nome}`);
         }
       } 
       // Prioridade 2: sugestão com confiança >= 80% (auto-insert)
       else if (linha.ingredienteSugerido && linha.confiancaSugestao >= 80) {
         const ing = ingredientes.find(i => i.id === linha.ingredienteSugerido.id);
         if (ing) {
-          initial[index] = ing.nome;
-          console.log(`  ✅ [${index}] Auto-insert (${linha.confiancaSugestao}%): ${ing.nome}`);
+          initial[linhaId] = ing.nome;
+          console.log(`  ✅ Auto-insert (${linha.confiancaSugestao}%): ${ing.nome}`);
         } else {
-          console.log(`  ❌ [${index}] Ingrediente não encontrado:`, linha.ingredienteSugerido);
+          console.log(`  ❌ Ingrediente não encontrado:`, linha.ingredienteSugerido);
         }
-      } else {
-        console.log(`  ⚪ [${index}] Sem sugestão ou confiança < 80%`);
       }
     });
-    console.log('\n📋 Initial search FINAL:', initial);
-    console.log('📋 Keys do initial:', Object.keys(initial));
+    console.log('📋 Initial search:', initial);
     return initial;
   });
   const [showDropdownOCR, setShowDropdownOCR] = useState({});
   
   // 🆕 Atualizar search quando linhas mudarem (especialmente com auto-insert)
   useEffect(() => {
-    console.log('🔄 useEffect TRIGGERED - linhasEditadas mudaram');
-    console.log('📦 linhasEditadas atuais:', linhasEditadas.length, 'linhas');
-    console.log('📦 searchIngredienteOCR atual:', searchIngredienteOCR);
-    
     const novoSearch = { ...searchIngredienteOCR };
     let houveMudancas = false;
     
     linhasEditadas.forEach((linha, index) => {
-      console.log(`\n🔍 useEffect processando linha ${index}:`, {
-        nomeProduto: linha.nomeProduto,
-        ingredienteConfirmado: linha.ingredienteConfirmado,
-        ingredienteSugerido: linha.ingredienteSugerido,
-        confiancaSugestao: linha.confiancaSugestao,
-        searchAtual: searchIngredienteOCR[index]
-      });
+      // ✅ Garantir que a linha tem ID
+      if (!linha._id) {
+        linha._id = `${linha.nomeProduto}_${index}`;
+      }
+      const linhaId = linha._id;
       
       // Se já tem valor no search, não mexer
-      if (searchIngredienteOCR[index]) {
-        console.log(`  ⏭️ [${index}] Já tem valor: "${searchIngredienteOCR[index]}" - SKIP`);
-        return;
-      }
+      if (searchIngredienteOCR[linhaId]) return;
       
       // Se tem ingrediente confirmado
       if (linha.ingredienteConfirmado) {
         const ing = ingredientes.find(i => i.id === linha.ingredienteConfirmado);
-        if (ing && !searchIngredienteOCR[index]) {
-          novoSearch[index] = ing.nome;
+        if (ing && !searchIngredienteOCR[linhaId]) {
+          novoSearch[linhaId] = ing.nome;
           houveMudancas = true;
-          console.log(`  ✅ [${index}] Adicionando confirmado: "${ing.nome}"`);
         }
       }
       // Se tem sugestão com alta confiança (>= 80%)
       else if (linha.ingredienteSugerido && linha.confiancaSugestao >= 80) {
         const ing = ingredientes.find(i => i.id === linha.ingredienteSugerido.id);
-        if (ing && !searchIngredienteOCR[index]) {
-          novoSearch[index] = ing.nome;
+        if (ing && !searchIngredienteOCR[linhaId]) {
+          novoSearch[linhaId] = ing.nome;
           houveMudancas = true;
-          console.log(`  ✅ [${index}] Adicionando sugestão: "${ing.nome}"`);
         }
-      } else {
-        console.log(`  ⚪ [${index}] Sem ação necessária`);
       }
     });
     
-    console.log('\n📊 Resultado useEffect:', {
-      houveMudancas,
-      novoSearch,
-      keysNovoSearch: Object.keys(novoSearch)
-    });
-    
     if (houveMudancas) {
-      console.log('✅ Aplicando novoSearch ao state');
       setSearchIngredienteOCR(novoSearch);
-    } else {
-      console.log('⏭️ Nenhuma mudança - não atualiza state');
     }
   }, [linhasEditadas]); // Reagir quando linhas mudarem
   
@@ -1975,14 +1953,6 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
                 const confianca = linha.confiancaSugestao || 0;
                 const historico = linha.historicoSugestao;
                 
-                // 🐛 DEBUG: Log do valor renderizado
-                console.log(`🎨 RENDER linha ${index}:`, {
-                  nomeProduto: linha.nomeProduto,
-                  searchValue: searchIngredienteOCR[index],
-                  ingredienteConfirmado: linha.ingredienteConfirmado,
-                  confianca
-                });
-                
                 return (
                   <tr key={index} className="hover:bg-gray-50">
                     <td className="border p-2 text-sm">
@@ -2000,14 +1970,14 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
                               <div className="relative">
                                 <input
                                   type="text"
-                                  value={searchIngredienteOCR[index] || ''}
+                                  value={searchIngredienteOCR[linha._id] || ''}
                                   onChange={(e) => {
                                     const valor = e.target.value;
-                                    setSearchIngredienteOCR({...searchIngredienteOCR, [index]: valor});
+                                    setSearchIngredienteOCR({...searchIngredienteOCR, [linha._id]: valor});
                                     setShowDropdownOCR({...showDropdownOCR, [index]: valor.length >= 2});
                                   }}
                                   onFocus={() => {
-                                    if ((searchIngredienteOCR[index] || '').length >= 2) {
+                                    if ((searchIngredienteOCR[linha._id] || '').length >= 2) {
                                       setShowDropdownOCR({...showDropdownOCR, [index]: true});
                                     }
                                   }}
@@ -2096,7 +2066,7 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
                               {/* Dropdown de sugestões */}
                               {showDropdownOCR[index] && (
                                 (() => {
-                                  const search = normalizeText(searchIngredienteOCR[index] || '');
+                                  const search = normalizeText(searchIngredienteOCR[linha._id] || '');
                                   const sugestoes = ingredientesLocais
                                     .filter(ing => normalizeText(ing.nome).includes(search))
                                     .slice(0, 10);
@@ -2111,7 +2081,7 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
                                           onMouseDown={(e) => {
                                             e.preventDefault();
                                             handleIngredienteChange(index, ing.id);
-                                            setSearchIngredienteOCR({...searchIngredienteOCR, [index]: ing.nome});
+                                            setSearchIngredienteOCR({...searchIngredienteOCR, [linha._id]: ing.nome});
                                             setShowDropdownOCR({...showDropdownOCR, [index]: false});
                                           }}
                                           className="p-2 hover:bg-blue-50 cursor-pointer border-b"
@@ -2128,7 +2098,7 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
                               )}
                               
                               {/* Mostrar ingrediente selecionado */}
-                              {linha.ingredienteConfirmado && !searchIngredienteOCR[index] && (
+                              {linha.ingredienteConfirmado && !searchIngredienteOCR[linha._id] && (
                                 (() => {
                                   const ingSelecionado = ingredientesLocais.find(i => i.id === linha.ingredienteConfirmado);
                                   if (ingSelecionado) {
