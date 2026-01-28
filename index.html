@@ -8466,7 +8466,18 @@ void 0;
         if (data.templatesOCR) setTemplatesOCR(data.templatesOCR);
         if (data.vocabularioFornecedor) {
           // 🧠 MERGE vocabulário: combinar Drive + Local sem perder dados
-          const vocabLocal = vocabularioFornecedor || [];
+          // ⚠️ IMPORTANTE: Ler do localStorage, não do React State!
+          let vocabLocal = [];
+          try {
+            const localStorageVocab = await window.storage.get('vocabularioFornecedor');
+            if (localStorageVocab && localStorageVocab.value) {
+              vocabLocal = JSON.parse(localStorageVocab.value);
+            }
+          } catch (e) {
+            console.warn('⚠️ Falha ao ler vocabulário local:', e);
+            vocabLocal = vocabularioFornecedor || [];
+          }
+          
           const vocabDrive = data.vocabularioFornecedor || [];
           
           // Criar mapa por chave única (fornecedor+texto+ingrediente)
@@ -9194,9 +9205,16 @@ void 0;
   // 🧠 EXCEÇÃO: Vocabulário É guardado no localStorage (é pequeno e crítico)
   useEffect(() => {
     if (vocabularioFornecedor && vocabularioFornecedor.length > 0) {
-      window.storage.set('vocabularioFornecedor', JSON.stringify(vocabularioFornecedor)).catch(() => {
-        console.warn('⚠️ Falha ao guardar vocabulário no localStorage');
-      });
+      console.log(`💾 useEffect: Guardando vocabulário (${vocabularioFornecedor.length} entradas)...`);
+      window.storage.set('vocabularioFornecedor', JSON.stringify(vocabularioFornecedor))
+        .then(() => {
+          console.log(`✅ Vocabulário guardado com sucesso! (${vocabularioFornecedor.length} entradas)`);
+        })
+        .catch((err) => {
+          console.error('⚠️ Falha ao guardar vocabulário:', err);
+        });
+    } else {
+      console.log('⚠️ useEffect: Vocabulário vazio ou undefined, não guardou');
     }
   }, [vocabularioFornecedor]);
 
