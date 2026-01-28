@@ -1616,6 +1616,49 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
     email: ''
   });
 
+  // 🔧 Função helper para criar fornecedor (com acesso às props)
+  const criarNovoFornecedor = () => {
+    if (!novoFornecedor.nome.trim()) {
+      alert('Nome é obrigatório!');
+      return;
+    }
+    
+    // Criar fornecedor com ID permanente
+    const novoFornTemp = {
+      id: Date.now(),
+      nome: novoFornecedor.nome.trim(),
+      nif: novoFornecedor.nif.trim(),
+      telefone: novoFornecedor.contacto.trim(),
+      email: novoFornecedor.email.trim(),
+      morada: '',
+      dataCriacao: new Date().toISOString()
+    };
+    
+    // ✅ ADICIONAR IMEDIATAMENTE AO ESTADO GLOBAL (guardado permanentemente)
+    if (setFornecedores && typeof setFornecedores === 'function') {
+      setFornecedores([...fornecedores, novoFornTemp]);
+    }
+    
+    // Adicionar à lista LOCAL (aparece no dropdown imediatamente)
+    setFornecedoresLocais([...fornecedoresLocais, novoFornTemp]);
+    
+    // Adicionar ao metadata para ser processado depois (fallback)
+    if (!window._novosFornecedores) window._novosFornecedores = [];
+    window._novosFornecedores.push(novoFornTemp);
+    
+    // Selecionar o fornecedor recém-criado
+    setFornecedorManual(novoFornTemp.id);
+    
+    // Mostrar notificação de sucesso
+    if (showNotification && typeof showNotification === 'function') {
+      showNotification('✅ Fornecedor criado com sucesso!', 'success');
+    }
+    
+    // Fechar modal
+    setMostrarModalNovoFornecedor(false);
+    setNovoFornecedor({ nome: '', nif: metadata.nif || '', contacto: '', email: '' });
+  };
+
   useEffect(() => {
     const calculateStats = (linhas) => {
       const total = linhas.length;
@@ -2438,43 +2481,7 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
                 Cancelar
               </button>
               <button
-                onClick={() => {
-                  if (!novoFornecedor.nome.trim()) {
-                    alert('Nome é obrigatório!');
-                    return;
-                  }
-                  
-                  // Criar fornecedor com ID permanente
-                  const novoFornTemp = {
-                    id: Date.now(),
-                    nome: novoFornecedor.nome.trim(),
-                    nif: novoFornecedor.nif.trim(),
-                    telefone: novoFornecedor.contacto.trim(),
-                    email: novoFornecedor.email.trim(),
-                    morada: '',
-                    dataCriacao: new Date().toISOString()
-                  };
-                  
-                  // ✅ ADICIONAR IMEDIATAMENTE AO ESTADO GLOBAL (guardado permanentemente)
-                  setFornecedores([...fornecedores, novoFornTemp]);
-                  
-                  // Adicionar à lista LOCAL (aparece no dropdown imediatamente)
-                  setFornecedoresLocais([...fornecedoresLocais, novoFornTemp]);
-                  
-                  // Adicionar ao metadata para ser processado depois (fallback)
-                  if (!window._novosFornecedores) window._novosFornecedores = [];
-                  window._novosFornecedores.push(novoFornTemp);
-                  
-                  // Selecionar o fornecedor recém-criado
-                  setFornecedorManual(novoFornTemp.id);
-                  
-                  // Mostrar notificação de sucesso
-                  showNotification('✅ Fornecedor criado com sucesso!', 'success');
-                  
-                  // Fechar modal
-                  setMostrarModalNovoFornecedor(false);
-                  setNovoFornecedor({ nome: '', nif: metadata.nif || '', contacto: '', email: '' });
-                }}
+                onClick={criarNovoFornecedor}
                 className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold"
               >
                 ✨ Criar
@@ -2709,7 +2716,7 @@ const ModalDespesaSimples = ({ dadosDespesa, onConfirmar, onCancelar }) => {
 /**
  * Modal para confirmar tipo de fatura detectado
  */
-const ModalConfirmacaoFatura = ({ dadosFatura, onConfirmar, onCancelar, fornecedores = [] }) => {
+const ModalConfirmacaoFatura = ({ dadosFatura, onConfirmar, onCancelar, fornecedores = [], showNotification, setFornecedores }) => {
   const [tipoSelecionado, setTipoSelecionado] = React.useState(dadosFatura.tipo);
   const [categoriaSelecionada, setCategoriaSelecionada] = React.useState(dadosFatura.categoria || 'compras'); // 🆕 CATEGORIA
   const [dataCorrigida, setDataCorrigida] = React.useState(dadosFatura.data || '');
@@ -2722,6 +2729,49 @@ const ModalConfirmacaoFatura = ({ dadosFatura, onConfirmar, onCancelar, forneced
     contacto: '',
     email: ''
   });
+  
+  // 🔧 Função helper para criar fornecedor (com acesso às props)
+  const criarNovoFornecedor = () => {
+    if (!novoFornecedor.nome.trim()) {
+      alert('Nome é obrigatório!');
+      return;
+    }
+    
+    // Criar fornecedor com ID permanente
+    const novoFornTemp = {
+      id: Date.now(),
+      nome: novoFornecedor.nome.trim(),
+      nif: novoFornecedor.nif.trim(),
+      telefone: novoFornecedor.contacto.trim(),
+      email: novoFornecedor.email.trim(),
+      morada: '',
+      dataCriacao: new Date().toISOString()
+    };
+    
+    // ✅ ADICIONAR IMEDIATAMENTE AO ESTADO GLOBAL (guardado permanentemente)
+    if (setFornecedores && typeof setFornecedores === 'function') {
+      setFornecedores([...fornecedores, novoFornTemp]);
+    }
+    
+    // Adicionar à lista LOCAL (aparece no dropdown imediatamente)
+    setFornecedoresLocais([...fornecedoresLocais, novoFornTemp]);
+    
+    // Adicionar ao metadata para ser processado depois (fallback)
+    if (!window._novosFornecedores) window._novosFornecedores = [];
+    window._novosFornecedores.push(novoFornTemp);
+    
+    // Selecionar o fornecedor recém-criado
+    setFornecedorSelecionado(novoFornTemp);
+    
+    // Mostrar notificação de sucesso
+    if (showNotification && typeof showNotification === 'function') {
+      showNotification('✅ Fornecedor criado com sucesso!', 'success');
+    }
+    
+    // Fechar modal
+    setMostrarModalNovoFornecedor(false);
+    setNovoFornecedor({ nome: '', nif: dadosFatura.fornecedor?.nif || '', contacto: '', email: '' });
+  };
   
   // ✅ MATCH INTELIGENTE: NOME primeiro (mais confiável), depois NIF
   const [fornecedorSelecionado, setFornecedorSelecionado] = React.useState(() => {
@@ -3141,43 +3191,7 @@ const ModalConfirmacaoFatura = ({ dadosFatura, onConfirmar, onCancelar, forneced
                 Cancelar
               </button>
               <button
-                onClick={() => {
-                  if (!novoFornecedor.nome.trim()) {
-                    alert('Nome é obrigatório!');
-                    return;
-                  }
-                  
-                  // Criar fornecedor com ID permanente
-                  const novoFornTemp = {
-                    id: Date.now(),
-                    nome: novoFornecedor.nome.trim(),
-                    nif: novoFornecedor.nif.trim(),
-                    telefone: novoFornecedor.contacto.trim(),
-                    email: novoFornecedor.email.trim(),
-                    morada: '',
-                    dataCriacao: new Date().toISOString()
-                  };
-                  
-                  // ✅ ADICIONAR IMEDIATAMENTE AO ESTADO GLOBAL (guardado permanentemente)
-                  setFornecedores([...fornecedores, novoFornTemp]);
-                  
-                  // Adicionar à lista LOCAL (aparece no dropdown imediatamente)
-                  setFornecedoresLocais([...fornecedoresLocais, novoFornTemp]);
-                  
-                  // Adicionar ao metadata para ser processado depois (fallback)
-                  if (!window._novosFornecedores) window._novosFornecedores = [];
-                  window._novosFornecedores.push(novoFornTemp);
-                  
-                  // Selecionar o fornecedor recém-criado
-                  setFornecedorSelecionado(novoFornTemp);
-                  
-                  // Mostrar notificação de sucesso
-                  showNotification('✅ Fornecedor criado com sucesso!', 'success');
-                  
-                  // Fechar modal
-                  setMostrarModalNovoFornecedor(false);
-                  setNovoFornecedor({ nome: '', nif: dadosFatura.fornecedor?.nif || '', contacto: '', email: '' });
-                }}
+                onClick={criarNovoFornecedor}
                 className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold"
               >
                 ✨ Criar
@@ -20225,6 +20239,8 @@ void 0;
           fornecedores={fornecedores}
           onConfirmar={handleConfirmarFatura}
           onCancelar={handleCancelarFatura}
+          showNotification={showNotification}
+          setFornecedores={setFornecedores}
         />
       )}
       {/* ==================== FIM MODAL V2.0 ==================== */}
