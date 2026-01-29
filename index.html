@@ -4161,6 +4161,28 @@ const RestauranteGestor = () => {
   const [desempenhoProdutoExpanded, setDesempenhoProdutoExpanded] = useState(false);
   const [searchTakeAway, setSearchTakeAway] = useState('');
   
+  // 🆕 ESTADOS PARA O NOVO TAB DE COMPRAS
+  const [novaCompra, setNovaCompra] = useState({
+    numero: '',
+    data: new Date().toISOString().split('T')[0],
+    fornecedorId: '',
+    tipoDocumento: 'FT',
+    items: [],
+    observacoes: ''
+  });
+  const [itemCompra, setItemCompra] = useState({
+    ingrediente: '',
+    quantidade: '',
+    preco: '',
+    ingredienteId: ''
+  });
+  const [compras, setCompras] = useState([]);
+  const [editandoCompra, setEditandoCompra] = useState(null);
+  const [filtroFornecedorCompras, setFiltroFornecedorCompras] = useState('todos');
+  const [filtroCategoriaCompras, setFiltroCategoriaCompras] = useState('todas');
+  const [searchIngredienteCompra, setSearchIngredienteCompra] = useState('');
+  const [showDropdownIngredienteCompra, setShowDropdownIngredienteCompra] = useState(false);
+  
   // ============================================
   // 🆕 FUNÇÕES DE GESTÃO INTELIGENTE DE STOCK
   // ============================================
@@ -4846,6 +4868,22 @@ const RestauranteGestor = () => {
   }, []);
   
   // 🚫 INDEXEDDB DESATIVADO - movimentações só vão para Google Drive
+  
+  // 🆕 CARREGAR COMPRAS DO INDEXEDDB
+  useEffect(() => {
+    const carregarCompras = async () => {
+      try {
+        const comprasDB = await db.despesas
+          .where('categoria')
+          .equals('compras')
+          .toArray();
+        setCompras(comprasDB);
+      } catch (error) {
+        console.error('Erro ao carregar compras:', error);
+      }
+    };
+    carregarCompras();
+  }, []);
   // useEffect(() => {
   //   if (movimentacoesStock.length === 0) return;
   //   
@@ -18050,1157 +18088,554 @@ void 0;
             )}
 
             {gestaoSubTab === 'faturas' && (
-              <div className="bg-white rounded-lg shadow p-4">
-                <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-                  🛒 Gestão de Compras
-                </h2>
+              <div className="space-y-6">
                 
-                {/* Formulário Nova Compra/Editar */}
-                <div className={`rounded-lg p-4 mb-4 border-2 ${editandoFatura ? 'bg-yellow-50 border-yellow-300' : 'bg-blue-50 border-blue-300'}`}>
-                  <div className="mb-3">
-                    <h3 className="font-semibold text-sm flex items-center gap-2">
-                      {editandoFatura ? '✏️ Editar Fatura' : '➕ Nova Fatura'}
-                    </h3>
+                {/* Header com botão Guardar */}
+                <div className="bg-white rounded-xl shadow-lg p-5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h1 className="text-2xl font-bold text-gray-800">🛒 Gestão de Compras</h1>
+                      <p className="text-gray-500 text-sm">Nova fatura e visualização</p>
+                    </div>
+                    <button 
+                      onClick={() => {
+                        if (!novaCompra.fornecedorId || !novaCompra.numero || novaCompra.items.length === 0) {
+                          alert('⚠️ Preencha fornecedor, número da fatura e adicione pelo menos um item!');
+                          return;
+                        }
+                        
+                        const total = novaCompra.items.reduce((sum, item) => sum + (parseFloat(item.quantidade) * parseFloat(item.preco)), 0);
+                        
+                        const compraFinal = {
+                          ...novaCompra,
+                          id: editandoCompra || Date.now(),
+                          categoria: 'compras',
+                          total: total,
+                          timestamp: new Date().toISOString()
+                        };
+                        
+                        if (editandoCompra) {
+                          db.despesas.update(editandoCompra, compraFinal).then(() => {
+                            showNotification('✅ Compra atualizada!', 'success');
+                            db.despesas.where('categoria').equals('compras').toArray().then(setCompras);
+                            setNovaCompra({
+                              numero: '',
+                              data: new Date().toISOString().split('T')[0],
+                              fornecedorId: '',
+                              tipoDocumento: 'FT',
+                              items: [],
+                              observacoes: ''
+                            });
+                            setEditandoCompra(null);
+                            triggerSync();
+                          });
+                        } else {
+                          db.despesas.add(compraFinal).then(() => {
+                            showNotification('✅ Compra guardada!', 'success');
+                            db.despesas.where('categoria').equals('compras').toArray().then(setCompras);
+                            setNovaCompra({
+                              numero: '',
+                              data: new Date().toISOString().split('T')[0],
+                              fornecedorId: '',
+                              tipoDocumento: 'FT',
+                              items: [],
+                              observacoes: ''
+                            });
+                            triggerSync();
+                          });
+                        }
+                      }}
+                      className="px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:shadow-lg transition font-semibold flex items-center gap-2"
+                    >
+                      <Check className="w-5 h-5" />
+                      Guardar
+                    </button>
                   </div>
+                </div>
+
+                {/* Main Content: 3 Columns */}
+                <div className="grid grid-cols-3 gap-6">
                   
-                  {/* Botão OCR Unificado com Escolha de Método */}
-                  <div className="mb-4 p-3 bg-gradient-to-r from-purple-50 to-green-50 border-2 border-purple-300 rounded-lg">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      📄 Ler Fatura Automaticamente (OCR)
-                    </label>
-                    
-                    {/* Grid de Botões */}
-                    <div className="grid grid-cols-2 gap-2">
-                      {/* Botão Tesseract (Local) */}
+                  {/* COLUNA ESQUERDA: Items + Resumo */}
+                  <div className="col-span-1 space-y-4">
+                    {/* Items */}
+                    <div className="bg-white rounded-xl shadow-lg p-5">
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                          <span className="text-xl">📦</span> Items
+                        </h3>
+                      </div>
+                      
+                      {/* Add Item Form */}
+                      <div className="space-y-2 mb-3 bg-gray-50 rounded-lg p-3 border border-gray-200">
+                        <div className="relative">
+                          <input 
+                            type="text" 
+                            placeholder="Ingrediente..."
+                            value={searchIngredienteCompra}
+                            onChange={(e) => {
+                              setSearchIngredienteCompra(e.target.value);
+                              setShowDropdownIngredienteCompra(true);
+                            }}
+                            onFocus={() => setShowDropdownIngredienteCompra(true)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-sm"
+                          />
+                          
+                          {/* Dropdown Ingredientes */}
+                          {showDropdownIngredienteCompra && (
+                            <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                              {ingredientes
+                                .filter(ing => !searchIngredienteCompra || normalizeText(ing.nome).includes(normalizeText(searchIngredienteCompra)))
+                                .map(ing => (
+                                  <div
+                                    key={ing.id}
+                                    onClick={() => {
+                                      setItemCompra({
+                                        ...itemCompra,
+                                        ingrediente: ing.nome,
+                                        ingredienteId: ing.id,
+                                        preco: ing.custoUnitario.toString()
+                                      });
+                                      setSearchIngredienteCompra(ing.nome);
+                                      setShowDropdownIngredienteCompra(false);
+                                    }}
+                                    className="px-3 py-2 hover:bg-green-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                                  >
+                                    <div className="font-medium text-sm">{ing.nome}</div>
+                                    <div className="text-xs text-gray-600">
+                                      €{(ing.custoUnitario || 0).toFixed(2)}/{ing.unidade}
+                                    </div>
+                                  </div>
+                                ))}
+                              
+                              {ingredientes.filter(ing => !searchIngredienteCompra || normalizeText(ing.nome).includes(normalizeText(searchIngredienteCompra))).length === 0 && (
+                                <div className="px-3 py-4 text-center text-gray-500 text-sm">
+                                  Nenhum ingrediente encontrado
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-2">
+                          <input 
+                            type="number" 
+                            placeholder="Qtd."
+                            value={itemCompra.quantidade}
+                            onChange={(e) => setItemCompra({...itemCompra, quantidade: e.target.value})}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-sm"
+                          />
+                          <input 
+                            type="number" 
+                            placeholder="Preço €"
+                            value={itemCompra.preco}
+                            onChange={(e) => setItemCompra({...itemCompra, preco: e.target.value})}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-sm"
+                          />
+                        </div>
+                        
+                        <button 
+                          onClick={() => {
+                            if (!itemCompra.ingrediente || !itemCompra.quantidade || !itemCompra.preco) {
+                              alert('⚠️ Preencha todos os campos!');
+                              return;
+                            }
+                            
+                            const novoItem = {
+                              id: Date.now(),
+                              ...itemCompra
+                            };
+                            
+                            setNovaCompra({
+                              ...novaCompra,
+                              items: [...novaCompra.items, novoItem]
+                            });
+                            
+                            setItemCompra({
+                              ingrediente: '',
+                              quantidade: '',
+                              preco: '',
+                              ingredienteId: ''
+                            });
+                            setSearchIngredienteCompra('');
+                          }}
+                          className="w-full bg-green-500 hover:bg-green-600 text-white py-2 rounded-lg font-semibold text-sm transition"
+                        >
+                          + Adicionar
+                        </button>
+                      </div>
+
+                      {/* Items List */}
+                      <div className="border-t pt-3">
+                        {novaCompra.items.length === 0 ? (
+                          <p className="text-center text-gray-400 text-xs py-6">
+                            Nenhum item adicionado
+                          </p>
+                        ) : (
+                          <div className="space-y-2">
+                            {novaCompra.items.map(item => (
+                              <div key={item.id} className="flex items-center justify-between bg-gray-50 p-2 rounded border">
+                                <div className="flex-1">
+                                  <p className="text-sm font-medium text-gray-800">{item.ingrediente}</p>
+                                  <p className="text-xs text-gray-500">
+                                    {item.quantidade} x €{parseFloat(item.preco).toFixed(2)} = €{(parseFloat(item.quantidade) * parseFloat(item.preco)).toFixed(2)}
+                                  </p>
+                                </div>
+                                <button
+                                  onClick={() => {
+                                    setNovaCompra({
+                                      ...novaCompra,
+                                      items: novaCompra.items.filter(i => i.id !== item.id)
+                                    });
+                                  }}
+                                  className="text-red-600 hover:bg-red-50 p-1 rounded"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Resumo */}
+                    <div className="bg-white rounded-xl shadow-lg p-5">
+                      <h4 className="font-semibold text-gray-700 mb-3 text-sm">📊 Resumo</h4>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Items:</span>
+                          <span className="font-bold text-purple-600">{novaCompra.items.length}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Subtotal:</span>
+                          <span className="font-bold">
+                            €{novaCompra.items.reduce((sum, item) => sum + (parseFloat(item.quantidade) * parseFloat(item.preco)), 0).toFixed(2)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between pt-2 border-t">
+                          <span className="text-gray-800 font-semibold">Total:</span>
+                          <span className="font-bold text-lg text-green-600">
+                            €{novaCompra.items.reduce((sum, item) => sum + (parseFloat(item.quantidade) * parseFloat(item.preco)), 0).toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* COLUNA CENTRO: Dados da Fatura + Filtros */}
+                  <div className="col-span-1 space-y-4">
+                    {/* Dados da Fatura */}
+                    <div className="bg-white rounded-xl shadow-lg p-5">
+                      <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
+                        <span className="text-xl">📋</span> Dados da Fatura
+                      </h3>
+                      
+                      <div className="space-y-3">
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">
+                            Fornecedor <span className="text-red-500">*</span>
+                          </label>
+                          <select 
+                            value={novaCompra.fornecedorId}
+                            onChange={(e) => setNovaCompra({...novaCompra, fornecedorId: e.target.value})}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 text-sm"
+                          >
+                            <option value="">Selecionar fornecedor...</option>
+                            {fornecedores.map(f => (
+                              <option key={f.id || f} value={f.id || f}>
+                                {f.nome || f} {f.nif ? `(${f.nif})` : ''}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">
+                              Nº Fatura <span className="text-red-500">*</span>
+                            </label>
+                            <input 
+                              type="text" 
+                              placeholder="FT 2025/001"
+                              value={novaCompra.numero}
+                              onChange={(e) => setNovaCompra({...novaCompra, numero: e.target.value})}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 text-sm"
+                            />
+                          </div>
+                          
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">
+                              Data <span className="text-red-500">*</span>
+                            </label>
+                            <input 
+                              type="date" 
+                              value={novaCompra.data}
+                              onChange={(e) => setNovaCompra({...novaCompra, data: e.target.value})}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 text-sm"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">
+                            Tipo Documento
+                          </label>
+                          <select 
+                            value={novaCompra.tipoDocumento}
+                            onChange={(e) => setNovaCompra({...novaCompra, tipoDocumento: e.target.value})}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 text-sm"
+                          >
+                            <option value="FT">FT - Fatura</option>
+                            <option value="FS">FS - Fatura Simplificada</option>
+                            <option value="FR">FR - Fatura-Recibo</option>
+                            <option value="NC">NC - Nota de Crédito</option>
+                            <option value="ND">ND - Nota de Débito</option>
+                            <option value="GR">GR - Guia de Remessa</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">
+                            Observações
+                          </label>
+                          <textarea 
+                            placeholder="Notas adicionais..."
+                            value={novaCompra.observacoes}
+                            onChange={(e) => setNovaCompra({...novaCompra, observacoes: e.target.value})}
+                            rows="3"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 text-sm resize-none"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Filtro de Categoria */}
+                    <div className="bg-white rounded-xl shadow-lg p-5">
+                      <h4 className="font-semibold text-gray-700 mb-3 text-sm">🔍 Filtrar por Tipo</h4>
                       <div>
+                        <select 
+                          value={filtroCategoriaCompras}
+                          onChange={(e) => setFiltroCategoriaCompras(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                        >
+                          <option value="todas">📋 Todos os tipos</option>
+                          <option value="compras">🛒 Compras</option>
+                          <option value="renda">🏠 Renda</option>
+                          <option value="eletricidade">💡 Eletricidade</option>
+                          <option value="agua">💧 Água</option>
+                          <option value="gas">🔥 Gás</option>
+                          <option value="internet">🌐 Internet/Telefone</option>
+                          <option value="salarios">👥 Salários</option>
+                          <option value="marketing">📢 Marketing</option>
+                          <option value="consumiveis">🧻 Consumíveis</option>
+                          <option value="manutencao">🔧 Manutenção</option>
+                          <option value="outros">📦 Outros</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* COLUNA DIREITA: Importação OCR */}
+                  <div className="col-span-1">
+                    <div className="bg-white rounded-xl shadow-lg p-5">
+                      <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
+                        <span className="text-xl">📸</span> Importação
+                      </h3>
+                      
+                      <div className="space-y-3">
+                        {/* OCR Local */}
                         <input
                           type="file"
                           accept=".pdf,image/*"
                           onChange={handleLerPDFAutomatico}
                           className="hidden"
-                          id="pdf-ocr-input"
+                          id="ocr-compras-local"
                           disabled={processandoOCR}
                         />
                         <label
-                          htmlFor="pdf-ocr-input"
-                          className={`block ${
+                          htmlFor="ocr-compras-local"
+                          className={`block w-full ${
                             processandoOCR 
                               ? 'bg-gray-400 cursor-not-allowed' 
-                              : 'bg-purple-600 hover:bg-purple-700 cursor-pointer'
-                          } text-white px-3 py-2 rounded-lg font-semibold text-center transition text-sm`}
+                              : 'bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 cursor-pointer'
+                          } text-white font-semibold py-4 rounded-lg transition shadow-md text-center`}
                         >
-                          📸 OCR Local
+                          <div className="flex flex-col items-center gap-1">
+                            <span className="text-xl">⚡</span>
+                            <span>OCR Local</span>
+                            <span className="text-xs opacity-80">Rápido</span>
+                          </div>
                         </label>
-                        <p className="text-xs text-gray-500 mt-1 text-center">Rápido</p>
-                      </div>
-                      
-                      {/* Botão Google Drive OCR */}
-                      {driveAccessToken ? (
-                        <div>
-                          <button
+                        
+                        {/* Google OCR */}
+                        {driveAccessToken ? (
+                          <button 
                             onClick={handleImportarDriveComOCR}
                             disabled={processandoOCR}
                             className={`w-full ${
                               processandoOCR 
                                 ? 'bg-gray-400 cursor-not-allowed' 
-                                : 'bg-green-600 hover:bg-green-700 cursor-pointer'
-                            } text-white px-3 py-2 rounded-lg font-semibold text-center transition text-sm`}
+                                : 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700'
+                            } text-white font-semibold py-4 rounded-lg transition shadow-md flex flex-col items-center gap-1`}
                           >
-                            ⚡ Google OCR
+                            <span className="text-xl">🌐</span>
+                            <span>Google OCR</span>
+                            <span className="text-xs opacity-80">Melhor qualidade</span>
                           </button>
-                          <p className="text-xs text-gray-500 mt-1 text-center">Melhor qualidade</p>
-                        </div>
-                      ) : (
-                        <div>
-                          <button
-                            onClick={() => setActiveTab('definicoes')}
-                            className="w-full bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-2 rounded-lg font-semibold text-center transition text-sm"
+                        ) : (
+                          <button 
+                            onClick={() => {
+                              setActiveTab('definicoes');
+                              setBackupExpanded(true);
+                              setTimeout(() => {
+                                const driveSection = document.getElementById('google-drive-section');
+                                if (driveSection) {
+                                  driveSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                }
+                              }, 100);
+                            }}
+                            className="w-full bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700 text-white font-semibold py-4 rounded-lg transition shadow-md flex flex-col items-center gap-1"
                           >
-                            🔌 Conectar Drive
+                            <span className="text-xl">🔌</span>
+                            <span>Conectar Drive</span>
+                            <span className="text-xs opacity-80">Para Google OCR</span>
                           </button>
-                          <p className="text-xs text-gray-500 mt-1 text-center">Para Google OCR</p>
+                        )}
+                      </div>
+                      
+                      {processandoOCR && (
+                        <div className="mt-4 pt-4 border-t">
+                          <div className="flex items-center justify-center gap-2 text-sm text-gray-600">
+                            <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                            </svg>
+                            <span>{progressoOCR || 'Processando...'}</span>
+                          </div>
                         </div>
                       )}
-                    </div>
-                    
-                    {/* Status */}
-                    {processandoOCR && (
-                      <div className="mt-2 flex items-center justify-center gap-2 text-sm text-gray-600">
-                        <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
-                        </svg>
-                        <span>{progressoOCR || 'Processando...'}</span>
-                      </div>
-                    )}
-                  </div>
-                  
-                  {/* Formulário Fatura */}
-                  <>
-                      {/* Linha 1: Número, Data, Fornecedor */}
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
-                        <div>
-                          <label className="block text-xs font-medium text-gray-700 mb-1">
-                            Número Fatura *
-                          </label>
-                          <input
-                            type="text"
-                            value={novaFatura.numero}
-                            onChange={(e) => setNovaFatura({...novaFatura, numero: e.target.value})}
-                            placeholder="F/2025/001"
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-                          />
-                        </div>
-                        
-                        <div>
-                          <label className="block text-xs font-medium text-gray-700 mb-1">
-                            Data *
-                          </label>
-                          <input
-                            type="date"
-                            value={novaFatura.data}
-                            onChange={(e) => setNovaFatura({...novaFatura, data: e.target.value})}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-                          />
-                        </div>
-                        
-                        {/* Campo Fornecedor - NÃO aparece para Salários */}
-                        {novaFatura.categoria !== 'salarios' && (
-                          <div>
-                            <label className="block text-xs font-medium text-gray-700 mb-1">
-                              Fornecedor *
-                            </label>
-                            <select
-                              value={novaFatura.fornecedorId}
-                              onChange={(e) => setNovaFatura({...novaFatura, fornecedorId: e.target.value})}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-                            >
-                              <option value="">Selecionar fornecedor...</option>
-                              {(fornecedores || []).map(f => (
-                                <option key={f.id || f} value={f.id || f}>
-                                  {f.nome || f} {f.nif ? `(NIF: ${f.nif})` : ''}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                        )}
-                      </div>
                       
-                      {/* Linha 2: Categoria, Ingrediente (se categoria=compras) e Criar Novo */}
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
-                        <div>
-                          <label className="block text-xs font-medium text-gray-700 mb-1">
-                            Categoria *
-                          </label>
-                          <select
-                            value={novaFatura.categoria}
-                            onChange={(e) => setNovaFatura({...novaFatura, categoria: e.target.value})}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-                          >
-                            <option value="compras">🛒 Compras</option>
-                            <option value="renda">🏠 Renda</option>
-                            <option value="eletricidade">💡 Eletricidade</option>
-                            <option value="agua">💧 Água</option>
-                            <option value="gas">🔥 Gás</option>
-                            <option value="internet">🌐 Internet/Telefone</option>
-                            <option value="salarios">👥 Salários</option>
-                            <option value="marketing">📢 Marketing</option>
-                            <option value="consumiveis">🧻 Consumíveis</option>
-                            <option value="manutencao">🔧 Manutenção</option>
-                            <option value="outros">📦 Outros</option>
-                          </select>
-                          <p className="text-xs text-blue-600 mt-1">
-                            ℹ️ Todas as categorias com IVA são dedutíveis (incluindo renda de imóveis comerciais)
-                          </p>
-                        </div>
-                        
-                        {/* Campo Ingrediente - só aparece quando categoria = compras */}
-                        {novaFatura.categoria === 'compras' && !criandoIngrediente && (
-                          <div>
-                            <label className="block text-xs font-medium text-gray-700 mb-1">
-                              Ingrediente *
-                            </label>
-                            <div className="relative">
-                              <input
-                                type="text"
-                                value={searchIngredienteFatura}
-                                onChange={(e) => {
-                                  setSearchIngredienteFatura(e.target.value);
-                                  setShowDropdownIngrediente(true);
-                                }}
-                                onFocus={() => setShowDropdownIngrediente(true)}
-                                placeholder="🔍 Pesquisar ingrediente..."
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-                              />
-                              
-                              {/* Dropdown de Resultados */}
-                              {showDropdownIngrediente && (
-                                <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                                  {ingredientes
-                                    .filter(ing => !searchIngredienteFatura || normalizeText(ing.nome).includes(normalizeText(searchIngredienteFatura)))
-                                    .map(ing => (
-                                      <div
-                                        key={ing.id}
-                                        onClick={() => {
-                                          setItemFatura({
-                                            ...itemFatura,
-                                            ingredienteId: ing.id,
-                                            quantidade: '1',
-                                            unidade: ing.unidade,
-                                            precoTotal: ing.custoUnitario.toString(),
-                                            iva: ing.iva.toString()
-                                          });
-                                          setSearchIngredienteFatura(ing.nome);
-                                          setShowDropdownIngrediente(false);
-                                        }}
-                                        className="px-3 py-2 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0"
-                                      >
-                                        <div className="font-medium text-sm">{ing.nome}</div>
-                                        <div className="text-xs text-gray-600">
-                                          €{(ing.custoUnitario || ing.preco || 0).toFixed(2)}/{ing.unidade} • IVA {ing.iva}%
-                                        </div>
-                                      </div>
-                                    ))}
-                                  
-                                  {/* Nenhum resultado */}
-                                  {ingredientes.filter(ing => !searchIngredienteFatura || normalizeText(ing.nome).includes(normalizeText(searchIngredienteFatura))).length === 0 && (
-                                    <div className="px-3 py-4 text-center text-gray-500 text-sm">
-                                      {searchIngredienteFatura ? 'Nenhum ingrediente encontrado' : 'Nenhum ingrediente criado ainda'}
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        )}
-                        
-                        {/* Botão Criar Novo - só aparece quando categoria = compras */}
-                        {novaFatura.categoria === 'compras' && !criandoIngrediente && (
-                          <div>
-                            <label className="block text-xs font-medium text-gray-700 mb-1">
-                              &nbsp;
-                            </label>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setNovoIngrediente({ 
-                                  ...novoIngrediente, 
-                                  nome: searchIngredienteFatura,
-                                  iva: itemFatura.iva || '6',
-                                  precoTotal: itemFatura.precoTotal || '',
-                                  quantidade: itemFatura.quantidade || '1'
-                                });
-                                setCriandoIngrediente(true);
-                              }}
-                              className="w-full px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-semibold flex items-center justify-center gap-2"
-                            >
-                              <Plus size={16} /> Criar Novo
-                            </button>
-                          </div>
-                        )}
-
-                      </div>
-                      
-                      {/* Items da Fatura */}
-                      <div className="border-t border-gray-200 pt-3 mb-3">
-                        <h4 className="font-semibold text-sm mb-2">Items da Fatura:</h4>
-                        
-                        {/* Adicionar Item */}
-                        <div className="bg-white rounded-lg border border-gray-300 p-3 mb-3">
-                          {/* MODO COMPRAS - Com ingrediente */}
-                          {novaFatura.categoria === 'compras' && (
-                            <>
-                              {/* Form Inline para Criar Ingrediente */}
-                              {criandoIngrediente && (
-                                  <div className="bg-green-50 border border-green-200 rounded-lg p-3 space-y-2">
-                                    <div className="flex items-center justify-between mb-2">
-                                      <h5 className="font-semibold text-sm text-green-800">✨ Criar Novo Ingrediente</h5>
-                                      <button
-                                        onClick={() => {
-                                          setCriandoIngrediente(false);
-                                          setSearchIngredienteFatura('');
-                                          setNovoIngrediente({ nome: '', unidade: 'kg', custoUnitario: '', iva: '6', quantidade: '1', categoria: 'outros', precoTotal: '', quantidadeEmbalagem: '' });
-                                        }}
-                                        className="text-gray-500 hover:text-gray-700"
-                                      >
-                                        <X size={16} />
-                                      </button>
-                                    </div>
-                                    
-                                    <div className="grid grid-cols-2 gap-2">
-                                      <div>
-                                        <label className="block text-xs font-medium text-gray-700 mb-1">Nome *</label>
-                                        <input
-                                          type="text"
-                                          value={novoIngrediente.nome}
-                                          onChange={(e) => setNovoIngrediente({...novoIngrediente, nome: e.target.value})}
-                                          placeholder="Ex: Pink Punk Party"
-                                          className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-green-500"
-                                        />
-                                      </div>
-                                      
-                                      <div>
-                                        <label className="block text-xs font-medium text-gray-700 mb-1">Unidade *</label>
-                                        <select
-                                          value={novoIngrediente.unidade}
-                                          onChange={(e) => setNovoIngrediente({...novoIngrediente, unidade: e.target.value})}
-                                          className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-green-500"
-                                        >
-                                          <option value="kg">kg</option>
-                                          <option value="g">g</option>
-                                          <option value="L">L (litro)</option>
-                                          <option value="ml">ml</option>
-                                          <option value="un">unidade</option>
-                                        </select>
-                                      </div>
-                                      
-                                      {/* NOVA SECÇÃO: Preço Total e Quantidade na Embalagem */}
-                                      <div className="col-span-2 bg-blue-50 border-2 border-blue-300 rounded-lg p-3 space-y-2">
-                                        <div className="flex items-center gap-2 mb-2">
-                                          <h6 className="font-semibold text-sm text-blue-800">📦 Método Prático (Recomendado)</h6>
-                                        </div>
-                                        <p className="text-xs text-blue-700 mb-2">
-                                          Insira o preço total da embalagem e quantas unidades vêm dentro. O custo unitário será calculado automaticamente!
-                                        </p>
-                                        
-                                        <div className="grid grid-cols-2 gap-2">
-                                          <div>
-                                            <label className="block text-xs font-medium text-blue-800 mb-1">Preço Total da Embalagem (€)</label>
-                                            <input
-                                              type="number"
-                                              step="0.01"
-                                              value={novoIngrediente.precoTotal}
-                                              onChange={(e) => setNovoIngrediente({...novoIngrediente, precoTotal: e.target.value})}
-                                              placeholder="21.29"
-                                              className="w-full px-2 py-1.5 border border-blue-300 rounded text-sm focus:ring-2 focus:ring-blue-500 bg-white"
-                                            />
-                                            <p className="text-xs text-blue-600 mt-0.5">Ex: €21.29 (total na fatura)</p>
-                                          </div>
-                                          
-                                          <div>
-                                            <label className="block text-xs font-medium text-blue-800 mb-1">Qtd. de Unidades na Embalagem</label>
-                                            <input
-                                              type="number"
-                                              step="1"
-                                              value={novoIngrediente.quantidadeEmbalagem}
-                                              onChange={(e) => setNovoIngrediente({...novoIngrediente, quantidadeEmbalagem: e.target.value})}
-                                              placeholder="12"
-                                              className="w-full px-2 py-1.5 border border-blue-300 rounded text-sm focus:ring-2 focus:ring-blue-500 bg-white"
-                                            />
-                                            <p className="text-xs text-blue-600 mt-0.5">Ex: 12 (cervejas na caixa)</p>
-                                          </div>
-                                        </div>
-                                        
-                                        {/* Preview do cálculo automático */}
-                                        {novoIngrediente.precoTotal && novoIngrediente.quantidadeEmbalagem && (
-                                          <div className="bg-white border border-blue-400 rounded p-2 mt-2">
-                                            <div className="flex justify-between items-center">
-                                              <span className="text-xs font-medium text-gray-600">💡 Custo Unitário Calculado:</span>
-                                              <span className="text-sm font-bold text-green-600">
-                                                €{(parseFloat(novoIngrediente.precoTotal) / parseFloat(novoIngrediente.quantidadeEmbalagem)).toFixed(3)}/{novoIngrediente.unidade}
-                                              </span>
-                                            </div>
-                                            <p className="text-xs text-gray-500 mt-1">
-                                              €{novoIngrediente.precoTotal} ÷ {novoIngrediente.quantidadeEmbalagem} {novoIngrediente.unidade} = €{(parseFloat(novoIngrediente.precoTotal) / parseFloat(novoIngrediente.quantidadeEmbalagem)).toFixed(3)}/{novoIngrediente.unidade}
-                                            </p>
-                                          </div>
-                                        )}
-                                      </div>
-                                      
-                                      {/* Divisor OU */}
-                                      <div className="col-span-2 flex items-center gap-2 my-1">
-                                        <div className="flex-1 border-t border-gray-300"></div>
-                                        <span className="text-xs text-gray-500 font-medium">OU</span>
-                                        <div className="flex-1 border-t border-gray-300"></div>
-                                      </div>
-                                      
-                                      {/* MÉTODO ALTERNATIVO: Custo Unitário Direto */}
-                                      <div className="col-span-2 bg-gray-50 border border-gray-300 rounded-lg p-3">
-                                        <h6 className="font-semibold text-xs text-gray-700 mb-2">📊 Método Alternativo</h6>
-                                        <p className="text-xs text-gray-600 mb-2">Ou insira diretamente o custo unitário se já o conhecer:</p>
-                                        
-                                        <div>
-                                          <label className="block text-xs font-medium text-gray-700 mb-1">
-                                            Custo Unitário (€/{novoIngrediente.unidade === 'g' ? 'kg' : novoIngrediente.unidade === 'ml' ? 'L' : novoIngrediente.unidade})
-                                          </label>
-                                          <input
-                                            type="number"
-                                            step="0.001"
-                                            value={novoIngrediente.custoUnitario}
-                                            onChange={(e) => setNovoIngrediente({...novoIngrediente, custoUnitario: e.target.value})}
-                                            placeholder="1.77"
-                                            className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-gray-400"
-                                            disabled={novoIngrediente.precoTotal && novoIngrediente.quantidadeEmbalagem}
-                                          />
-                                          <p className="text-xs text-gray-500 mt-0.5">
-                                            {novoIngrediente.unidade === 'g' && '(preço por kg, mesmo comprando em g)'}
-                                            {novoIngrediente.unidade === 'ml' && '(preço por L, mesmo comprando em ml)'}
-                                            {novoIngrediente.unidade === 'kg' && '(preço por kg)'}
-                                            {novoIngrediente.unidade === 'L' && '(preço por litro)'}
-                                            {novoIngrediente.unidade === 'un' && '(preço por unidade)'}
-                                          </p>
-                                        </div>
-                                      </div>
-                                      
-                                      <div>
-                                        <label className="block text-xs font-medium text-gray-700 mb-1">IVA *</label>
-                                        <select
-                                          value={novoIngrediente.iva}
-                                          onChange={(e) => setNovoIngrediente({...novoIngrediente, iva: e.target.value})}
-                                          className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-green-500"
-                                        >
-                                          <option value="6">6%</option>
-                                          <option value="13">13%</option>
-                                          <option value="23">23%</option>
-                                        </select>
-                                      </div>
-                                      
-                                      <div>
-                                        <label className="block text-xs font-medium text-gray-700 mb-1">Categoria *</label>
-                                        <select
-                                          value={novoIngrediente.categoria}
-                                          onChange={(e) => setNovoIngrediente({...novoIngrediente, categoria: e.target.value})}
-                                          className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-green-500"
-                                        >
-                                          <option value="bebidas">Bebidas</option>
-                                          <option value="cafe">Café</option>
-                                          <option value="lacteos">Laticínios</option>
-                                          <option value="padaria">Padaria</option>
-                                          <option value="carnes">Carnes</option>
-                                          <option value="vegetais">Vegetais</option>
-                                          <option value="embalagens">Embalagens</option>
-                                          <option value="consumiveis">Consumíveis</option>
-                                          <option value="outros">Outros</option>
-                                        </select>
-                                      </div>
-                                      
-                                      {/* Quantidade para fatura (opcional) */}
-                                      <div className="col-span-2 border-t border-gray-200 pt-2 mt-1">
-                                        <label className="block text-xs font-medium text-gray-700 mb-1">
-                                          Quantidade Comprada (para esta fatura)
-                                        </label>
-                                        <input
-                                          type="number"
-                                          step="0.01"
-                                          value={novoIngrediente.quantidade || '1'}
-                                          onChange={(e) => setNovoIngrediente({...novoIngrediente, quantidade: e.target.value})}
-                                          placeholder="12"
-                                          className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-green-500"
-                                        />
-                                        <p className="text-xs text-gray-500 mt-0.5">
-                                          Quantas {novoIngrediente.unidade === 'un' ? 'unidades' : novoIngrediente.unidade} comprou nesta fatura?
-                                        </p>
-                                      </div>
-                                    </div>
-                                    
-                                    <button
-                                      onClick={criarIngredienteInline}
-                                      className="w-full bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg text-sm font-semibold"
-                                    >
-                                      ✨ Criar e Adicionar à Fatura
-                                    </button>
-                                  </div>
-                              )}
-                              
-                              {/* Resto dos campos (só mostra se ingrediente selecionado) */}
-                              {itemFatura.ingredienteId && (
-                                <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
-                              
-                              <div>
-                                <label className="block text-xs font-medium text-gray-700 mb-1">
-                                  Quantidade *
-                                </label>
-                                <input
-                                  type="number"
-                                  step="0.01"
-                                  value={itemFatura.quantidade}
-                                  onChange={(e) => setItemFatura({...itemFatura, quantidade: e.target.value})}
-                                  placeholder="300"
-                                  className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500"
-                                />
-                              </div>
-                              
-                              <div>
-                                <label className="block text-xs font-medium text-gray-700 mb-1">
-                                  Unidade *
-                                </label>
-                                <select
-                                  value={itemFatura.unidade}
-                                  onChange={(e) => setItemFatura({...itemFatura, unidade: e.target.value})}
-                                  className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500"
-                                >
-                                  <option value="">Selecione</option>
-                                  <option value="kg">kg</option>
-                                  <option value="g">g</option>
-                                  <option value="L">L</option>
-                                  <option value="ml">ml</option>
-                                  <option value="unidade">unidade</option>
-                                </select>
-                                <p className="text-xs text-gray-500 mt-0.5">Unidade comprada</p>
-                              </div>
-                              
-                              <div>
-                                <label className="block text-xs font-medium text-gray-700 mb-1">
-                                  Preço Total (€) *
-                                </label>
-                                <input
-                                  type="number"
-                                  step="0.01"
-                                  value={itemFatura.precoTotal}
-                                  onChange={(e) => setItemFatura({...itemFatura, precoTotal: e.target.value})}
-                                  placeholder="0.24"
-                                  className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500"
-                                />
-                                <p className="text-xs text-gray-500 mt-0.5">Total pago</p>
-                              </div>
-                              
-                              <div>
-                                <label className="block text-xs font-medium text-gray-700 mb-1">
-                                  IVA
-                                </label>
-                                <select
-                                  value={itemFatura.iva}
-                                  onChange={(e) => setItemFatura({...itemFatura, iva: e.target.value})}
-                                  className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500"
-                                >
-                                  <option value="6">6%</option>
-                                  <option value="13">13%</option>
-                                  <option value="23">23%</option>
-                                </select>
-                              </div>
-                              
-                              <div className="flex items-end">
-                                <button
-                                  onClick={adicionarItemFatura}
-                                  className="w-full bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded text-sm font-semibold transition flex items-center justify-center gap-1"
-                                >
-                                  <Plus size={14} /> Adicionar
-                                </button>
-                              </div>
-                            </div>
-                              )}
-                            </>
-                          )}
-                          
-                          {/* MODO OUTRAS DESPESAS - Com descrição */}
-                          {novaFatura.categoria !== 'compras' && (
-                            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                              <div className="md:col-span-2">
-                                <label className="block text-xs font-medium text-gray-700 mb-1">
-                                  Descrição *
-                                </label>
-                                <input
-                                  type="text"
-                                  value={itemFatura.descricao}
-                                  onChange={(e) => setItemFatura({...itemFatura, descricao: e.target.value})}
-                                  placeholder="Ex: Renda Janeiro, Conta Luz Dezembro..."
-                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-                                />
-                              </div>
-                              
-                              <div>
-                                <label className="block text-xs font-medium text-gray-700 mb-1">
-                                  Valor Total (€) *
-                                </label>
-                                <input
-                                  type="number"
-                                  step="0.01"
-                                  value={itemFatura.precoTotal}
-                                  onChange={(e) => setItemFatura({...itemFatura, precoTotal: e.target.value})}
-                                  placeholder="650.00"
-                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-                                />
-                              </div>
-                              
-                              {/* Campo IVA - NÃO aparece para Salários */}
-                              {novaFatura.categoria !== 'salarios' && (
-                                <div>
-                                  <label className="block text-xs font-medium text-gray-700 mb-1">
-                                    IVA
-                                  </label>
-                                  <select
-                                    value={itemFatura.iva}
-                                    onChange={(e) => setItemFatura({...itemFatura, iva: e.target.value})}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-                                  >
-                                    <option value="6">6%</option>
-                                    <option value="13">13%</option>
-                                    <option value="23">23%</option>
-                                  </select>
-                                </div>
-                              )}
-                              
-                              {/* Campo Nº Funcionários - SÓ para Salários */}
-                              {novaFatura.categoria === 'salarios' && (
-                                <div>
-                                  <label className="block text-xs font-medium text-gray-700 mb-1">
-                                    Nº Funcionários *
-                                  </label>
-                                  <input
-                                    type="number"
-                                    min="1"
-                                    value={itemFatura.num_funcionarios || 1}
-                                    onChange={(e) => setItemFatura({
-                                      ...itemFatura,
-                                      num_funcionarios: parseInt(e.target.value) || 1
-                                    })}
-                                    placeholder="1"
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-                                  />
-                                  <p className="text-xs text-gray-500 mt-1">
-                                    💡 Quantas pessoas recebem este salário
-                                  </p>
-                                </div>
-                              )}
-                              
-                              <div className="flex items-end md:col-span-4">
-                                <button
-                                  onClick={adicionarItemFatura}
-                                  className="w-full md:w-auto bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg text-sm font-semibold transition flex items-center justify-center gap-2"
-                                >
-                                  <Plus size={16} /> Adicionar Item
-                                </button>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                    
-                    {/* Lista de Items */}
-                    {(novaFatura.itens || []).length > 0 ? (
-                      <div className="space-y-2">
-                        {(novaFatura.itens || []).map(item => (
-                          <div key={item.id} className="bg-gray-50 rounded-lg p-3 flex items-center justify-between border border-gray-200">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2">
-                                <span className="font-semibold text-sm">{item.ingredienteNome}</span>
-                                <span className="text-xs text-gray-500">({item.unidade})</span>
-                              </div>
-                              <div className="text-xs text-gray-600 mt-1">
-                                {item.quantidade} × €{item.precoUnitario.toFixed(2)} = <strong>€{item.subtotal.toFixed(2)}</strong>
-                                <span className="ml-2 text-gray-500">(IVA {item.iva}%)</span>
-                              </div>
-                            </div>
-                            <button
-                              onClick={() => removerItemFatura(item.id)}
-                              className="text-red-600 hover:text-red-800 hover:bg-red-50 p-2 rounded transition"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          </div>
-                        ))}
-                        
-                        {/* Totais */}
-                        <div className="bg-blue-50 rounded-lg p-3 border border-blue-200 mt-3">
-                          <div className="flex justify-between text-sm mb-1">
-                            <span>Subtotal:</span>
-                            <span className="font-semibold">€{novaFatura.itens.reduce((s, i) => s + i.subtotal, 0).toFixed(2)}</span>
-                          </div>
-                          <div className="flex justify-between text-sm mb-1">
-                            <span>IVA Total:</span>
-                            <span className="font-semibold">€{novaFatura.itens.reduce((s, i) => s + (i.subtotal * i.iva / 100), 0).toFixed(2)}</span>
-                          </div>
-                          <div className="flex justify-between text-base font-bold border-t border-blue-300 pt-2 mt-1">
-                            <span>Total c/ IVA:</span>
-                            <span className="text-blue-700">€{novaFatura.itens.reduce((s, i) => s + (i.subtotal * (1 + i.iva / 100)), 0).toFixed(2)}</span>
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="text-center text-gray-500 text-sm py-4 bg-gray-50 rounded-lg border border-dashed border-gray-300">
-                        Nenhum item adicionado. Adicione items acima.
-                      </div>
-                    )}
-                  </div>
-                  
-                  {/* Botões */}
-                  <div className="flex gap-2">
-                    {editandoFatura ? (
-                      <>
-                        <button
-                          onClick={atualizarFatura}
-                          className="flex-1 bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg font-semibold transition flex items-center justify-center gap-2"
-                        >
-                          <Save size={16} /> Atualizar Fatura
-                        </button>
-                        <button
-                          onClick={cancelarEdicaoFatura}
-                          className="bg-gray-400 hover:bg-gray-500 text-white px-4 py-2 rounded-lg font-semibold transition"
-                        >
-                          Cancelar
-                        </button>
-                      </>
-                    ) : (
-                      <button
-                        onClick={salvarFatura}
-                        className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold transition flex items-center justify-center gap-2"
-                      >
-                        <Save size={16} /> Guardar
-                      </button>
-                    )}
-                  </div>
-                </>
-              )}
-              
-            </div>
-                
-                {/* Lista de Faturas */}
-                <div>
-                  {/* Search Box */}
-                  <div className="mb-3">
-                    <div className="relative">
-                      <input
-                        type="text"
-                        value={searchFatura}
-                        onChange={(e) => setSearchFatura(e.target.value)}
-                        placeholder="🔍 Pesquisar faturas (número, fornecedor, NIF...)"
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                      />
-                      {searchFatura && (
-                        <button
-                          onClick={() => setSearchFatura('')}
-                          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                        >
-                          <X size={18} />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  
-                  {/* 🆕 FILTROS DE ANO, MÊS E FORNECEDOR */}
-                  <div className="mb-4 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-200">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                      {/* Filtro de Ano */}
-                      <div>
-                        <label className="block text-xs font-semibold text-gray-700 mb-1">📅 Ano</label>
-                        <select
-                          value={anoFaturaSelecionado}
-                          onChange={(e) => setAnoFaturaSelecionado(Number(e.target.value))}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        >
-                          {(() => {
-                            const anos = [...new Set(
-                              (faturas || [])
-                                .filter(f => f.data) // Filtrar faturas sem data
-                                .map(f => {
-                                  const ano = new Date(f.data).getFullYear();
-                                  return isNaN(ano) ? null : ano; // Filtrar anos inválidos
-                                })
-                                .filter(ano => ano !== null) // Remover nulls
-                            )].sort((a, b) => b - a);
-                            
-                            // Se não houver anos válidos, adicionar o ano atual
-                            if (anos.length === 0) {
-                              anos.push(new Date().getFullYear());
-                            }
-                            
-                            return anos.map(ano => (
-                              <option key={ano} value={ano}>{ano}</option>
-                            ));
-                          })()}
-                        </select>
-                      </div>
-                      
-                      {/* Filtro de Mês */}
-                      <div>
-                        <label className="block text-xs font-semibold text-gray-700 mb-1">📆 Mês</label>
-                        <select
-                          value={mesFaturaSelecionado || ''}
-                          onChange={(e) => setMesFaturaSelecionado(e.target.value === '' ? null : Number(e.target.value))}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        >
-                          <option value="">Todos os meses</option>
-                          <option value="0">Janeiro</option>
-                          <option value="1">Fevereiro</option>
-                          <option value="2">Março</option>
-                          <option value="3">Abril</option>
-                          <option value="4">Maio</option>
-                          <option value="5">Junho</option>
-                          <option value="6">Julho</option>
-                          <option value="7">Agosto</option>
-                          <option value="8">Setembro</option>
-                          <option value="9">Outubro</option>
-                          <option value="10">Novembro</option>
-                          <option value="11">Dezembro</option>
-                        </select>
-                      </div>
-                      
-                      {/* Filtro de Fornecedor */}
-                      <div>
-                        <label className="block text-xs font-semibold text-gray-700 mb-1">🏪 Fornecedor</label>
-                        <select
-                          value={fornecedorFiltro}
-                          onChange={(e) => setFornecedorFiltro(e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        >
-                          <option value="">Todos os fornecedores</option>
-                          {(() => {
-                            const fornecedoresUnicos = [...new Set((faturas || [])
-                              .filter(f => f.fornecedorNome)
-                              .map(f => f.fornecedorNome)
-                            )].sort();
-                            return fornecedoresUnicos.map(nome => (
-                              <option key={nome} value={nome}>{nome}</option>
-                            ));
-                          })()}
-                        </select>
+                      <div className="mt-4 pt-4 border-t">
+                        <p className="text-xs text-gray-500 text-center">ou preencha manualmente à esquerda</p>
                       </div>
                     </div>
                   </div>
-                  
-                  <h3 className="font-semibold text-sm mb-3 flex items-center justify-between">
-                    <span>🛒 Compras Registadas ({
-                      (() => {
-                        const total = (faturas || []).length;
-                        if (!searchFatura && !fornecedorFiltro && mesFaturaSelecionado === null) return total;
-                        const filtered = (faturas || []).filter(fatura => {
-                          // Filtro de ano
-                          const dataFatura = new Date(fatura.data);
-                          if (dataFatura.getFullYear() !== anoFaturaSelecionado) return false;
-                          
-                          // Filtro de mês
-                          if (mesFaturaSelecionado !== null && dataFatura.getMonth() !== mesFaturaSelecionado) return false;
-                          
-                          // Filtro de fornecedor
-                          if (fornecedorFiltro && fatura.fornecedorNome !== fornecedorFiltro) return false;
-                          
-                          // Filtro de pesquisa
-                          if (searchFatura) {
-                            const search = searchFatura.toLowerCase();
-                            return (
-                              (fatura.numero || '').toLowerCase().includes(search) ||
-                              (fatura.fornecedorNome || '').toLowerCase().includes(search) ||
-                              (fatura.fornecedorNif || '').toLowerCase().includes(search) ||
-                              (fatura.tipo || '').toLowerCase().includes(search) ||
-                              (fatura.itens || []).some(item => 
-                                (item.ingredienteNome || '').toLowerCase().includes(search)
-                              )
-                            );
-                          }
-                          
-                          return true;
-                        }).length;
-                        return `${filtered} de ${total}`;
-                      })()
-                    })</span>
-                    <div className="flex items-center gap-3 text-xs">
-                      <span className="flex items-center gap-1 bg-green-100 text-green-700 px-2 py-1 rounded font-semibold">
-                        <FilePdf size={14} />
-                        {(faturas || []).filter(f => f.documentoPDF).length} com PDF
-                      </span>
-                      <span className="flex items-center gap-1 bg-red-100 text-red-700 px-2 py-1 rounded font-semibold">
-                        <AlertCircle size={14} />
-                        {(faturas || []).filter(f => !f.documentoPDF).length} sem PDF
-                      </span>
-                    </div>
-                  </h3>
-                  
-                  {(faturas || []).length === 0 ? (
-                    <div className="text-center text-gray-500 text-sm py-8 bg-gray-50 rounded-lg border border-dashed border-gray-300">
-                      Nenhuma fatura registada. Crie a primeira fatura acima!
-                    </div>
-                  ) : (
-                    <div className="space-y-3 pt-16">
-                      {(faturas || [])
-                        .filter(fatura => {
-                          // Filtro de ano
-                          const dataFatura = new Date(fatura.data);
-                          if (dataFatura.getFullYear() !== anoFaturaSelecionado) return false;
-                          
-                          // Filtro de mês
-                          if (mesFaturaSelecionado !== null && dataFatura.getMonth() !== mesFaturaSelecionado) return false;
-                          
-                          // Filtro de fornecedor
-                          if (fornecedorFiltro && fatura.fornecedorNome !== fornecedorFiltro) return false;
-                          
-                          // Filtro de pesquisa
-                          if (searchFatura) {
-                            const search = searchFatura.toLowerCase();
-                            return (
-                              (fatura.numero || '').toLowerCase().includes(search) ||
-                              (fatura.fornecedorNome || '').toLowerCase().includes(search) ||
-                              (fatura.fornecedorNif || '').toLowerCase().includes(search) ||
-                              (fatura.tipo || '').toLowerCase().includes(search) ||
-                              (fatura.itens || []).some(item => 
-                                (item.ingredienteNome || '').toLowerCase().includes(search)
-                              )
-                            );
-                          }
-                          
-                          return true;
-                        })
-                        .sort((a, b) => new Date(b.data) - new Date(a.data))
-                        .map(fatura => (
-                        <div key={fatura.id} className="border rounded-lg hover:shadow-md transition relative group">
-                          {/* 🆕 Tooltip com nome do PDF (hover) - MELHORADO */}
-                          {fatura.nomeDocumento && fatura.id === ultimaFaturaInserida && (
-                            <div className="absolute -top-14 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-sm px-4 py-2 rounded-lg shadow-xl invisible group-hover:visible transition-all duration-200 whitespace-nowrap z-50 pointer-events-none">
-                              <div className="flex items-center gap-2">
-                                <FilePdf size={16} className="text-red-400" />
-                                <span className="font-mono font-semibold">{fatura.nomeDocumento}</span>
-                              </div>
-                              {/* Seta para baixo */}
-                              <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
-                                <div className="border-8 border-transparent border-t-gray-800"></div>
-                              </div>
-                            </div>
-                          )}
-                          
-                          {/* Cabeçalho da Fatura (sempre visível) */}
-                          <div 
-                            onClick={() => setExpandedFatura(expandedFatura === fatura.id ? null : fatura.id)}
-                            className={`p-4 cursor-pointer transition rounded-lg ${
-                              fatura.id === ultimaFaturaInserida
-                                ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-l-4 border-green-500 hover:from-green-100 hover:to-emerald-100'
-                                : 'bg-gradient-to-r from-blue-50 to-purple-50 hover:from-blue-100 hover:to-purple-100'
-                            }`}
-                          >
-                            <div className="flex items-center justify-between">
-                              <div className="flex-1">
-                                <div className="flex items-center gap-3 mb-1">
-                                  {/* 🆕 Badge ÚLTIMA INSERIDA */}
-                                  {fatura.id === ultimaFaturaInserida && (
-                                    <span className="flex items-center gap-1 bg-green-600 text-white text-xs px-2 py-1 rounded font-bold shadow-md">
-                                      ⚡ ÚLTIMA INSERIDA
-                                    </span>
-                                  )}
-                                  
-                                  <span className="font-bold text-blue-700">
-                                    {fatura.tipo === 'rapido' ? '⚡' : '📄'} {fatura.numero || 'Recibo'}
-                                  </span>
-                                  
-                                  {/* Badge Tipo de Documento (FT/FR/FS) */}
-                                  {(() => {
-                                    const tipo = fatura.tipo || 'FT';
-                                    const tipoDoc = fatura.tipoDocumento || 'fatura';
-                                    
-                                    // Determinar cor e texto baseado no tipo
-                                    let bgColor, textColor, borderColor, emoji, label;
-                                    
-                                    if (tipo === 'FR' || tipo.includes('FR')) {
-                                      bgColor = 'bg-blue-100';
-                                      textColor = 'text-blue-700';
-                                      borderColor = 'border-blue-300';
-                                      emoji = '📄';
-                                      label = 'FR - Fatura Recibo';
-                                    } else if (tipo === 'FS' || tipo.includes('FS')) {
-                                      bgColor = 'bg-purple-100';
-                                      textColor = 'text-purple-700';
-                                      borderColor = 'border-purple-300';
-                                      emoji = '🧾';
-                                      label = 'FS - Fatura Simplificada';
-                                    } else if (tipo === 'FT' || tipoDoc === 'fatura') {
-                                      bgColor = 'bg-green-100';
-                                      textColor = 'text-green-700';
-                                      borderColor = 'border-green-300';
-                                      emoji = '🧾';
-                                      label = 'FT - Fatura';
-                                    } else {
-                                      bgColor = 'bg-gray-100';
-                                      textColor = 'text-gray-700';
-                                      borderColor = 'border-gray-300';
-                                      emoji = '📝';
-                                      label = 'Recibo';
-                                    }
-                                    
-                                    return (
-                                      <span className={`text-xs px-2 py-1 rounded font-bold ${bgColor} ${textColor} border ${borderColor}`}>
-                                        {emoji} {label}
-                                      </span>
-                                    );
-                                  })()}
-                                  
-                                  {/* Indicador de PDF */}
-                                  {fatura.documentoPDF ? (
-                                    <span 
-                                      className="flex items-center gap-1 text-xs bg-green-100 text-green-700 px-2 py-1 rounded font-semibold"
-                                      title="PDF anexado"
-                                    >
-                                      <FilePdf size={14} />
-                                      <Check size={12} />
-                                      PDF
-                                    </span>
-                                  ) : (
-                                    <span 
-                                      className="flex items-center gap-1 text-xs bg-red-100 text-red-700 px-2 py-1 rounded font-semibold"
-                                      title="SEM PDF - Adicione o documento fiscal!"
-                                    >
-                                      <AlertCircle size={14} />
-                                      SEM PDF
-                                    </span>
-                                  )}
-                                  
-                                  <span className="text-sm text-gray-600">{fatura.fornecedorNome}</span>
-                                  <span className="text-xs text-gray-500">{new Date(fatura.data).toLocaleDateString('pt-PT')}</span>
-                                  
-                                  {/* 🆕 Nome do PDF - SEMPRE VISÍVEL se for última inserida (na mesma linha) */}
-                                  {fatura.nomeDocumento && fatura.id === ultimaFaturaInserida && (
-                                    <span className="text-xs bg-yellow-50 border border-yellow-300 px-2 py-1 rounded font-mono text-gray-800 font-semibold">
-                                      {fatura.nomeDocumento}
-                                    </span>
-                                  )}
-                                </div>
-                                
-                                <div className="flex items-center gap-4 text-sm">
-                                  <span className="text-gray-600">{(fatura.itens || []).length} {(fatura.itens || []).length === 1 ? 'item' : 'items'}</span>
-                                  <span className="font-bold text-blue-700">Total: €{(fatura.total || 0).toFixed(2)}</span>
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    editarFatura(fatura);
-                                  }}
-                                  className="text-yellow-600 hover:text-yellow-800 hover:bg-yellow-50 p-2 rounded transition"
-                                >
-                                  <Edit2 size={16} />
-                                </button>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    apagarFatura(fatura.id);
-                                  }}
-                                  className="text-red-600 hover:text-red-800 hover:bg-red-50 p-2 rounded transition"
-                                >
-                                  <Trash2 size={16} />
-                                </button>
-                                <button className="text-gray-600">
-                                  {expandedFatura === fatura.id ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                          
-                          {/* Detalhes da Fatura (expansível) */}
-                          {expandedFatura === fatura.id && (
-                            <div className="bg-white p-4 border-t">
-                              <div className="mb-3">
-                                <h4 className="font-semibold text-sm mb-2 text-gray-700">Fornecedor:</h4>
-                                <div className="bg-gray-50 rounded p-2 text-sm">
-                                  <p><strong>{fatura.fornecedorNome}</strong></p>
-                                  {fatura.fornecedorNif && <p className="text-gray-600 text-xs">NIF: {fatura.fornecedorNif}</p>}
-                                </div>
-                              </div>
-                              
-                              <div className="mb-3">
-                                <h4 className="font-semibold text-sm mb-2 text-gray-700">Items:</h4>
-                                <div className="space-y-2">
-                                  {(fatura.itens || []).map(item => {
-                                    const ingredienteNome = item.ingredienteNome || 'N/A';
-                                    const quantidade = item.quantidade || 0;
-                                    const precoUnitario = item.precoUnitario || 0;
-                                    const subtotal = item.subtotal || 0;
-                                    const unidade = item.unidade || '';
-                                    const iva = item.iva || 6;
-                                    
-                                    return (
-                                    <div key={item.id || Math.random()} className="bg-gray-50 rounded p-3 text-sm">
-                                      <div className="flex justify-between items-start mb-1">
-                                        <span className="font-medium">{ingredienteNome}</span>
-                                        <span className="font-semibold text-blue-700">€{subtotal.toFixed(2)}</span>
-                                      </div>
-                                      <div className="text-xs text-gray-600">
-                                        {quantidade} {unidade} × €{precoUnitario.toFixed(2)}
-                                        <span className="ml-2">(IVA {iva}%: +€{(subtotal * iva / 100).toFixed(2)})</span>
-                                      </div>
-                                    </div>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                              
-                              <div className="bg-blue-50 rounded p-3 border border-blue-200">
-                                <div className="flex justify-between text-sm mb-1">
-                                  <span>Subtotal:</span>
-                                  <span className="font-semibold">€{(fatura.subtotal || fatura.total || 0).toFixed(2)}</span>
-                                </div>
-                                <div className="flex justify-between text-sm mb-1">
-                                  <span>IVA Total:</span>
-                                  <span className="font-semibold">€{(fatura.totalIva || 0).toFixed(2)}</span>
-                                </div>
-                                <div className="flex justify-between text-base font-bold border-t border-blue-300 pt-2 mt-1">
-                                  <span>Total c/ IVA:</span>
-                                  <span className="text-blue-700">€{(fatura.total || 0).toFixed(2)}</span>
-                                </div>
-                              </div>
-                              
-                              {fatura.notas && (
-                                <div className="mt-3 bg-yellow-50 rounded p-2 border border-yellow-200">
-                                  <p className="text-xs text-gray-700"><strong>Notas:</strong> {fatura.notas}</p>
-                                </div>
-                              )}
-                              
-                              {/* Secção de PDF */}
-                              <div className="mt-3">
-                                {fatura.documentoPDF ? (
-                                  <div className="bg-green-50 border-2 border-green-300 rounded-lg p-3">
-                                    <div className="flex items-center justify-between">
-                                      <div className="flex items-center gap-3">
-                                        <div>
-                                          <p className="text-sm font-semibold text-green-900">
-                                            📄 {fatura.nomeDocumento || 'Documento.pdf'}
-                                          </p>
-                                          <p className="text-xs text-green-700">
-                                            PDF anexado ✅
-                                          </p>
-                                        </div>
-                                      </div>
-                                      <button
-                                        onClick={() => {
-                                          try {
-                                            // Converter base64 para Blob
-                                            const base64Data = fatura.documentoPDF.split(',')[1] || fatura.documentoPDF;
-                                            const byteCharacters = atob(base64Data);
-                                            const byteNumbers = new Array(byteCharacters.length);
-                                            for (let i = 0; i < byteCharacters.length; i++) {
-                                              byteNumbers[i] = byteCharacters.charCodeAt(i);
-                                            }
-                                            const byteArray = new Uint8Array(byteNumbers);
-                                            const blob = new Blob([byteArray], { type: 'application/pdf' });
-                                            
-                                            // Criar URL do blob
-                                            const blobUrl = URL.createObjectURL(blob);
-                                            
-                                            // Abrir em nova janela
-                                            window.open(blobUrl, '_blank');
-                                          } catch (error) {
-                                            void 0;
-                                            alert('Erro ao abrir PDF. Verifique a consola para detalhes.');
-                                          }
-                                        }}
-                                        className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-semibold flex items-center gap-2 transition"
-                                      >
-                                        <Eye size={18} />
-                                        Visualizar PDF
-                                      </button>
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <div className="bg-red-50 border-2 border-red-300 rounded-lg p-3">
-                                    <div className="flex items-center gap-3">
-                                      <div className="flex-1">
-                                        <p className="text-sm font-semibold text-red-900">
-                                          ⚠️ SEM PDF Anexado
-                                        </p>
-                                        <p className="text-xs text-red-700 mt-1">
-                                          Sem o documento fiscal original, a AT pode rejeitar a dedução de IVA!
-                                          Edite a fatura e adicione o PDF.
-                                        </p>
-                                      </div>
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
                 </div>
-              
 
-</div>
+                {/* Compras Registadas */}
+                <div className="bg-white rounded-xl shadow-lg p-5">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="font-semibold text-gray-800 flex items-center gap-2">
+                      <span className="text-xl">🛒</span> 
+                      Compras Registadas ({compras
+                        .filter(c => filtroFornecedorCompras === 'todos' || c.fornecedorId === filtroFornecedorCompras)
+                        .filter(c => filtroCategoriaCompras === 'todas' || c.categoria === filtroCategoriaCompras)
+                        .length})
+                    </h3>
+                    <div className="flex items-center gap-3">
+                      {/* Filtro Fornecedor */}
+                      <select 
+                        value={filtroFornecedorCompras}
+                        onChange={(e) => setFiltroFornecedorCompras(e.target.value)}
+                        className="px-3 py-1.5 border border-gray-300 rounded-lg text-xs bg-white"
+                      >
+                        <option value="todos">Todos fornecedores</option>
+                        {fornecedores.map(f => (
+                          <option key={f.id || f} value={f.id || f}>
+                            {f.nome || f}
+                          </option>
+                        ))}
+                      </select>
+                      
+                      <span className="flex items-center gap-1 bg-green-100 text-green-700 px-3 py-1 rounded-full font-semibold text-xs">
+                        <FileText className="w-3 h-3" />
+                        {compras.filter(c => c.documentoPDF).length} com PDF
+                      </span>
+                      <span className="flex items-center gap-1 bg-red-100 text-red-700 px-3 py-1 rounded-full font-semibold text-xs">
+                        <AlertCircle className="w-3 h-3" />
+                        {compras.filter(c => !c.documentoPDF).length} sem PDF
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Invoice Cards */}
+                  <div className="space-y-3">
+                    {compras.length === 0 ? (
+                      <p className="text-center text-gray-400 py-8">Nenhuma compra registada ainda</p>
+                    ) : (
+                      compras
+                        .filter(c => filtroFornecedorCompras === 'todos' || c.fornecedorId === filtroFornecedorCompras)
+                        .filter(c => filtroCategoriaCompras === 'todas' || c.categoria === filtroCategoriaCompras)
+                        .map(compra => {
+                          const fornecedor = fornecedores.find(f => (f.id || f) === compra.fornecedorId);
+                          return (
+                            <div key={compra.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition bg-gradient-to-r from-blue-50 to-purple-50">
+                              <div className="flex items-center justify-between">
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <span className="font-bold text-blue-700">📄 {compra.numero}</span>
+                                    <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
+                                      compra.tipoDocumento === 'FT' ? 'bg-green-100 text-green-700' :
+                                      compra.tipoDocumento === 'FS' ? 'bg-purple-100 text-purple-700' :
+                                      'bg-blue-100 text-blue-700'
+                                    }`}>
+                                      {compra.tipoDocumento} - {
+                                        compra.tipoDocumento === 'FT' ? 'Fatura' :
+                                        compra.tipoDocumento === 'FS' ? 'Fatura Simplificada' :
+                                        compra.tipoDocumento === 'FR' ? 'Fatura-Recibo' :
+                                        compra.tipoDocumento === 'NC' ? 'Nota de Crédito' :
+                                        compra.tipoDocumento === 'ND' ? 'Nota de Débito' :
+                                        compra.tipoDocumento === 'GR' ? 'Guia de Remessa' : compra.tipoDocumento
+                                      }
+                                    </span>
+                                    <span className="text-xs text-gray-500">
+                                      {new Date(compra.data).toLocaleDateString('pt-PT')}
+                                    </span>
+                                  </div>
+                                  <p className="text-sm text-gray-600">{fornecedor?.nome || fornecedor || 'Fornecedor desconhecido'}</p>
+                                  <div className="flex gap-3 mt-2 text-xs text-gray-500">
+                                    <span>{compra.items?.length || 0} items</span>
+                                    <span>•</span>
+                                    <span>Total: €{(compra.total || 0).toFixed(2)}</span>
+                                  </div>
+                                </div>
+                                <div className="flex gap-2">
+                                  <button 
+                                    onClick={() => {
+                                      setNovaCompra(compra);
+                                      setEditandoCompra(compra.id);
+                                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                                    }}
+                                    className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                                    title="Editar"
+                                  >
+                                    <Eye className="w-4 h-4" />
+                                  </button>
+                                  <button 
+                                    onClick={() => {
+                                      if (confirm('❌ Tem a certeza que deseja eliminar esta compra?')) {
+                                        db.despesas.delete(compra.id).then(() => {
+                                          showNotification('🗑️ Compra eliminada', 'success');
+                                          db.despesas.where('categoria').equals('compras').toArray().then(setCompras);
+                                          triggerSync();
+                                        });
+                                      }
+                                    }}
+                                    className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition"
+                                    title="Eliminar"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })
+                    )}
+                  </div>
+                </div>
+              </div>
             )}
 
             {gestaoSubTab === 'vendas' && (
