@@ -18517,7 +18517,7 @@ void 0;
                                     key={ing.id}
                                     onClick={() => {
                                       setItemFatura({
-                                        ...itemCompra,
+                                        ...itemFatura,
                                         ingrediente: ing.nome,
                                         ingredienteId: ing.id,
                                         preco: ing.custoUnitario.toString()
@@ -18548,14 +18548,14 @@ void 0;
                             type="number" 
                             placeholder="Qtd."
                             value={itemFatura.quantidade}
-                            onChange={(e) => setItemFatura({...itemCompra, quantidade: e.target.value})}
+                            onChange={(e) => setItemFatura({...itemFatura, quantidade: e.target.value})}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-sm"
                           />
                           <input 
                             type="number" 
                             placeholder="Preço €"
                             value={itemFatura.preco}
-                            onChange={(e) => setItemFatura({...itemCompra, preco: e.target.value})}
+                            onChange={(e) => setItemFatura({...itemFatura, preco: e.target.value})}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-sm"
                           />
                         </div>
@@ -18569,11 +18569,11 @@ void 0;
                             
                             const novoItem = {
                               id: Date.now(),
-                              ...itemCompra
+                              ...itemFatura
                             };
                             
                             setNovaFatura({
-                              ...novaCompra,
+                              ...novaFatura,
                               items: [...novaFatura.itens, novoItem]
                             });
                             
@@ -18666,7 +18666,7 @@ void 0;
                           </label>
                           <select 
                             value={novaFatura.fornecedorId}
-                            onChange={(e) => setNovaFatura({...novaCompra, fornecedorId: e.target.value})}
+                            onChange={(e) => setNovaFatura({...novaFatura, fornecedorId: e.target.value})}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 text-sm"
                           >
                             <option value="">Selecionar fornecedor...</option>
@@ -18687,7 +18687,7 @@ void 0;
                               type="text" 
                               placeholder="FT 2025/001"
                               value={novaFatura.numero}
-                              onChange={(e) => setNovaFatura({...novaCompra, numero: e.target.value})}
+                              onChange={(e) => setNovaFatura({...novaFatura, numero: e.target.value})}
                               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 text-sm"
                             />
                           </div>
@@ -18699,7 +18699,7 @@ void 0;
                             <input 
                               type="date" 
                               value={novaFatura.data}
-                              onChange={(e) => setNovaFatura({...novaCompra, data: e.target.value})}
+                              onChange={(e) => setNovaFatura({...novaFatura, data: e.target.value})}
                               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 text-sm"
                             />
                           </div>
@@ -18711,7 +18711,7 @@ void 0;
                           </label>
                           <select 
                             value={novaFatura.tipoDocumento}
-                            onChange={(e) => setNovaFatura({...novaCompra, tipoDocumento: e.target.value})}
+                            onChange={(e) => setNovaFatura({...novaFatura, tipoDocumento: e.target.value})}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 text-sm"
                           >
                             <option value="FT">FT - Fatura</option>
@@ -18730,7 +18730,7 @@ void 0;
                           <textarea 
                             placeholder="Notas adicionais..."
                             value={novaFatura.observacoes}
-                            onChange={(e) => setNovaFatura({...novaCompra, observacoes: e.target.value})}
+                            onChange={(e) => setNovaFatura({...novaFatura, observacoes: e.target.value})}
                             rows="3"
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 text-sm resize-none"
                           />
