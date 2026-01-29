@@ -989,6 +989,7 @@ const ComprasAnalysis = ({ despesas, faturas = [], ingredientes, fornecedores })
             {id: 'bebidas', emoji: '🥤', label: 'Bebidas', count: countByCategoria['bebidas'] || 0},
             {id: 'temperos', emoji: '🧂', label: 'Temperos', count: countByCategoria['temperos'] || 0},
             {id: 'embalagens', emoji: '📦', label: 'Embalagens', count: countByCategoria['embalagens'] || 0},
+            {id: 'consumiveis', emoji: '🧴', label: 'Consumíveis', count: countByCategoria['consumiveis'] || 0},
             {id: 'limpeza', emoji: '🧹', label: 'Limpeza', count: countByCategoria['limpeza'] || 0},
             {id: 'outros', emoji: '📋', label: 'Outros', count: countByCategoria['outros'] || 0}
           ].map(cat => (
@@ -2081,6 +2082,29 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
     if (linhasSemIngrediente.length > 0) {
       if (!confirm(`${linhasSemIngrediente.length} linha(s) sem ingrediente. Continuar?`)) return;
     }
+    
+    // 🆕 VERIFICAR INGREDIENTES COM PREÇO 0 ou SEM PREÇO
+    const linhasComIngrediente = linhasEditadas.filter(l => l.ingredienteConfirmado || l.ingredienteSugerido);
+    const linhasComPreco = linhasComIngrediente.filter(l => l.preco && parseFloat(l.preco) > 0);
+    const linhasSemPreco = linhasComIngrediente.filter(l => !l.preco || parseFloat(l.preco) <= 0);
+    
+    // Se há ingredientes sem preço, avisar o utilizador
+    if (linhasSemPreco.length > 0) {
+      const ingredientesIgnorados = linhasSemPreco.map(l => {
+        const ingrediente = ingredientes.find(i => i.id === (l.ingredienteConfirmado || l.ingredienteSugerido?.id));
+        return ingrediente?.nome || 'Desconhecido';
+      }).join(', ');
+      
+      const mensagem = `⚠️ ATENÇÃO:\n\n` +
+        `✅ Serão guardados ${linhasComPreco.length} ingrediente(s) com preço\n` +
+        `❌ Serão IGNORADOS ${linhasSemPreco.length} ingrediente(s) sem preço:\n\n` +
+        `${ingredientesIgnorados}\n\n` +
+        `Apenas ingredientes com preço > 0 são guardados na fatura.\n\n` +
+        `Continuar?`;
+      
+      if (!confirm(mensagem)) return;
+    }
+    
     const linhasFinais = linhasEditadas.map(linha => ({
       ...linha,
       ingredienteConfirmado: linha.ingredienteConfirmado || linha.ingredienteSugerido?.id
@@ -2604,6 +2628,7 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
                   <option value="especiarias">🌶️ Especiarias</option>
                   <option value="bebidas">🍺 Bebidas</option>
                   <option value="embalagens">📦 Embalagens</option>
+                  <option value="consumiveis">🧴 Consumíveis</option>
                   <option value="limpeza">🧹 Limpeza</option>
                   <option value="compotas">🍯 Compotas/Doces</option>
                   <option value="outros">📋 Outros</option>
@@ -13285,6 +13310,8 @@ void 0;
     // ✅ FILTROS MÍNIMOS - Só validações básicas
     // O resto é gerido pela BLACKLIST (personalizável por fornecedor)
     
+    const linhaLower = linha.toLowerCase().trim();
+    
     // Ignorar linhas muito curtas (< 3 caracteres)
     if (linha.length < 3) {
       OCR_DEBUG.log('FILTRO', 'Linha muito curta', { linha });
@@ -13294,6 +13321,92 @@ void 0;
     // Ignorar linhas sem letras (só números/símbolos)
     if (!/[a-zA-ZÀ-ÿ]/.test(linha)) {
       OCR_DEBUG.log('FILTRO', 'Sem letras', { linha });
+      return true;
+    }
+    
+    // 🆕 FILTROS AUTOMÁTICOS DE PADRÕES (metadados que nunca são ingredientes)
+    
+    // 1. Emails
+    if (/@/.test(linha) && /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i.test(linha)) {
+      OCR_DEBUG.log('FILTRO', 'Email detectado', { linha });
+      return true;
+    }
+    
+    // 2. URLs
+    if (/www\.|\.pt\b|\.com\b|http/i.test(linha)) {
+      OCR_DEBUG.log('FILTRO', 'URL detectado', { linha });
+      return true;
+    }
+    
+    // 3. ATCUD (código único de fatura)
+    if (/atcud\s*:/i.test(linha)) {
+      OCR_DEBUG.log('FILTRO', 'ATCUD detectado', { linha });
+      return true;
+    }
+    
+    // 4. Certificação de software
+    if (/processado por programa certificado|certificado n[º°.\s]*\d+\/at/i.test(linha)) {
+      OCR_DEBUG.log('FILTRO', 'Certificação software', { linha });
+      return true;
+    }
+    
+    // 5. NIF/NIPC (identificação fiscal)
+    if (/\b(nif|nipc)\s*[:.]?\s*\d/i.test(linha)) {
+      OCR_DEBUG.log('FILTRO', 'NIF/NIPC detectado', { linha });
+      return true;
+    }
+    
+    // 6. Códigos postais portugueses (####-###)
+    if (/\b\d{4}-\d{3}\b/.test(linha)) {
+      OCR_DEBUG.log('FILTRO', 'Código postal detectado', { linha });
+      return true;
+    }
+    
+    // 7. Telefones (padrões portugueses: 9 dígitos, ou +351, ou separadores)
+    if (/\b(tel|telefone|tlm|telemóvel)\s*[:.]?\s*[\d\s+()-]{8,}/i.test(linha) || /\b\d{3}\s?\d{3}\s?\d{3}\b/.test(linha)) {
+      OCR_DEBUG.log('FILTRO', 'Telefone detectado', { linha });
+      return true;
+    }
+    
+    // 8. Tipos de fatura
+    if (/^(fatura\s*(simplificada|original)|factura\s*)/i.test(linhaLower)) {
+      OCR_DEBUG.log('FILTRO', 'Tipo de fatura', { linha });
+      return true;
+    }
+    
+    // 9. Texto legal de empresas
+    if (/registad[ao]|c\.?\s*r\.?\s*c\.|capital social|sede\s*:|matr[ií]cula/i.test(linha)) {
+      OCR_DEBUG.log('FILTRO', 'Texto legal empresa', { linha });
+      return true;
+    }
+    
+    // 10. Moradas completas (rua/avenida + código postal)
+    if (/(rua|r\.|avenida|av\.|praça|largo|travessa|tv\.).*\d{4}-\d{3}/i.test(linha)) {
+      OCR_DEBUG.log('FILTRO', 'Morada completa', { linha });
+      return true;
+    }
+    
+    // 11. Nomes de empresas conhecidas no INÍCIO da linha (cabeçalhos)
+    if (/^(recheio|continente|pingo\s*doce|lidl|aldi|intermarche|model[lo])/i.test(linhaLower)) {
+      OCR_DEBUG.log('FILTRO', 'Nome empresa (cabeçalho)', { linha });
+      return true;
+    }
+    
+    // 12. Metadados de fatura
+    if (/^(operador|terminal|contribuinte|original|emitido por|fornecedor\s*:|produtor\s*:)/i.test(linhaLower)) {
+      OCR_DEBUG.log('FILTRO', 'Metadado de fatura', { linha });
+      return true;
+    }
+    
+    // 13. Linhas de totais/resumos
+    if (/^(total|subtotal|resumo|valor|poupan[çc]a|desconto|troco|pagamento[s]?|multibanco|num[eé]rario)\s*[:.]?$/i.test(linhaLower)) {
+      OCR_DEBUG.log('FILTRO', 'Linha de total/resumo isolada', { linha });
+      return true;
+    }
+    
+    // 14. Saudações/fechos
+    if (/^(volte sempre|obrigad[oa]|bom dia|boa tarde|at[ée] breve|bem.vind[oa]|saiba mais)/i.test(linhaLower)) {
+      OCR_DEBUG.log('FILTRO', 'Saudação/fecho', { linha });
       return true;
     }
     
@@ -14299,9 +14412,9 @@ void 0;
     const categoria = metadata.categoria || 'compras';
     const novosItens = linhasValidadas
       .filter(l => {
-        // Se categoria = compras, exigir ingrediente
+        // Se categoria = compras, exigir ingrediente E preço > 0
         if (categoria === 'compras') {
-          return l.ingredienteConfirmado;
+          return l.ingredienteConfirmado && l.preco && parseFloat(l.preco) > 0;
         }
         // Para outras categorias, aceitar todas as linhas com preço
         return l.preco && parseFloat(l.preco) > 0;
