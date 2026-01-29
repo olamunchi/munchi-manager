@@ -9293,33 +9293,63 @@ void 0;
           }
         }
         
-        // ✅ TEMPLATES OCR: MERGE inteligente (não replace!)
+        // ✅ TEMPLATES OCR: MERGE PROFUNDO com blacklists combinadas
         if (data.templatesOCR && data.templatesOCR.length > 0) {
-          // 🆕 MERGE: Combinar templates do Drive com os locais
-          // Usar Map com nifFornecedor como chave (identificador único)
+          // 🆕 MERGE PROFUNDO: Combinar templates E suas blacklists
           const templateMap = new Map();
           
-          // 1. Adicionar templates locais primeiro (têm prioridade)
+          // 1. Adicionar templates locais primeiro
           templatesOCR.forEach(t => {
-            if (t && t.nifFornecedor) templateMap.set(t.nifFornecedor, t);
-          });
-          
-          // 2. Adicionar templates do Drive (só se não existir)
-          data.templatesOCR.forEach(t => {
-            if (t && t.nifFornecedor && !templateMap.has(t.nifFornecedor)) {
-              templateMap.set(t.nifFornecedor, t);
+            if (t && t.nifFornecedor) {
+              templateMap.set(t.nifFornecedor, {
+                ...t,
+                blacklist: t.blacklist || [],
+                palavrasLimpar: t.palavrasLimpar || []
+              });
             }
           });
           
-          // 3. Converter Map para Array e ordenar por data de atualização
-          const merged = Array.from(templateMap.values())
-            .sort((a, b) => {
-              const dateA = new Date(a.ultimaAtualizacao || 0);
-              const dateB = new Date(b.ultimaAtualizacao || 0);
-              return dateB - dateA; // Mais recentes primeiro
-            });
+          // 2. MERGE com templates do Drive (combinar blacklists!)
+          data.templatesOCR.forEach(t => {
+            if (t && t.nifFornecedor) {
+              const existing = templateMap.get(t.nifFornecedor);
+              
+              if (existing) {
+                // 🔥 MERGE PROFUNDO: Combinar blacklists de ambos
+                const blacklistSet = new Set([
+                  ...(existing.blacklist || []),
+                  ...(t.blacklist || [])
+                ]);
+                const palavrasLimparSet = new Set([
+                  ...(existing.palavrasLimpar || []),
+                  ...(t.palavrasLimpar || [])
+                ]);
+                
+                // Usar dados mais recentes MAS com blacklists combinadas
+                const merged = {
+                  ...existing, // Dados locais (prioridade)
+                  blacklist: Array.from(blacklistSet), // ✅ COMBINADAS!
+                  palavrasLimpar: Array.from(palavrasLimparSet), // ✅ COMBINADAS!
+                  vezeUsado: Math.max(existing.vezeUsado || 0, t.vezeUsado || 0)
+                };
+                
+                templateMap.set(t.nifFornecedor, merged);
+              } else {
+                // Template só existe no Drive - adicionar
+                templateMap.set(t.nifFornecedor, {
+                  ...t,
+                  blacklist: t.blacklist || [],
+                  palavrasLimpar: t.palavrasLimpar || []
+                });
+              }
+            }
+          });
+          
+          // 3. Converter Map para Array
+          const merged = Array.from(templateMap.values());
           
           console.log(`🔄 Templates OCR MERGE: ${templatesOCR.length} local + ${data.templatesOCR.length} Drive = ${merged.length} total`);
+          console.log(`   📊 Total blacklist entries: ${merged.reduce((sum, t) => sum + (t.blacklist?.length || 0), 0)}`);
           
           setTemplatesOCR(merged);
           // Guardar também no IndexedDB
