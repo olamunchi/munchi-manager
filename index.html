@@ -1894,11 +1894,11 @@ const ModalConfirmacaoOCR = ({ linhas, ingredientes, metadata, onConfirmar, onCa
     
     // ✅ ADICIONAR IMEDIATAMENTE AO ESTADO GLOBAL (guardado permanentemente)
     if (setFornecedores && typeof setFornecedores === 'function') {
-      setFornecedores([...fornecedores, novoFornTemp]);
+      setFornecedores(prev => [...prev, novoFornTemp]);
     }
     
     // Adicionar à lista LOCAL (aparece no dropdown imediatamente)
-    setFornecedoresLocais([...fornecedoresLocais, novoFornTemp]);
+    setFornecedoresLocais(prev => [...prev, novoFornTemp]);
     
     // Adicionar ao metadata para ser processado depois (fallback)
     if (!window._novosFornecedores) window._novosFornecedores = [];
@@ -3008,11 +3008,11 @@ const ModalConfirmacaoFatura = ({ dadosFatura, onConfirmar, onCancelar, forneced
     
     // ✅ ADICIONAR IMEDIATAMENTE AO ESTADO GLOBAL (guardado permanentemente)
     if (setFornecedores && typeof setFornecedores === 'function') {
-      setFornecedores([...fornecedores, novoFornTemp]);
+      setFornecedores(prev => [...prev, novoFornTemp]);
     }
     
     // Adicionar à lista LOCAL (aparece no dropdown imediatamente)
-    setFornecedoresLocais([...fornecedoresLocais, novoFornTemp]);
+    setFornecedoresLocais(prev => [...prev, novoFornTemp]);
     
     // Adicionar ao metadata para ser processado depois (fallback)
     if (!window._novosFornecedores) window._novosFornecedores = [];
@@ -6829,54 +6829,56 @@ void 0;
       return;
     }
     
-    let template = buscarTemplateOCR(nifFornecedor);
-    void 0;
-    
-    // Se não existe template, criar um novo
-    if (!template) {
-      void 0;
-      template = {
-        nifFornecedor: nifFornecedor,
-        linhaInicio: 0,
-        linhaFim: 999,
-        blacklist: [],
-        palavrasLimpar: [], // 🧹 Nova propriedade
-        numProdutosEsperado: 0,
-        vezeUsado: 0
-      };
-      setTemplatesOCR([...templatesOCR, template]);
-    }
-    
-    const index = templatesOCR.findIndex(t => t.nifFornecedor === nifFornecedor);
-    const blacklistAtual = template.blacklist || [];
-    
     // ✅ GUARDAR LINHA COMPLETA normalizada em lowercase (resolve CAPS)
     const linhaNormalizada = linha.toLowerCase().trim();
     
-    // Verificar se já existe
-    if (blacklistAtual.includes(linhaNormalizada)) {
-      showNotification(`⚠️ "${linha}" já está na blacklist!`, 'warning');
-      return;
-    }
-    
-    const novaBlacklist = [...blacklistAtual, linhaNormalizada];
-    
-    void 0;
-    void 0;
-    
-    const novoTemplate = {
-      ...template,
-      blacklist: novaBlacklist
-    };
-    
-    const novos = index === -1 
-      ? [...templatesOCR, novoTemplate]  // Adicionar novo
-      : templatesOCR.map((t, i) => i === index ? novoTemplate : t);  // Atualizar existente
-    
-    setTemplatesOCR(novos);
-    
-    void 0;
-    showNotification(`🚫 "${linha}" adicionado à blacklist. 💾 Sincroniza com Drive para guardar!`, 'success', 5000);
+    // Usar função callback para garantir valor atual
+    setTemplatesOCR(prevTemplates => {
+      let template = prevTemplates.find(t => t.nifFornecedor === nifFornecedor);
+      void 0;
+      
+      // Se não existe template, criar um novo
+      if (!template) {
+        void 0;
+        template = {
+          nifFornecedor: nifFornecedor,
+          linhaInicio: 0,
+          linhaFim: 999,
+          blacklist: [],
+          palavrasLimpar: [], // 🧹 Nova propriedade
+          numProdutosEsperado: 0,
+          vezeUsado: 0
+        };
+      }
+      
+      const blacklistAtual = template.blacklist || [];
+      
+      // Verificar se já existe
+      if (blacklistAtual.includes(linhaNormalizada)) {
+        showNotification(`⚠️ "${linha}" já está na blacklist!`, 'warning');
+        return prevTemplates; // Retornar sem mudanças
+      }
+      
+      const novaBlacklist = [...blacklistAtual, linhaNormalizada];
+      
+      void 0;
+      void 0;
+      
+      const novoTemplate = {
+        ...template,
+        blacklist: novaBlacklist
+      };
+      
+      const index = prevTemplates.findIndex(t => t.nifFornecedor === nifFornecedor);
+      const novos = index === -1 
+        ? [...prevTemplates, novoTemplate]  // Adicionar novo
+        : prevTemplates.map((t, i) => i === index ? novoTemplate : t);  // Atualizar existente
+      
+      void 0;
+      showNotification(`🚫 "${linha}" adicionado à blacklist. 💾 Sincroniza com Drive para guardar!`, 'success', 5000);
+      
+      return novos;
+    });
   };
   
   // 🧹 Adicionar palavra à lista de limpeza
@@ -6888,48 +6890,50 @@ void 0;
       return;
     }
     
-    let template = buscarTemplateOCR(nifFornecedor);
-    
-    // Se não existe template, criar um novo
-    if (!template) {
-      template = {
-        nifFornecedor: nifFornecedor,
-        linhaInicio: 0,
-        linhaFim: 999,
-        blacklist: [],
-        palavrasLimpar: [],
-        numProdutosEsperado: 0,
-        vezeUsado: 0
-      };
-      setTemplatesOCR([...templatesOCR, template]);
-    }
-    
-    const index = templatesOCR.findIndex(t => t.nifFornecedor === nifFornecedor);
-    const palavrasAtual = template.palavrasLimpar || [];
-    
     // Normalizar palavra
     const palavraNormalizada = palavra.toLowerCase().trim();
     
-    // Verificar se já existe
-    if (palavrasAtual.includes(palavraNormalizada)) {
-      showNotification(`⚠️ "${palavra}" já está na lista de limpeza!`, 'warning');
-      return;
-    }
-    
-    const novasPalavras = [...palavrasAtual, palavraNormalizada];
-    
-    const novoTemplate = {
-      ...template,
-      palavrasLimpar: novasPalavras
-    };
-    
-    const novos = index === -1 
-      ? [...templatesOCR, novoTemplate]
-      : templatesOCR.map((t, i) => i === index ? novoTemplate : t);
-    
-    setTemplatesOCR(novos);
-    
-    showNotification(`🧹 "${palavra}" adicionado à lista de limpeza. 💾 Sincroniza com Drive para guardar!`, 'success', 5000);
+    // Usar função callback para garantir valor atual
+    setTemplatesOCR(prevTemplates => {
+      let template = prevTemplates.find(t => t.nifFornecedor === nifFornecedor);
+      
+      // Se não existe template, criar um novo
+      if (!template) {
+        template = {
+          nifFornecedor: nifFornecedor,
+          linhaInicio: 0,
+          linhaFim: 999,
+          blacklist: [],
+          palavrasLimpar: [],
+          numProdutosEsperado: 0,
+          vezeUsado: 0
+        };
+      }
+      
+      const palavrasAtual = template.palavrasLimpar || [];
+      
+      // Verificar se já existe
+      if (palavrasAtual.includes(palavraNormalizada)) {
+        showNotification(`⚠️ "${palavra}" já está na lista de limpeza!`, 'warning');
+        return prevTemplates; // Retornar sem mudanças
+      }
+      
+      const novasPalavras = [...palavrasAtual, palavraNormalizada];
+      
+      const novoTemplate = {
+        ...template,
+        palavrasLimpar: novasPalavras
+      };
+      
+      const index = prevTemplates.findIndex(t => t.nifFornecedor === nifFornecedor);
+      const novos = index === -1 
+        ? [...prevTemplates, novoTemplate]
+        : prevTemplates.map((t, i) => i === index ? novoTemplate : t);
+      
+      showNotification(`🧹 "${palavra}" adicionado à lista de limpeza. 💾 Sincroniza com Drive para guardar!`, 'success', 5000);
+      
+      return novos;
+    });
   };
   
   /**
@@ -7087,24 +7091,27 @@ void 0;
       vezeUsado: 1
     };
     
-    const index = templatesOCR.findIndex(t => t.nifFornecedor === nifFornecedor);
-    if (index !== -1) {
-      const atual = templatesOCR[index];
-      const novoTemplate = {
-        ...atual,
-        linhaInicio: Math.round((atual.linhaInicio + layout.linhaInicio) / 2),
-        linhaFim: Math.round((atual.linhaFim + layout.linhaFim) / 2),
-        blacklist: atual.blacklist || [], // Preservar blacklist
-        vezeUsado: atual.vezeUsado + 1
-      };
-      const novos = [...templatesOCR];
-      novos[index] = novoTemplate;
-      setTemplatesOCR(novos);
-      void 0;
-    } else {
-      setTemplatesOCR([...templatesOCR, template]);
-      void 0;
-    }
+    setTemplatesOCR(prevTemplates => {
+      const index = prevTemplates.findIndex(t => t.nifFornecedor === nifFornecedor);
+      
+      if (index !== -1) {
+        const atual = prevTemplates[index];
+        const novoTemplate = {
+          ...atual,
+          linhaInicio: Math.round((atual.linhaInicio + layout.linhaInicio) / 2),
+          linhaFim: Math.round((atual.linhaFim + layout.linhaFim) / 2),
+          blacklist: atual.blacklist || [], // Preservar blacklist
+          vezeUsado: atual.vezeUsado + 1
+        };
+        const novos = [...prevTemplates];
+        novos[index] = novoTemplate;
+        void 0;
+        return novos;
+      } else {
+        void 0;
+        return [...prevTemplates, template];
+      }
+    });
   };
   
   const parseComTemplate = (texto, template) => {
@@ -9598,7 +9605,7 @@ void 0;
     const iva = parseFloat(novoIngrediente.iva);
     const custoSemIva = custoComIva / (1 + iva / 100);
     
-    setIngredientes([...ingredientes, { 
+    setIngredientes(prev => [...prev, { 
       id: Date.now(), 
       ...novoIngrediente, 
       custoUnitario: custoComIva,
@@ -9656,7 +9663,7 @@ void 0;
     };
     
     // Adiciona aos ingredientes
-    setIngredientes([...ingredientes, novoIng]);
+    setIngredientes(prev => [...prev, novoIng]);
     
     // Seleciona automaticamente o ingrediente criado COM a quantidade
     setItemFatura({
@@ -13913,7 +13920,7 @@ void 0;
     // 🆕 ADICIONAR NOVOS INGREDIENTES CRIADOS NO MODAL
     if (metadata.novosIngredientes && metadata.novosIngredientes.length > 0) {
       const novosIngs = metadata.novosIngredientes;
-      setIngredientes([...ingredientes, ...novosIngs]);
+      setIngredientes(prev => [...prev, ...novosIngs]);
       void 0;
       
       // Atualizar lista local para usar nas próximas etapas
@@ -13923,7 +13930,7 @@ void 0;
     // 🆕 ADICIONAR NOVOS FORNECEDORES CRIADOS NO MODAL
     if (window._novosFornecedores && window._novosFornecedores.length > 0) {
       const novosForn = window._novosFornecedores;
-      setFornecedores([...fornecedores, ...novosForn]);
+      setFornecedores(prev => [...prev, ...novosForn]);
       void 0;
       
       // Limpar cache
