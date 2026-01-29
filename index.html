@@ -13481,15 +13481,8 @@ void 0;
       return true;
     }
     
-    // 18. Linhas curtas só MAIÚSCULAS (< 25 caracteres, sem números significativos)
-    if (linha.length < 25 && linha === linha.toUpperCase() && !/\d{2,}/.test(linha)) {
-      // Exceção: se tem palavra que pode ser ingrediente (muito específico)
-      const possivelIngrediente = /\b(queijo|pao|cafe|leite|ovo|carne|peixe|frango|arroz|massa|azeite)\b/i.test(linha);
-      if (!possivelIngrediente) {
-        OCR_DEBUG.log('FILTRO', 'Linha curta MAIÚSCULAS', { linha });
-        return true;
-      }
-    }
+    // ⚠️ FILTRO #18 REMOVIDO - bloqueava ingredientes válidos em MAIÚSCULAS
+    // (KIWI, CROISSANT, MANGA, etc)
     
     // 19. Padrões específicos de número + campo (formato: "numero - campo: valor")
     if (/^\d+\s*-\s*(cliente|operador|vended|zona|carga|descarga)/i.test(linhaLower)) {
