@@ -5710,7 +5710,7 @@ const RestauranteGestor = () => {
     void 0;
     
     // Salvar fatura
-    setFaturas([...faturas, novaFaturaCompleta]);
+    setFaturas(prev => [...prev, novaFaturaCompleta]);
     setUltimaFaturaInserida(novaFaturaCompleta.id); // 🆕 Marcar como última inserida
     
     // Fechar modal
@@ -10157,10 +10157,10 @@ void 0;
     
     // Add expense normally
     if (novaDespesa.fornecedor && !fornecedores.includes(novaDespesa.fornecedor)) {
-      setFornecedores([...fornecedores, novaDespesa.fornecedor]);
+      setFornecedores(prev => [...prev, novaDespesa.fornecedor]);
     }
     
-    setDespesas([...despesas, { 
+    setDespesas(prev => [...prev, { 
       id: Date.now(), 
       ...novaDespesa, 
       valor: parseFloat(novaDespesa.valor), 
@@ -10275,10 +10275,10 @@ void 0;
     const despesaData = priceAlertData.despesaData;
     
     if (despesaData.fornecedor && !fornecedores.includes(despesaData.fornecedor)) {
-      setFornecedores([...fornecedores, despesaData.fornecedor]);
+      setFornecedores(prev => [...prev, despesaData.fornecedor]);
     }
     
-    setDespesas([...despesas, { 
+    setDespesas(prev => [...prev, { 
       id: Date.now(), 
       ...despesaData, 
       valor: parseFloat(despesaData.valor), 
@@ -10334,10 +10334,10 @@ void 0;
     
     // Add expense
     if (despesaData.fornecedor && !fornecedores.includes(despesaData.fornecedor)) {
-      setFornecedores([...fornecedores, despesaData.fornecedor]);
+      setFornecedores(prev => [...prev, despesaData.fornecedor]);
     }
     
-    setDespesas([...despesas, { 
+    setDespesas(prev => [...prev, { 
       id: Date.now(), 
       ...despesaData, 
       valor: parseFloat(despesaData.valor), 
@@ -11442,7 +11442,7 @@ void 0;
       telefone,
       dataCriacao: new Date().toISOString()
     };
-    setFornecedores([...fornecedores, novoFornecedor]);
+    setFornecedores(prev => [...prev, novoFornecedor]);
     return novoFornecedor.id;
   };
   
@@ -11910,7 +11910,7 @@ void 0;
       const timeout = setTimeout(() => saveToDrive(), 3000);
       return () => clearTimeout(timeout);
     }
-  }, [produtos, ingredientes, vendas, faturas, fornecedores, vocabularioFornecedor, driveAccessToken]);
+  }, [produtos, ingredientes, vendas, faturas, fornecedores, vocabularioFornecedor, templatesOCR, driveAccessToken]);
 
   // Google Drive: Inicializar Google Identity Services
   useEffect(() => {
