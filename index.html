@@ -3031,12 +3031,22 @@ const ModalConfirmacaoFatura = ({ dadosFatura, onConfirmar, onCancelar, forneced
     setNovoFornecedor({ nome: '', nif: dadosFatura.fornecedor?.nif || '', contacto: '', email: '' });
   };
   
-  // ✅ MATCH INTELIGENTE: NOME primeiro (mais confiável), depois NIF
+  // ✅ MATCH INTELIGENTE: NIF primeiro (mais preciso), depois NOME
   const [fornecedorSelecionado, setFornecedorSelecionado] = React.useState(() => {
     void 0;
     void 0;
     
-    // 1. PRIORIDADE: Match por NOME (mais confiável que OCR de NIF)
+    // 1. PRIORIDADE MÁXIMA: Match por NIF (100% confiável)
+    if (dadosFatura.fornecedor?.nif) {
+      void 0;
+      const porNif = fornecedores.find(f => f.nif === dadosFatura.fornecedor.nif);
+      if (porNif) {
+        void 0;
+        return porNif;
+      }
+    }
+    
+    // 2. FALLBACK: Match por NOME (só se NIF não funcionou)
     if (dadosFatura.fornecedor?.nome) {
       const nomeDetectado = dadosFatura.fornecedor.nome.toLowerCase().trim();
       void 0;
@@ -3053,23 +3063,42 @@ const ModalConfirmacaoFatura = ({ dadosFatura, onConfirmar, onCancelar, forneced
           return true;
         }
         
-        // Match se um contém o outro
-        if (nomeCadastrado.includes(nomeDetectado) || nomeDetectado.includes(nomeCadastrado)) {
+        // Match se um contém o outro (mínimo 50% do nome)
+        const minChars = Math.min(nomeDetectado.length, nomeCadastrado.length) * 0.5;
+        if ((nomeCadastrado.includes(nomeDetectado) || nomeDetectado.includes(nomeCadastrado)) && 
+            (nomeDetectado.length >= minChars || nomeCadastrado.length >= minChars)) {
           void 0;
           return true;
         }
         
-        // Extrair palavras significativas (3+ chars)
-        const palavrasDetectadas = nomeDetectado.split(/\s+/).filter(p => p.length >= 3);
-        const palavrasCadastradas = nomeCadastrado.split(/\s+/).filter(p => p.length >= 3);
+        // Extrair palavras significativas (4+ chars para ser mais restritivo)
+        const palavrasDetectadas = nomeDetectado.split(/\s+/).filter(p => p.length >= 4);
+        const palavrasCadastradas = nomeCadastrado.split(/\s+/).filter(p => p.length >= 4);
         
         void 0;
         void 0;
         
-        // Match se pelo menos 1 palavra em comum
-        const temMatch = palavrasDetectadas.some(pd => 
-          palavrasCadastradas.some(pc => pc.includes(pd) || pd.includes(pc))
-        );
+        // ✅ NOVO: Precisa de pelo menos 2 palavras em comum OU 1 palavra MUITO específica (8+ chars)
+        let palavrasEmComum = 0;
+        let temPalavraEspecifica = false;
+        
+        for (const pd of palavrasDetectadas) {
+          for (const pc of palavrasCadastradas) {
+            // Match exato de palavra
+            if (pd === pc) {
+              palavrasEmComum++;
+              if (pd.length >= 8) temPalavraEspecifica = true;
+            }
+            // Match parcial (um contém o outro) - só se palavra for longa
+            else if (pd.length >= 5 && pc.length >= 5 && (pc.includes(pd) || pd.includes(pc))) {
+              palavrasEmComum += 0.5; // Conta como meio match
+              if (pd.length >= 8 || pc.length >= 8) temPalavraEspecifica = true;
+            }
+          }
+        }
+        
+        // Critério mais rigoroso: 2+ palavras OU 1 palavra muito específica
+        const temMatch = palavrasEmComum >= 2 || (palavrasEmComum >= 1 && temPalavraEspecifica);
         
         if (temMatch) {
           void 0;
@@ -3081,16 +3110,6 @@ const ModalConfirmacaoFatura = ({ dadosFatura, onConfirmar, onCancelar, forneced
       if (porNome) {
         void 0;
         return porNome;
-      }
-    }
-    
-    // 2. FALLBACK: Match por NIF (só se nome não funcionou)
-    if (dadosFatura.fornecedor?.nif) {
-      void 0;
-      const porNif = fornecedores.find(f => f.nif === dadosFatura.fornecedor.nif);
-      if (porNif) {
-        void 0;
-        return porNif;
       }
     }
     
