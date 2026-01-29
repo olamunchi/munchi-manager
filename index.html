@@ -4005,7 +4005,7 @@ const RestauranteGestor = () => {
   const tokenCheckIntervalRef = React.useRef(null);
   
   // 🆕 REFS para sistema de sync inteligente (correção do problema de sync)
-  const pendingSyncRef = React.useRef(false);
+  const pendingSyncRef = React.useRef(0); // 🔥 CONTADOR de alterações pendentes (não boolean!)
   const syncTimeoutRef = React.useRef(null);
   const lastSyncDataRef = React.useRef(null);
 
@@ -8844,11 +8844,18 @@ void 0;
       const data = getCurrentData();
       
       // 🆕 VERIFICAR SE DADOS MUDARAM DESDE ÚLTIMO SYNC
+      // ⚠️ EXCETO quando há alterações pendentes - então SEMPRE fazer sync
       const dataString = JSON.stringify(data);
-      if (!forceSync && lastSyncDataRef.current === dataString) {
+      const hasPendingChanges = pendingSyncRef.current > 0;
+      
+      if (!forceSync && !hasPendingChanges && lastSyncDataRef.current === dataString) {
         console.log('⏭️ Dados não mudaram, pulando sync');
         setDriveSyncing(false);
         return;
+      }
+      
+      if (hasPendingChanges) {
+        console.log(`🔥 FORÇANDO sync - ${pendingSyncRef.current} alterações pendentes durante último sync`);
       }
       
       console.log('📊 Sincronizando dados:', {
@@ -8925,10 +8932,15 @@ void 0;
       }
       
       // 🆕 VERIFICAR SE HÁ SYNC PENDENTE
-      if (pendingSyncRef.current) {
-        console.log('🔄 Há alterações pendentes, agendando novo sync...');
-        pendingSyncRef.current = false;
-        scheduleSync();
+      if (pendingSyncRef.current > 0) {
+        const numPendentes = pendingSyncRef.current;
+        console.log(`🔄 ${numPendentes} alterações pendentes, agendando novo sync em 500ms...`);
+        pendingSyncRef.current = 0; // Reset contador
+        // Usar delay menor (500ms) para capturar alterações que ainda estão no setState
+        setTimeout(() => {
+          console.log('⚡ Executando sync pendente (rápido)...');
+          saveToDrive(false);
+        }, 500);
       }
       
     } catch (error) {
@@ -8957,10 +8969,10 @@ void 0;
       clearTimeout(syncTimeoutRef.current);
     }
     
-    // Se já está a fazer sync, marcar como pendente
+    // Se já está a fazer sync, INCREMENTAR contador de pendentes
     if (driveSyncing) {
-      console.log('⏳ Sync em progresso, marcando como pendente...');
-      pendingSyncRef.current = true;
+      pendingSyncRef.current++;
+      console.log(`⏳ Sync em progresso, marcando como pendente (${pendingSyncRef.current} pendentes)...`);
       return;
     }
     
