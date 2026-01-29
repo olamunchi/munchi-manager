@@ -101,15 +101,18 @@ const Eye = (props) => <svg className={props.className || "w-5 h-5"} fill="none"
 // Configuração da base de dados IndexedDB usando Dexie
 const db = new Dexie('MunchiManagerDB');
 
-// Definir schema da base de dados - VERSÃO 2 COM VOCABULÁRIO
+// VERSÃO 1: Movimentações de stock
 db.version(1).stores({
   movimentacoesStock: '++id, data, tipo, ingredienteId, produtoId',
 });
 
-// 🆕 VERSÃO 2: Adicionar tabela de vocabulário
+// 🆕 VERSÃO 2: Dados críticos para funcionamento offline
 db.version(2).stores({
   movimentacoesStock: '++id, data, tipo, ingredienteId, produtoId',
-  vocabulario: 'id, fornecedorNIF, textoNormalizado, ingredienteId' // 🧠 NOVO!
+  vocabulario: 'id, fornecedorNIF, textoNormalizado, ingredienteId',
+  ingredientes: 'id, nome, categoria',
+  fornecedores: 'id, nif, nome',
+  templates: 'id, fornecedorId, fornecedorNIF'
 });
 
 // Helper functions para IndexedDB
@@ -148,60 +151,107 @@ const IndexedDBStorage = {
     }
   },
 
-  // 🧠 VOCABULÁRIO: Guardar no IndexedDB
-  async saveVocabulario(vocabulario) {
+  // ═══════════════════════════════════════════════════════════
+  // 🧠 DADOS CRÍTICOS - NECESSÁRIOS PARA FUNCIONAMENTO OFFLINE
+  // ═══════════════════════════════════════════════════════════
+
+  // VOCABULÁRIO: Sistema de aprendizagem OCR
+  async saveVocabulario(data) {
     try {
-      if (!vocabulario || vocabulario.length === 0) {
-        console.log('ℹ️ Vocabulário vazio, nada para guardar');
-        return true;
-      }
-      
-      // Limpar tabela e inserir todos os dados (replace all)
+      if (!data || data.length === 0) return true;
       await db.vocabulario.clear();
-      await db.vocabulario.bulkAdd(vocabulario);
-      
-      console.log('💾 Vocabulário guardado no IndexedDB:', {
-        count: vocabulario.length,
-        timestamp: new Date().toISOString()
-      });
+      await db.vocabulario.bulkAdd(data);
+      console.log('💾 Vocabulário → IndexedDB:', data.length, 'entradas');
       return true;
-    } catch (error) {
-      console.error('❌ Erro ao guardar vocabulário no IndexedDB:', error);
+    } catch (e) {
+      console.error('❌ Erro ao guardar vocabulário:', e);
       return false;
     }
   },
 
-  // 🧠 VOCABULÁRIO: Carregar do IndexedDB
   async loadVocabulario() {
     try {
-      const vocabulario = await db.vocabulario.toArray();
-      console.log('✅ Vocabulário carregado do IndexedDB:', {
-        count: vocabulario.length,
-        lastUpdate: vocabulario[0]?.ultimaConfirmacao || 'N/A'
-      });
-      return vocabulario;
-    } catch (error) {
-      console.error('❌ Erro ao carregar vocabulário do IndexedDB:', error);
+      const data = await db.vocabulario.toArray();
+      console.log('✅ Vocabulário ← IndexedDB:', data.length, 'entradas');
+      return data;
+    } catch (e) {
+      console.error('❌ Erro ao carregar vocabulário:', e);
       return [];
     }
   },
 
-  // 🧠 VOCABULÁRIO: Obter estatísticas
-  async getVocabularioStats() {
+  // INGREDIENTES: Necessários para dropdown em faturas
+  async saveIngredientes(data) {
     try {
-      const total = await db.vocabulario.count();
-      
-      // Agrupar por fornecedor
-      const porFornecedor = {};
-      const items = await db.vocabulario.toArray();
-      items.forEach(v => {
-        porFornecedor[v.fornecedorNIF] = (porFornecedor[v.fornecedorNIF] || 0) + 1;
-      });
-      
-      return { total, porFornecedor };
-    } catch (error) {
-      console.error('❌ Erro ao obter stats do vocabulário:', error);
-      return { total: 0, porFornecedor: {} };
+      if (!data || data.length === 0) return true;
+      await db.ingredientes.clear();
+      await db.ingredientes.bulkAdd(data);
+      console.log('💾 Ingredientes → IndexedDB:', data.length);
+      return true;
+    } catch (e) {
+      console.error('❌ Erro ao guardar ingredientes:', e);
+      return false;
+    }
+  },
+
+  async loadIngredientes() {
+    try {
+      const data = await db.ingredientes.toArray();
+      console.log('✅ Ingredientes ← IndexedDB:', data.length);
+      return data;
+    } catch (e) {
+      console.error('❌ Erro ao carregar ingredientes:', e);
+      return [];
+    }
+  },
+
+  // FORNECEDORES: Necessários para dropdown em faturas
+  async saveFornecedores(data) {
+    try {
+      if (!data || data.length === 0) return true;
+      await db.fornecedores.clear();
+      await db.fornecedores.bulkAdd(data);
+      console.log('💾 Fornecedores → IndexedDB:', data.length);
+      return true;
+    } catch (e) {
+      console.error('❌ Erro ao guardar fornecedores:', e);
+      return false;
+    }
+  },
+
+  async loadFornecedores() {
+    try {
+      const data = await db.fornecedores.toArray();
+      console.log('✅ Fornecedores ← IndexedDB:', data.length);
+      return data;
+    } catch (e) {
+      console.error('❌ Erro ao carregar fornecedores:', e);
+      return [];
+    }
+  },
+
+  // TEMPLATES OCR: Necessários para extrair dados de PDFs
+  async saveTemplates(data) {
+    try {
+      if (!data || data.length === 0) return true;
+      await db.templates.clear();
+      await db.templates.bulkAdd(data);
+      console.log('💾 Templates OCR → IndexedDB:', data.length);
+      return true;
+    } catch (e) {
+      console.error('❌ Erro ao guardar templates:', e);
+      return false;
+    }
+  },
+
+  async loadTemplates() {
+    try {
+      const data = await db.templates.toArray();
+      console.log('✅ Templates OCR ← IndexedDB:', data.length);
+      return data;
+    } catch (e) {
+      console.error('❌ Erro ao carregar templates:', e);
+      return [];
     }
   },
 
@@ -209,8 +259,11 @@ const IndexedDBStorage = {
   async clearAll() {
     try {
       await db.movimentacoesStock.clear();
-      await db.vocabulario.clear(); // 🧠 Limpar vocabulário também
-      console.log('✅ IndexedDB limpo (movimentações + vocabulário)');
+      await db.vocabulario.clear();
+      await db.ingredientes.clear();
+      await db.fornecedores.clear();
+      await db.templates.clear();
+      console.log('✅ IndexedDB limpo (todas as tabelas)');
       return true;
     } catch (error) {
       console.error('❌ Erro ao limpar IndexedDB:', error);
@@ -381,9 +434,8 @@ if (typeof window.storage === 'undefined') {
       });
     },
     set: (key, value) => { 
-      // 🚫 DESATIVADO: LocalStorage causa crashes quando cheio (PDFs em faturas)
-      // Vocabulário tem seu próprio sistema de persistência direto
-      // Google Drive é a fonte de verdade para produtos/vendas/faturas
+      // 🚫 DESATIVADO: LocalStorage causa crashes quando cheio
+      // Google Drive é a única fonte de verdade
       return Promise.resolve({ key, value, shared: false });
     },
     delete: (key) => { 
@@ -4745,12 +4797,6 @@ const RestauranteGestor = () => {
       despesas,
       fornecedores,
       faturas,
-      vocabularioFornecedor,  // 🧠 SISTEMA DE APRENDIZAGEM
-      templatesOCR,           // 📋 TEMPLATES OCR
-      blacklist,              // 🚫 BLACKLIST
-      dadosEmpresa,           // 🏢 DADOS EMPRESA
-      deliveryApps,           // 🛵 DELIVERY APPS
-      embalagens,             // 📦 EMBALAGENS
       diagnosticarPDFs: () => {
         console.log('🔍 DIAGNÓSTICO DE PDFs NAS FATURAS');
         console.log('═'.repeat(60));
@@ -5036,128 +5082,6 @@ const RestauranteGestor = () => {
           console.log('Recarregue a página (F5) para ver os resultados.');
         }, 500);
       },
-      diagnosticarAprendizagem: async () => {
-        console.log('🧠 DIAGNÓSTICO DO SISTEMA DE APRENDIZAGEM');
-        console.log('═'.repeat(60));
-        
-        console.log(`\n📊 RESUMO:`);
-        console.log(`Total entradas: ${vocabularioFornecedor?.length || 0}`);
-        
-        // 🆕 Mostrar info de IndexedDB
-        try {
-          const stats = await IndexedDBStorage.getVocabularioStats();
-          console.log(`💾 IndexedDB: ${stats.total} entradas guardadas`);
-          console.log(`📁 Fornecedores com dados:`, Object.keys(stats.porFornecedor).length);
-        } catch (e) {
-          console.log('⚠️ IndexedDB: não acessível');
-        }
-        
-        if (!vocabularioFornecedor || vocabularioFornecedor.length === 0) {
-          console.log('\n⚠️ VOCABULÁRIO VAZIO!');
-          console.log('Possíveis causas:');
-          console.log('1. Nunca confirmou ingredientes em faturas');
-          console.log('2. Dados não foram carregados do Drive');
-          console.log('3. window.storage.set() não está a ser chamado');
-          console.log('\n💡 Solução: Faça upload de uma fatura e confirme 2-3 ingredientes');
-          return;
-        }
-        
-        // Agrupar por fornecedor
-        const porFornecedor = {};
-        vocabularioFornecedor.forEach(v => {
-          if (!porFornecedor[v.fornecedorNIF]) {
-            porFornecedor[v.fornecedorNIF] = [];
-          }
-          porFornecedor[v.fornecedorNIF].push(v);
-        });
-        
-        console.log(`\n📋 POR FORNECEDOR:`);
-        Object.entries(porFornecedor).forEach(([nif, entradas]) => {
-          const fornecedor = fornecedores.find(f => f.nif === nif);
-          console.log(`\n${fornecedor?.nome || nif}: ${entradas.length} produtos aprendidos`);
-          
-          // Mostrar os 5 com maior confiança
-          const top5 = [...entradas]
-            .map(e => ({
-              texto: e.textoOriginal,
-              confirmacoes: e.confirmacoes || 0,
-              correcoes: e.correcoes || 0,
-              confianca: Math.round(
-                ((e.confirmacoes || 0) * 42.75) + 
-                ((e.similaridade || 100) * 0.35) - 
-                ((e.correcoes || 0) * 25)
-              )
-            }))
-            .sort((a, b) => b.confianca - a.confianca)
-            .slice(0, 5);
-          
-          console.table(top5);
-        });
-        
-        // Estatísticas gerais
-        const comAltaConfianca = vocabularioFornecedor.filter(v => {
-          const conf = ((v.confirmacoes || 0) * 42.75) + ((v.similaridade || 100) * 0.35) - ((v.correcoes || 0) * 25);
-          return conf >= 80;
-        }).length;
-        
-        console.log(`\n📈 ESTATÍSTICAS:`);
-        console.log(`✅ Alta confiança (≥80%): ${comAltaConfianca}`);
-        console.log(`⚠️ Média confiança (60-79%): ${vocabularioFornecedor.length - comAltaConfianca}`);
-        console.log(`\n💡 Para melhorar: Confirme os mesmos ingredientes 2-3 vezes`);
-        
-        console.log('\n' + '═'.repeat(60));
-      },
-      exportarVocabulario: () => {
-        if (!vocabularioFornecedor || vocabularioFornecedor.length === 0) {
-          console.log('⚠️ Vocabulário vazio - nada para exportar');
-          return;
-        }
-        
-        const json = JSON.stringify(vocabularioFornecedor, null, 2);
-        console.log('📋 VOCABULÁRIO EXPORTADO (copiado para clipboard):');
-        console.log(json);
-        
-        navigator.clipboard.writeText(json).then(() => {
-          console.log('\n✅ Copiado para clipboard!');
-          console.log('Cole num ficheiro .json para guardar backup');
-        });
-      },
-      testarIndexedDB: async () => {
-        console.log('🧪 TESTE DO INDEXEDDB');
-        console.log('═'.repeat(60));
-        
-        try {
-          // Testar conexão
-          const dbInfo = await db.open();
-          console.log('✅ IndexedDB conectado:', dbInfo.name);
-          
-          // Verificar tabelas
-          console.log('📋 Tabelas disponíveis:', db.tables.map(t => t.name));
-          
-          // Stats do vocabulário
-          const stats = await IndexedDBStorage.getVocabularioStats();
-          console.log('\n📊 VOCABULÁRIO:');
-          console.log('Total entradas:', stats.total);
-          console.log('Fornecedores:', Object.keys(stats.porFornecedor).length);
-          console.table(stats.porFornecedor);
-          
-          // Verificar espaço
-          if (navigator.storage && navigator.storage.estimate) {
-            const estimate = await navigator.storage.estimate();
-            const used = (estimate.usage / 1024 / 1024).toFixed(2);
-            const quota = (estimate.quota / 1024 / 1024).toFixed(0);
-            const percent = ((estimate.usage / estimate.quota) * 100).toFixed(2);
-            
-            console.log('\n💾 ESPAÇO:');
-            console.log(`Usado: ${used} MB de ${quota} MB (${percent}%)`);
-          }
-          
-        } catch (e) {
-          console.error('❌ Erro ao testar IndexedDB:', e);
-        }
-        
-        console.log('═'.repeat(60));
-      },
       corrigirIngredientes: () => {
         console.log('🔧 Corrigindo custos dos INGREDIENTES...\n');
         
@@ -5189,11 +5113,7 @@ const RestauranteGestor = () => {
     console.log('  - window.DEBUG_MUNCHI.produtos');
     console.log('  - window.DEBUG_MUNCHI.vendas');
     console.log('  - window.DEBUG_MUNCHI.faturas');
-    console.log('  - window.DEBUG_MUNCHI.vocabularioFornecedor ← 🧠 APRENDIZAGEM');
     console.log('  - window.DEBUG_MUNCHI.diagnosticar() ← Execute isto!');
-    console.log('  - window.DEBUG_MUNCHI.diagnosticarAprendizagem() ← 🧠 Ver vocabulário');
-    console.log('  - window.DEBUG_MUNCHI.testarIndexedDB() ← 💾 Testar IndexedDB');
-    console.log('  - window.DEBUG_MUNCHI.exportarVocabulario() ← 📋 Exportar vocabulário');
     console.log('  - window.DEBUG_MUNCHI.diagnosticarPDFs() ← Verificar PDFs das faturas');
     console.log('  - window.DEBUG_MUNCHI.testarPDF("FT 2025/001") ← Testar PDF específico');
     console.log('  - window.DEBUG_MUNCHI.corrigirCustos() ← Corrigir produtos');
@@ -6665,14 +6585,7 @@ void 0;
       
       setVocabularioFornecedor(atualizado);
       
-      console.log('🧠 APRENDIZAGEM ATUALIZADA:', {
-        texto: textoOCR,
-        ingrediente: ingredienteId,
-        fornecedor: nifFornecedor,
-        confirmacoes: atualizado[indexExistente].confirmacoes,
-        correcoes: atualizado[indexExistente].correcoes,
-        totalVocabulario: atualizado.length
-      });
+      void 0;
     } else {
       // Criar novo
       const novo = {
@@ -6691,13 +6604,7 @@ void 0;
       };
       
       setVocabularioFornecedor([...vocabularioFornecedor, novo]);
-      console.log('🧠 NOVO VOCABULÁRIO CRIADO:', {
-        texto: textoOCR,
-        ingrediente: ingredienteId,
-        fornecedor: nifFornecedor,
-        id: novo.id,
-        totalVocabulario: vocabularioFornecedor.length + 1
-      });
+      void 0;
     }
   };
 
@@ -8754,13 +8661,6 @@ void 0;
         lastUpdate: new Date().toISOString()
       };
       
-      console.log('💾 GUARDANDO NO DRIVE:', {
-        vocabularioCount: vocabularioFornecedor?.length || 0,
-        produtosCount: produtos?.length || 0,
-        ingredientesCount: ingredientes?.length || 0,
-        timestamp: data.lastUpdate
-      });
-      
       // 🛡️ VALIDAÇÃO DE SEGURANÇA - Prevenir guardar dados vazios
       const totalRecords = (produtos?.length || 0) + (ingredientes?.length || 0) + (vendas?.length || 0);
       
@@ -9222,18 +9122,23 @@ void 0;
         // ✅ TEMPLATES OCR: Carregar
         if (data.templatesOCR && data.templatesOCR.length > 0) {
           setTemplatesOCR(data.templatesOCR);
-          void 0;
+          // Guardar também no IndexedDB
+          await IndexedDBStorage.saveTemplates(data.templatesOCR);
         }
         
-        // 🧠 CORRIGIDO: VOCABULÁRIO DE APRENDIZAGEM: Carregar
+        // 🧠 VOCABULÁRIO DE APRENDIZAGEM: Carregar
         if (data.vocabularioFornecedor && data.vocabularioFornecedor.length > 0) {
           setVocabularioFornecedor(data.vocabularioFornecedor);
-          console.log('🧠 VOCABULÁRIO CARREGADO DO DRIVE:', {
-            count: data.vocabularioFornecedor.length,
-            sample: data.vocabularioFornecedor.slice(0, 3)
-          });
-        } else {
-          console.log('⚠️ NENHUM VOCABULÁRIO NO DRIVE ou está vazio');
+          // Guardar também no IndexedDB
+          await IndexedDBStorage.saveVocabulario(data.vocabularioFornecedor);
+        }
+        
+        // 💾 INGREDIENTES & FORNECEDORES: Guardar no IndexedDB também
+        if (data.ingredientes && data.ingredientes.length > 0) {
+          await IndexedDBStorage.saveIngredientes(data.ingredientes);
+        }
+        if (data.fornecedores && data.fornecedores.length > 0) {
+          await IndexedDBStorage.saveFornecedores(data.fornecedores);
         }
         
         // 🆕 WASTE TRACKING: Carregar configuração e contagens
@@ -9271,62 +9176,103 @@ void 0;
 
   useEffect(() => {
     const carregar = async () => {
+      console.log('🚀 CARREGANDO DADOS CRÍTICOS...');
+      
       try {
-        const [p, i, v, d, f, de, ft, voc, templ, ultFat] = await Promise.all([
-          window.storage.get('produtos').catch(() => null),
-          window.storage.get('ingredientes').catch(() => null),
-          window.storage.get('vendas').catch(() => null),
-          window.storage.get('despesas').catch(() => null),
-          window.storage.get('fornecedores').catch(() => null),
-          window.storage.get('dadosEmpresa').catch(() => null),
-          window.storage.get('faturas').catch(() => null),
-          // 🚫 vocabularioFornecedor agora tem sistema próprio (localStorage direto)
-          null, // Placeholder para manter índice
-          window.storage.get('templatesOCR').catch(() => null), // 📋 Carregar templates
-          window.storage.get('ultimaFaturaInserida').catch(() => null) // 🆕 Carregar última fatura
+        // ════════════════════════════════════════════════════════════
+        // 📦 CARREGAR DADOS CRÍTICOS DO INDEXEDDB (offline-ready)
+        // ════════════════════════════════════════════════════════════
+        
+        const [vocab, ings, forns, temps] = await Promise.all([
+          IndexedDBStorage.loadVocabulario(),
+          IndexedDBStorage.loadIngredientes(),
+          IndexedDBStorage.loadFornecedores(),
+          IndexedDBStorage.loadTemplates()
         ]);
-        if (p) setProdutos(JSON.parse(p.value));
-        if (i) setIngredientes(JSON.parse(i.value));
-        if (v) {
-          const vendasCarregadas = JSON.parse(v.value);
-          // ✅ MIGRAÇÃO AUTOMÁTICA: Adicionar tag 'origem' em vendas antigas
-          let vendasMigradas = 0;
-          const vendasComOrigem = vendasCarregadas.map(venda => {
-            if (!venda.origem) {
-              vendasMigradas++;
-              // Vendas antigas sem origem = assumir Moloni (padrão antigo)
-              return { ...venda, origem: 'moloni' };
-            }
-            return venda;
-          });
+        
+        // Se IndexedDB tiver dados, usar
+        if (vocab.length > 0) setVocabularioFornecedor(vocab);
+        if (ings.length > 0) setIngredientes(ings);
+        if (forns.length > 0) setFornecedores(forns);
+        if (temps.length > 0) setTemplatesOCR(temps);
+        
+        // ════════════════════════════════════════════════════════════
+        // 🔄 MIGRAÇÃO: localStorage → IndexedDB (primeira vez)
+        // ════════════════════════════════════════════════════════════
+        
+        const precisaMigrar = vocab.length === 0 || ings.length === 0 || forns.length === 0;
+        
+        if (precisaMigrar) {
+          console.log('🔄 Migrando dados de localStorage → IndexedDB...');
           
-          if (vendasMigradas > 0) {
-            void 0;
+          const [vocLS, ingsLS, fornsLS, tempsLS] = await Promise.all([
+            window.storage.get('vocabularioFornecedor').catch(() => null),
+            window.storage.get('ingredientes').catch(() => null),
+            window.storage.get('fornecedores').catch(() => null),
+            window.storage.get('templatesOCR').catch(() => null)
+          ]);
+          
+          // Migrar e guardar no IndexedDB
+          if (vocLS && vocab.length === 0) {
+            const data = JSON.parse(vocLS.value);
+            await IndexedDBStorage.saveVocabulario(data);
+            setVocabularioFornecedor(data);
           }
           
-          setVendas(vendasComOrigem);
+          if (ingsLS && ings.length === 0) {
+            const data = JSON.parse(ingsLS.value);
+            await IndexedDBStorage.saveIngredientes(data);
+            setIngredientes(data);
+          }
+          
+          if (fornsLS && forns.length === 0) {
+            const data = JSON.parse(fornsLS.value);
+            await IndexedDBStorage.saveFornecedores(data);
+            setFornecedores(data);
+          }
+          
+          if (tempsLS && temps.length === 0) {
+            const data = JSON.parse(tempsLS.value);
+            await IndexedDBStorage.saveTemplates(data);
+            setTemplatesOCR(data);
+          }
+          
+          console.log('✅ Migração completa!');
         }
-        if (d) setDespesas(JSON.parse(d.value));
-        if (f) setFornecedores(JSON.parse(f.value));
-        if (de) setDadosEmpresa(JSON.parse(de.value));
-        if (ft) {
-          const faturasCarregadas = JSON.parse(ft.value);
-          // ✅ CONVERTER FATURAS ANTIGAS: tipo 'completa' → 'FT'
-          const faturasConvertidas = faturasCarregadas.map(f => {
-            if (f.tipo === 'completa') {
-              void 0;
-              return {...f, tipo: 'FT'};
-            }
-            return f;
-          });
-          setFaturas(faturasConvertidas);
-        }
-        // 🚫 vocabularioFornecedor removido - agora carrega via useEffect dedicado
-        // com localStorage direto para evitar competir com PDFs
-        if (templ) setTemplatesOCR(JSON.parse(templ.value)); // 📋 Restaurar templates
-        if (ultFat) setUltimaFaturaInserida(JSON.parse(ultFat.value)); // 🆕 Restaurar última fatura
         
-        // 🆕 Verificar espaço do localStorage
+        // ════════════════════════════════════════════════════════════
+        // 🧹 LIMPEZA: Remover dados desnecessários do localStorage
+        // ════════════════════════════════════════════════════════════
+        
+        const keysParaLimpar = [
+          'produtos',              // Carrega do Drive
+          'vendas',                // Carrega do Drive
+          'faturas',               // Carrega do Drive
+          'despesas',              // Carrega do Drive
+          'movimentacoesStock',    // 3.6 MB! Vai pro IndexedDB separado
+          'ingredientes',          // Agora no IndexedDB
+          'fornecedores',          // Agora no IndexedDB
+          'vocabularioFornecedor', // Agora no IndexedDB
+          'templatesOCR'           // Agora no IndexedDB
+        ];
+        
+        let espacoLiberado = 0;
+        keysParaLimpar.forEach(key => {
+          const item = localStorage.getItem(key);
+          if (item) {
+            espacoLiberado += item.length;
+            localStorage.removeItem(key);
+          }
+        });
+        
+        if (espacoLiberado > 0) {
+          console.log('🧹 localStorage limpo:', (espacoLiberado / 1024).toFixed(0), 'KB liberados');
+        }
+        
+        // ════════════════════════════════════════════════════════════
+        // 📊 VERIFICAR ESPAÇO FINAL
+        // ════════════════════════════════════════════════════════════
+        
         try {
           let totalSize = 0;
           for (let key in localStorage) {
@@ -9334,19 +9280,18 @@ void 0;
               totalSize += localStorage[key].length + key.length;
             }
           }
-          const sizeInMB = (totalSize / 1024 / 1024).toFixed(2);
-          const quotaUsed = (totalSize / (5 * 1024 * 1024) * 100).toFixed(1); // Assumir 5MB de quota
-          
-          console.log(`📊 LocalStorage: ${sizeInMB}MB usados (${quotaUsed}% da quota)`);
-          
-          // Avisar se estiver acima de 80%
-          if (quotaUsed > 80) {
-            console.warn(`⚠️ LocalStorage quase cheio! ${quotaUsed}% usado. O Google Drive é a fonte principal dos dados.`);
-          }
+          const sizeInKB = (totalSize / 1024).toFixed(1);
+          console.log(`💾 localStorage: ${sizeInKB} KB (só configs)`);
         } catch (e) {
-          console.warn('Não foi possível verificar espaço do localStorage:', e);
+          // Ignorar erro
         }
-      } catch (e) { void 0; }
+        
+        console.log('✅ APP PRONTO! Dados críticos carregados do IndexedDB');
+        console.log('ℹ️ Produtos/vendas/faturas carregam do Drive quando conectar');
+        
+      } catch (e) {
+        console.error('❌ Erro ao carregar dados:', e);
+      }
     };
     carregar();
   }, []);
@@ -11639,76 +11584,61 @@ void 0;
     }
   }, [produtos, ingredientes, vendas, despesas, fornecedores, dadosEmpresa, faturas, isSyncing]);
 
-  // Google Drive: Sincronização automática
-  useEffect(() => {
-    if (driveAccessToken) {
-      console.log('⏰ AUTO-SYNC AGENDADO em 3s devido a mudanças:', {
-        vocabularioCount: vocabularioFornecedor?.length || 0,
-        hasToken: !!driveAccessToken
-      });
-      const timeout = setTimeout(() => {
-        console.log('🔄 EXECUTANDO AUTO-SYNC AGORA');
-        saveToDrive();
-      }, 3000);
-      return () => {
-        console.log('🚫 AUTO-SYNC CANCELADO (nova mudança detectada)');
-        clearTimeout(timeout);
-      };
-    } else {
-      console.log('⚠️ AUTO-SYNC NÃO AGENDADO - sem token do Drive');
-    }
-  }, [produtos, ingredientes, vendas, faturas, fornecedores, vocabularioFornecedor, driveAccessToken]);
-
-  // 🧠 INDEXEDDB: Guardar vocabulário automaticamente
+  // ═══════════════════════════════════════════════════════════
+  // 💾 INDEXEDDB: Auto-save dos dados críticos
+  // ═══════════════════════════════════════════════════════════
+  
+  // Vocabulário
   useEffect(() => {
     if (vocabularioFornecedor && vocabularioFornecedor.length > 0) {
-      const saveVocab = async () => {
-        try {
-          await IndexedDBStorage.saveVocabulario(vocabularioFornecedor);
-          // Também guardar no Drive (dupla proteção)
-        } catch (e) {
-          console.error('⚠️ Erro ao guardar vocabulário no IndexedDB:', e);
-        }
+      const save = async () => {
+        await IndexedDBStorage.saveVocabulario(vocabularioFornecedor);
       };
-      
-      // Debounce: aguardar 1s antes de guardar
-      const timeout = setTimeout(saveVocab, 1000);
+      const timeout = setTimeout(save, 1000);
       return () => clearTimeout(timeout);
     }
   }, [vocabularioFornecedor]);
-
-  // 🧠 INDEXEDDB: Carregar vocabulário ao iniciar
+  
+  // Ingredientes
   useEffect(() => {
-    const loadVocab = async () => {
-      try {
-        const vocab = await IndexedDBStorage.loadVocabulario();
-        if (vocab && vocab.length > 0) {
-          setVocabularioFornecedor(vocab);
-        } else {
-          console.log('ℹ️ Nenhum vocabulário no IndexedDB (normal na 1ª vez)');
-          
-          // 🔄 Tentar migrar de localStorage antigo se existir
-          const oldKey = 'munchi_vocabulary_v2';
-          const oldVocab = localStorage.getItem(oldKey);
-          if (oldVocab) {
-            try {
-              const parsed = JSON.parse(oldVocab);
-              await IndexedDBStorage.saveVocabulario(parsed);
-              setVocabularioFornecedor(parsed);
-              localStorage.removeItem(oldKey); // Limpar após migração
-              console.log('✅ Migrado', parsed.length, 'produtos de localStorage → IndexedDB');
-            } catch (e) {
-              console.error('❌ Erro na migração:', e);
-            }
-          }
-        }
-      } catch (e) {
-        console.error('❌ Erro ao carregar vocabulário do IndexedDB:', e);
-      }
-    };
-    
-    loadVocab();
-  }, []); // Executar só uma vez ao montar
+    if (ingredientes && ingredientes.length > 0) {
+      const save = async () => {
+        await IndexedDBStorage.saveIngredientes(ingredientes);
+      };
+      const timeout = setTimeout(save, 2000);
+      return () => clearTimeout(timeout);
+    }
+  }, [ingredientes]);
+  
+  // Fornecedores
+  useEffect(() => {
+    if (fornecedores && fornecedores.length > 0) {
+      const save = async () => {
+        await IndexedDBStorage.saveFornecedores(fornecedores);
+      };
+      const timeout = setTimeout(save, 2000);
+      return () => clearTimeout(timeout);
+    }
+  }, [fornecedores]);
+  
+  // Templates OCR
+  useEffect(() => {
+    if (templatesOCR && templatesOCR.length > 0) {
+      const save = async () => {
+        await IndexedDBStorage.saveTemplates(templatesOCR);
+      };
+      const timeout = setTimeout(save, 2000);
+      return () => clearTimeout(timeout);
+    }
+  }, [templatesOCR]);
+
+  // Google Drive: Sincronização automática
+  useEffect(() => {
+    if (driveAccessToken) {
+      const timeout = setTimeout(() => saveToDrive(), 3000);
+      return () => clearTimeout(timeout);
+    }
+  }, [produtos, ingredientes, vendas, faturas, fornecedores, vocabularioFornecedor, driveAccessToken]);
 
   // Google Drive: Inicializar Google Identity Services
   useEffect(() => {
@@ -20186,15 +20116,25 @@ void 0;
                             </div>
                           )}
                           
-                          {/* Botão Sync - largura total */}
-                          <button
-                            onClick={saveToDrive}
-                            disabled={driveSyncing || !driveTokenValid}
-                            className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-3 py-2 rounded text-xs font-semibold flex items-center justify-center gap-1 transition mb-2"
-                          >
-                            <Upload size={12} />
-                            Sincronizar
-                          </button>
+                          <div className="grid grid-cols-2 gap-2 mb-2">
+                            <button
+                              onClick={saveToDrive}
+                              disabled={driveSyncing || !driveTokenValid}
+                              className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-3 py-2 rounded text-xs font-semibold flex items-center justify-center gap-1 transition"
+                            >
+                              <Upload size={12} />
+                              Sync
+                            </button>
+                            
+                            <button
+                              onClick={() => loadFromDrive()}
+                              disabled={driveSyncing || !driveTokenValid}
+                              className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white px-3 py-2 rounded text-xs font-semibold flex items-center justify-center gap-1 transition"
+                            >
+                              <Download size={12} />
+                              Carregar
+                            </button>
+                          </div>
                           
                           {/* 🆕 Botão Restaurar Backups Versionados */}
                           <button
@@ -20211,7 +20151,7 @@ void 0;
                             <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                               <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd"/>
                             </svg>
-                            Carregar Backup (Escolher Data)
+                            Restaurar Backup Anterior
                           </button>
                           
                           {/* ✅ Botão de Renovação de Token */}
