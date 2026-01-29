@@ -4162,22 +4162,7 @@ const RestauranteGestor = () => {
   const [searchTakeAway, setSearchTakeAway] = useState('');
   
   // 🆕 ESTADOS PARA O NOVO TAB DE COMPRAS
-  const [novaCompra, setNovaCompra] = useState({
-    numero: '',
-    data: new Date().toISOString().split('T')[0],
-    fornecedorId: '',
-    tipoDocumento: 'FT',
-    categoria: 'compras',
-    items: [],
-    observacoes: ''
-  });
-  const [itemCompra, setItemCompra] = useState({
-    ingrediente: '',
-    quantidade: '',
-    preco: '',
-    ingredienteId: ''
-  });
-  const [editandoCompra, setEditandoCompra] = useState(null);
+  const [faturaEditando, setFaturaEditando] = useState(null);
   const [searchIngredienteCompra, setSearchIngredienteCompra] = useState('');
   const [showDropdownIngredienteCompra, setShowDropdownIngredienteCompra] = useState(false);
   
@@ -4778,7 +4763,6 @@ const RestauranteGestor = () => {
   const [expandedFatura, setExpandedFatura] = useState(null);
   const [searchFatura, setSearchFatura] = useState(''); // ✅ SEARCH BOX FATURAS
   const [editandoFatura, setEditandoFatura] = useState(false);
-  const [faturaEditando, setFaturaEditando] = useState(null);
   const [modoFormulario, setModoFormulario] = useState('completo'); // 'completo' ou 'rapido'
   const [dadosEmpresaExpanded, setDadosEmpresaExpanded] = useState(false);
   const [configuracoesExpanded, setConfiguracoesExpanded] = useState(false);
@@ -11372,9 +11356,12 @@ void 0;
   
   const editarFatura = (fatura) => {
     setNovaFatura({
+      id: fatura.id, // ✅ ADICIONAR ID para poder atualizar
       numero: fatura.numero,
       data: fatura.data,
       fornecedorId: fatura.fornecedorId,
+      fornecedorNome: fatura.fornecedorNome, // ✅ ADICIONAR NOME FORNECEDOR
+      fornecedorNif: fatura.fornecedorNif, // ✅ ADICIONAR NIF FORNECEDOR
       itens: fatura.itens,
       notas: fatura.notas,
       categoria: fatura.categoria || 'compras', // ✅ PRESERVAR CATEGORIA
@@ -11384,7 +11371,10 @@ void 0;
       diaRecorrencia: fatura.diaRecorrencia || 1, // ✅ PRESERVAR DIA RECORRÊNCIA
       documentoPDF: fatura.documentoPDF || null, // ✅ PRESERVAR PDF
       nomeDocumento: fatura.nomeDocumento || '', // ✅ PRESERVAR NOME
-      totais: fatura.totais || null // ✅ PRESERVAR TOTAIS ESTRUTURADOS
+      totais: fatura.totais || null, // ✅ PRESERVAR TOTAIS ESTRUTURADOS
+      total: fatura.total || 0, // ✅ PRESERVAR TOTAL
+      subtotal: fatura.subtotal || 0, // ✅ PRESERVAR SUBTOTAL
+      totalIva: fatura.totalIva || 0 // ✅ PRESERVAR TOTAL IVA
     });
     setEditandoFatura(true);
     setFaturaEditando(fatura.id);
@@ -18075,57 +18065,98 @@ void 0;
               <div className="space-y-6">
                 
                 {/* Header com botão Guardar */}
-                <div className="bg-white rounded-xl shadow-lg p-5">
+                <div className={`rounded-xl shadow-lg p-5 ${faturaEditando ? 'bg-yellow-50 border-2 border-yellow-400' : 'bg-white'}`}>
                   <div className="flex items-center justify-between">
                     <div>
                       <h1 className="text-2xl font-bold text-gray-800">🛒 Gestão de Compras</h1>
-                      <p className="text-gray-500 text-sm">Nova fatura e visualização</p>
+                      <p className="text-gray-500 text-sm">{faturaEditando ? '✏️ Editar fatura' : '➕ Nova fatura'}</p>
                     </div>
-                    <button 
+                    <div className="flex items-center gap-3">
+                      {faturaEditando && (
+                        <button 
+                          onClick={() => {
+                            if (confirm('Cancelar edição? As alterações serão perdidas.')) {
+                              setNovaFatura({
+                                numero: '',
+                                tipoDocumento: 'fatura',
+                                data: new Date().toISOString().split('T')[0],
+                                fornecedorId: '',
+                                itens: [],
+                                notas: '',
+                                categoria: 'compras',
+                                recorrente: false,
+                                diaRecorrencia: 1,
+                                documentoPDF: null,
+                                nomeDocumento: ''
+                              });
+                              setItemFatura({
+                                ingredienteId: '',
+                                descricao: '',
+                                quantidade: '',
+                                unidade: '',
+                                precoTotal: '',
+                                iva: '13',
+                                num_funcionarios: 1
+                              });
+                              setFaturaEditando(null);
+                              setEditandoFatura(false);
+                            }
+                          }}
+                          className="px-6 py-3 bg-gray-500 hover:bg-gray-600 text-white rounded-lg transition font-semibold flex items-center gap-2"
+                        >
+                          <X className="w-5 h-5" />
+                          Cancelar
+                        </button>
+                      )}
+                      <button 
                       onClick={() => {
                         console.log('🔍 Botão Guardar clicado');
-                        console.log('novaCompra:', novaCompra);
+                        console.log('novaFatura:', novaFatura);
                         
-                        if (!novaCompra.fornecedorId || !novaCompra.numero || novaCompra.items.length === 0) {
+                        if (!novaFatura.fornecedorId || !novaFatura.numero || (novaFatura.itens || []).length === 0) {
                           alert('⚠️ Preencha fornecedor, número da fatura e adicione pelo menos um item!');
                           return;
                         }
                         
-                        const total = novaCompra.items.reduce((sum, item) => sum + (parseFloat(item.quantidade) * parseFloat(item.preco)), 0);
-                        const fornecedor = fornecedores.find(f => (f.id || f) === novaCompra.fornecedorId);
+                        const total = (novaFatura.itens || []).reduce((sum, item) => sum + parseFloat(item.precoTotal || 0), 0);
+                        const fornecedor = fornecedores.find(f => (f.id || f) === novaFatura.fornecedorId);
                         
                         const novaFaturaCompleta = {
-                          id: editandoCompra || Date.now(),
-                          numero: novaCompra.numero,
-                          data: novaCompra.data,
-                          fornecedorId: novaCompra.fornecedorId,
+                          id: faturaEditando || Date.now(),
+                          numero: novaFatura.numero,
+                          data: novaFatura.data,
+                          fornecedorId: novaFatura.fornecedorId,
                           fornecedorNome: fornecedor?.nome || fornecedor,
-                          tipo: novaCompra.tipoDocumento,
-                          categoria: novaCompra.categoria || 'compras',
-                          itens: novaCompra.items.map(item => ({
+                          tipo: novaFatura.tipoDocumento,
+                          categoria: novaFatura.categoria || 'compras',
+                          itens: (novaFatura.itens || []).map(item => ({
                             id: item.id,
                             ingredienteId: item.ingredienteId,
-                            descricao: item.ingrediente,
-                            quantidade: parseFloat(item.quantidade),
-                            precoTotal: parseFloat(item.preco) * parseFloat(item.quantidade),
-                            iva: 13
+                            ingredienteNome: item.descricao || item.ingredienteNome || '',
+                            descricao: item.descricao || item.ingredienteNome || '',
+                            quantidade: parseFloat(item.quantidade || 0),
+                            unidade: item.unidade || '',
+                            precoUnitario: parseFloat(item.precoUnitario || 0),
+                            precoTotal: parseFloat(item.precoTotal || 0),
+                            subtotal: parseFloat(item.subtotal || item.precoTotal || 0),
+                            iva: parseFloat(item.iva || 13)
                           })),
                           totais: {
                             subtotal: total,
                             total: total
                           },
                           total: total,
-                          notas: novaCompra.observacoes,
-                          documentoPDF: novaCompra.documentoPDF || null,
-                          nomeDocumento: novaCompra.nomeDocumento || '',
+                          notas: novaFatura.notas || '',
+                          documentoPDF: novaFatura.documentoPDF || null,
+                          nomeDocumento: novaFatura.nomeDocumento || '',
                           timestamp: new Date().toISOString()
                         };
                         
                         console.log('💾 A guardar fatura:', novaFaturaCompleta);
                         
-                        if (editandoCompra) {
+                        if (faturaEditando) {
                           // Atualizar fatura existente
-                          setFaturas(faturas.map(f => f.id === editandoCompra ? novaFaturaCompleta : f));
+                          setFaturas(faturas.map(f => f.id === faturaEditando ? novaFaturaCompleta : f));
                           showNotification('✅ Fatura atualizada!', 'success');
                         } else {
                           // Adicionar nova fatura
@@ -18134,23 +18165,42 @@ void 0;
                         }
                         
                         // Limpar formulário
-                        setNovaCompra({
+                        setNovaFatura({
                           numero: '',
+                          tipoDocumento: 'fatura',
                           data: new Date().toISOString().split('T')[0],
                           fornecedorId: '',
-                          tipoDocumento: 'FT',
+                          itens: [],
+                          notas: '',
                           categoria: 'compras',
-                          items: [],
-                          observacoes: ''
+                          recorrente: false,
+                          diaRecorrencia: 1,
+                          documentoPDF: null,
+                          nomeDocumento: ''
                         });
-                        setEditandoCompra(null);
+                        setItemFatura({
+                          ingredienteId: '',
+                          descricao: '',
+                          quantidade: '',
+                          unidade: '',
+                          precoTotal: '',
+                          iva: '13',
+                          num_funcionarios: 1
+                        });
+                        setFaturaEditando(null);
+                        setEditandoFatura(false);
                         triggerSync();
                       }}
-                      className="px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:shadow-lg transition font-semibold flex items-center gap-2"
+                      className={`px-6 py-3 text-white rounded-lg hover:shadow-lg transition font-semibold flex items-center gap-2 ${
+                        faturaEditando 
+                          ? 'bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600' 
+                          : 'bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700'
+                      }`}
                     >
                       <Check className="w-5 h-5" />
-                      Guardar
+                      {faturaEditando ? 'Atualizar' : 'Guardar'}
                     </button>
+                    </div>
                   </div>
                 </div>
 
@@ -18191,7 +18241,7 @@ void 0;
                                   <div
                                     key={ing.id}
                                     onClick={() => {
-                                      setItemCompra({
+                                      setItemFatura({
                                         ...itemCompra,
                                         ingrediente: ing.nome,
                                         ingredienteId: ing.id,
@@ -18222,22 +18272,22 @@ void 0;
                           <input 
                             type="number" 
                             placeholder="Qtd."
-                            value={itemCompra.quantidade}
-                            onChange={(e) => setItemCompra({...itemCompra, quantidade: e.target.value})}
+                            value={itemFatura.quantidade}
+                            onChange={(e) => setItemFatura({...itemCompra, quantidade: e.target.value})}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-sm"
                           />
                           <input 
                             type="number" 
                             placeholder="Preço €"
-                            value={itemCompra.preco}
-                            onChange={(e) => setItemCompra({...itemCompra, preco: e.target.value})}
+                            value={itemFatura.preco}
+                            onChange={(e) => setItemFatura({...itemCompra, preco: e.target.value})}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-sm"
                           />
                         </div>
                         
                         <button 
                           onClick={() => {
-                            if (!itemCompra.ingrediente || !itemCompra.quantidade || !itemCompra.preco) {
+                            if (!itemFatura.ingrediente || !itemFatura.quantidade || !itemFatura.preco) {
                               alert('⚠️ Preencha todos os campos!');
                               return;
                             }
@@ -18247,12 +18297,12 @@ void 0;
                               ...itemCompra
                             };
                             
-                            setNovaCompra({
+                            setNovaFatura({
                               ...novaCompra,
-                              items: [...novaCompra.items, novoItem]
+                              items: [...novaFatura.itens, novoItem]
                             });
                             
-                            setItemCompra({
+                            setItemFatura({
                               ingrediente: '',
                               quantidade: '',
                               preco: '',
@@ -18268,25 +18318,25 @@ void 0;
 
                       {/* Items List */}
                       <div className="border-t pt-3">
-                        {novaCompra.items.length === 0 ? (
+                        {novaFatura.itens.length === 0 ? (
                           <p className="text-center text-gray-400 text-xs py-6">
                             Nenhum item adicionado
                           </p>
                         ) : (
                           <div className="space-y-2">
-                            {novaCompra.items.map(item => (
+                            {novaFatura.itens.map(item => (
                               <div key={item.id} className="flex items-center justify-between bg-gray-50 p-2 rounded border">
                                 <div className="flex-1">
-                                  <p className="text-sm font-medium text-gray-800">{item.ingrediente}</p>
+                                  <p className="text-sm font-medium text-gray-800">{item.descricao || item.ingredienteNome || 'Item'}</p>
                                   <p className="text-xs text-gray-500">
-                                    {item.quantidade} x €{parseFloat(item.preco).toFixed(2)} = €{(parseFloat(item.quantidade) * parseFloat(item.preco)).toFixed(2)}
+                                    {item.quantidade} {item.unidade || ''} x €{parseFloat(item.precoUnitario || 0).toFixed(2)} = €{parseFloat(item.precoTotal || 0).toFixed(2)}
                                   </p>
                                 </div>
                                 <button
                                   onClick={() => {
-                                    setNovaCompra({
-                                      ...novaCompra,
-                                      items: novaCompra.items.filter(i => i.id !== item.id)
+                                    setNovaFatura({
+                                      ...novaFatura,
+                                      itens: novaFatura.itens.filter(i => i.id !== item.id)
                                     });
                                   }}
                                   className="text-red-600 hover:bg-red-50 p-1 rounded"
@@ -18303,24 +18353,26 @@ void 0;
                     {/* Resumo */}
                     <div className="bg-white rounded-xl shadow-lg p-5">
                       <h4 className="font-semibold text-gray-700 mb-3 text-sm">📊 Resumo</h4>
-                      <div className="space-y-2 text-sm">
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Items:</span>
-                          <span className="font-bold text-purple-600">{novaCompra.items.length}</span>
+                      {novaFatura.itens.length > 0 ? (
+                        <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
+                          <div className="flex justify-between text-sm mb-1">
+                            <span>Subtotal:</span>
+                            <span className="font-semibold">€{novaFatura.itens.reduce((s, i) => s + (parseFloat(i.subtotal || 0)), 0).toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between text-sm mb-1">
+                            <span>IVA Total:</span>
+                            <span className="font-semibold">€{novaFatura.itens.reduce((s, i) => s + ((parseFloat(i.subtotal || 0)) * (parseFloat(i.iva || 0)) / 100), 0).toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between text-base font-bold border-t border-blue-300 pt-2 mt-1">
+                            <span>Total c/ IVA:</span>
+                            <span className="text-blue-700">€{novaFatura.itens.reduce((s, i) => s + ((parseFloat(i.subtotal || 0)) * (1 + (parseFloat(i.iva || 0)) / 100)), 0).toFixed(2)}</span>
+                          </div>
                         </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Subtotal:</span>
-                          <span className="font-bold">
-                            €{novaCompra.items.reduce((sum, item) => sum + (parseFloat(item.quantidade) * parseFloat(item.preco)), 0).toFixed(2)}
-                          </span>
+                      ) : (
+                        <div className="text-center text-gray-500 text-sm py-4 bg-gray-50 rounded-lg border border-dashed border-gray-300">
+                          Nenhum item adicionado
                         </div>
-                        <div className="flex justify-between pt-2 border-t">
-                          <span className="text-gray-800 font-semibold">Total:</span>
-                          <span className="font-bold text-lg text-green-600">
-                            €{novaCompra.items.reduce((sum, item) => sum + (parseFloat(item.quantidade) * parseFloat(item.preco)), 0).toFixed(2)}
-                          </span>
-                        </div>
-                      </div>
+                      )}
                     </div>
                   </div>
 
@@ -18338,8 +18390,8 @@ void 0;
                             Fornecedor <span className="text-red-500">*</span>
                           </label>
                           <select 
-                            value={novaCompra.fornecedorId}
-                            onChange={(e) => setNovaCompra({...novaCompra, fornecedorId: e.target.value})}
+                            value={novaFatura.fornecedorId}
+                            onChange={(e) => setNovaFatura({...novaCompra, fornecedorId: e.target.value})}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 text-sm"
                           >
                             <option value="">Selecionar fornecedor...</option>
@@ -18359,8 +18411,8 @@ void 0;
                             <input 
                               type="text" 
                               placeholder="FT 2025/001"
-                              value={novaCompra.numero}
-                              onChange={(e) => setNovaCompra({...novaCompra, numero: e.target.value})}
+                              value={novaFatura.numero}
+                              onChange={(e) => setNovaFatura({...novaCompra, numero: e.target.value})}
                               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 text-sm"
                             />
                           </div>
@@ -18371,8 +18423,8 @@ void 0;
                             </label>
                             <input 
                               type="date" 
-                              value={novaCompra.data}
-                              onChange={(e) => setNovaCompra({...novaCompra, data: e.target.value})}
+                              value={novaFatura.data}
+                              onChange={(e) => setNovaFatura({...novaCompra, data: e.target.value})}
                               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 text-sm"
                             />
                           </div>
@@ -18383,8 +18435,8 @@ void 0;
                             Tipo Documento
                           </label>
                           <select 
-                            value={novaCompra.tipoDocumento}
-                            onChange={(e) => setNovaCompra({...novaCompra, tipoDocumento: e.target.value})}
+                            value={novaFatura.tipoDocumento}
+                            onChange={(e) => setNovaFatura({...novaCompra, tipoDocumento: e.target.value})}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 text-sm"
                           >
                             <option value="FT">FT - Fatura</option>
@@ -18402,8 +18454,8 @@ void 0;
                           </label>
                           <textarea 
                             placeholder="Notas adicionais..."
-                            value={novaCompra.observacoes}
-                            onChange={(e) => setNovaCompra({...novaCompra, observacoes: e.target.value})}
+                            value={novaFatura.observacoes}
+                            onChange={(e) => setNovaFatura({...novaCompra, observacoes: e.target.value})}
                             rows="3"
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 text-sm resize-none"
                           />
@@ -18696,10 +18748,7 @@ void 0;
                                     <button
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        setFaturaEditando(fatura.id);
-                                        setEditandoFatura(true);
-                                        setNovaFatura(fatura);
-                                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                                        editarFatura(fatura);
                                       }}
                                       className="text-yellow-600 hover:text-yellow-800 hover:bg-yellow-50 p-2 rounded transition"
                                       title="Editar"
