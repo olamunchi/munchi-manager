@@ -158,24 +158,40 @@ const IndexedDBStorage = {
   // VOCABULÁRIO: Sistema de aprendizagem OCR
   async saveVocabulario(data) {
     try {
-      if (!data || data.length === 0) return true;
+      if (!data || !Array.isArray(data) || data.length === 0) return true;
       
-      // Garantir que todos têm ID (criar se não tiver)
-      const comIds = data.map((item, index) => {
-        if (item && item.id) return item;
-        // Criar ID se faltar (não deveria acontecer, mas é fallback)
-        return {
-          ...item,
-          id: `vocab_fallback_${Date.now()}_${index}`
-        };
-      });
+      // Validar e limpar dados
+      const validos = data
+        .filter(item => item && typeof item === 'object') // Filtrar nulls/undefined
+        .map((item, index) => {
+          // Garantir estrutura correta com todos os campos necessários
+          return {
+            id: item.id || `vocab_fallback_${Date.now()}_${index}`,
+            fornecedorNIF: String(item.fornecedorNIF || ''),
+            textoOriginal: String(item.textoOriginal || ''),
+            textoNormalizado: String(item.textoNormalizado || ''),
+            ingredienteId: String(item.ingredienteId || ''),
+            confirmacoes: Number(item.confirmacoes) || 0,
+            correcoes: Number(item.correcoes) || 0,
+            ultimaConfirmacao: item.ultimaConfirmacao || new Date().toISOString(),
+            ultimaQuantidade: item.ultimaQuantidade,
+            ultimaUnidade: item.ultimaUnidade,
+            ultimoPreco: item.ultimoPreco
+          };
+        });
+      
+      if (validos.length === 0) {
+        console.log('ℹ️ Nenhum vocabulário válido para guardar');
+        return true;
+      }
       
       await db.vocabulario.clear();
-      await db.vocabulario.bulkPut(comIds);
-      console.log('💾 Vocabulário → IndexedDB:', comIds.length, 'entradas');
+      await db.vocabulario.bulkPut(validos);
+      console.log('💾 Vocabulário → IndexedDB:', validos.length, 'entradas');
       return true;
     } catch (e) {
       console.error('❌ Erro ao guardar vocabulário:', e);
+      console.error('Stack:', e.stack);
       console.log('Amostra:', data?.[0]);
       return false;
     }
@@ -195,24 +211,35 @@ const IndexedDBStorage = {
   // INGREDIENTES: Necessários para dropdown em faturas
   async saveIngredientes(data) {
     try {
-      if (!data || data.length === 0) return true;
+      if (!data || !Array.isArray(data) || data.length === 0) return true;
       
-      // Garantir que todos têm ID (criar se não tiver)
-      const comIds = data.map((item, index) => {
-        if (item && item.id) return item;
-        // Criar ID se faltar (não deveria acontecer, mas é fallback)
-        return {
-          ...item,
-          id: `ing_fallback_${Date.now()}_${index}`
-        };
-      });
+      // Validar e limpar dados
+      const validos = data
+        .filter(item => item && typeof item === 'object' && item.nome) // Filtrar inválidos
+        .map((item, index) => {
+          // Garantir estrutura correta
+          return {
+            id: item.id || `ing_fallback_${Date.now()}_${index}`,
+            nome: String(item.nome),
+            categoria: String(item.categoria || 'Outros'),
+            unidade: item.unidade || 'un',
+            precoMedio: Number(item.precoMedio) || 0,
+            fornecedorPrincipal: item.fornecedorPrincipal || null
+          };
+        });
+      
+      if (validos.length === 0) {
+        console.log('ℹ️ Nenhum ingrediente válido para guardar');
+        return true;
+      }
       
       await db.ingredientes.clear();
-      await db.ingredientes.bulkPut(comIds);
-      console.log('💾 Ingredientes → IndexedDB:', comIds.length);
+      await db.ingredientes.bulkPut(validos);
+      console.log('💾 Ingredientes → IndexedDB:', validos.length);
       return true;
     } catch (e) {
       console.error('❌ Erro ao guardar ingredientes:', e);
+      console.error('Stack:', e.stack);
       console.log('Amostra:', data?.[0]);
       return false;
     }
@@ -232,24 +259,35 @@ const IndexedDBStorage = {
   // FORNECEDORES: Necessários para dropdown em faturas
   async saveFornecedores(data) {
     try {
-      if (!data || data.length === 0) return true;
+      if (!data || !Array.isArray(data) || data.length === 0) return true;
       
-      // Garantir que todos têm ID (criar se não tiver)
-      const comIds = data.map((item, index) => {
-        if (item && item.id) return item;
-        // Criar ID se faltar (não deveria acontecer, mas é fallback)
-        return {
-          ...item,
-          id: `forn_fallback_${Date.now()}_${index}`
-        };
-      });
+      // Validar e limpar dados
+      const validos = data
+        .filter(item => item && typeof item === 'object' && (item.nome || item.nif)) // Filtrar inválidos
+        .map((item, index) => {
+          // Garantir estrutura correta
+          return {
+            id: item.id || `forn_fallback_${Date.now()}_${index}`,
+            nome: String(item.nome || 'Fornecedor'),
+            nif: String(item.nif || ''),
+            morada: String(item.morada || ''),
+            telefone: String(item.telefone || ''),
+            email: String(item.email || '')
+          };
+        });
+      
+      if (validos.length === 0) {
+        console.log('ℹ️ Nenhum fornecedor válido para guardar');
+        return true;
+      }
       
       await db.fornecedores.clear();
-      await db.fornecedores.bulkPut(comIds);
-      console.log('💾 Fornecedores → IndexedDB:', comIds.length);
+      await db.fornecedores.bulkPut(validos);
+      console.log('💾 Fornecedores → IndexedDB:', validos.length);
       return true;
     } catch (e) {
       console.error('❌ Erro ao guardar fornecedores:', e);
+      console.error('Stack:', e.stack);
       console.log('Amostra:', data?.[0]);
       return false;
     }
@@ -269,14 +307,25 @@ const IndexedDBStorage = {
   // TEMPLATES OCR: Necessários para extrair dados de PDFs
   async saveTemplates(data) {
     try {
-      if (!data || data.length === 0) return true;
+      if (!data || !Array.isArray(data) || data.length === 0) return true;
       
       // Templates usam nifFornecedor como identificador único
-      // Filtrar apenas templates válidos (com nifFornecedor)
-      const validos = data.filter(t => t && t.nifFornecedor);
+      // Validar e limpar dados
+      const validos = data
+        .filter(t => t && typeof t === 'object' && t.nifFornecedor) // Filtrar inválidos
+        .map(t => {
+          // Garantir estrutura correta
+          return {
+            nifFornecedor: String(t.nifFornecedor),
+            linhaInicio: Number(t.linhaInicio) || 0,
+            linhaFim: Number(t.linhaFim) || 0,
+            padroes: t.padroes || {},
+            ultimaAtualizacao: t.ultimaAtualizacao || new Date().toISOString()
+          };
+        });
       
       if (validos.length === 0) {
-        console.log('ℹ️ Nenhum template para guardar');
+        console.log('ℹ️ Nenhum template válido para guardar');
         return true;
       }
       
@@ -286,6 +335,7 @@ const IndexedDBStorage = {
       return true;
     } catch (e) {
       console.error('❌ Erro ao guardar templates:', e);
+      console.error('Stack:', e.stack);
       console.log('Amostra:', data?.[0]);
       return false;
     }
@@ -9166,18 +9216,70 @@ void 0;
           }
         }
         
-        // ✅ TEMPLATES OCR: Carregar
+        // ✅ TEMPLATES OCR: MERGE inteligente (não replace!)
         if (data.templatesOCR && data.templatesOCR.length > 0) {
-          setTemplatesOCR(data.templatesOCR);
+          // 🆕 MERGE: Combinar templates do Drive com os locais
+          // Usar Map com nifFornecedor como chave (identificador único)
+          const templateMap = new Map();
+          
+          // 1. Adicionar templates locais primeiro (têm prioridade)
+          templatesOCR.forEach(t => {
+            if (t && t.nifFornecedor) templateMap.set(t.nifFornecedor, t);
+          });
+          
+          // 2. Adicionar templates do Drive (só se não existir)
+          data.templatesOCR.forEach(t => {
+            if (t && t.nifFornecedor && !templateMap.has(t.nifFornecedor)) {
+              templateMap.set(t.nifFornecedor, t);
+            }
+          });
+          
+          // 3. Converter Map para Array e ordenar por data de atualização
+          const merged = Array.from(templateMap.values())
+            .sort((a, b) => {
+              const dateA = new Date(a.ultimaAtualizacao || 0);
+              const dateB = new Date(b.ultimaAtualizacao || 0);
+              return dateB - dateA; // Mais recentes primeiro
+            });
+          
+          console.log(`🔄 Templates OCR MERGE: ${templatesOCR.length} local + ${data.templatesOCR.length} Drive = ${merged.length} total`);
+          
+          setTemplatesOCR(merged);
           // Guardar também no IndexedDB
-          await IndexedDBStorage.saveTemplates(data.templatesOCR);
+          await IndexedDBStorage.saveTemplates(merged);
         }
         
-        // 🧠 VOCABULÁRIO DE APRENDIZAGEM: Carregar
+        // 🧠 VOCABULÁRIO DE APRENDIZAGEM: MERGE inteligente (não replace!)
         if (data.vocabularioFornecedor && data.vocabularioFornecedor.length > 0) {
-          setVocabularioFornecedor(data.vocabularioFornecedor);
+          // 🆕 MERGE: Combinar vocabulário do Drive com o local
+          // Usar Map para garantir IDs únicos
+          const vocabMap = new Map();
+          
+          // 1. Adicionar vocabulário local primeiro (tem prioridade)
+          vocabularioFornecedor.forEach(v => {
+            if (v && v.id) vocabMap.set(v.id, v);
+          });
+          
+          // 2. Adicionar vocabulário do Drive (só se não existir)
+          data.vocabularioFornecedor.forEach(v => {
+            if (v && v.id && !vocabMap.has(v.id)) {
+              vocabMap.set(v.id, v);
+            }
+          });
+          
+          // 3. Converter Map para Array e ordenar por data
+          const merged = Array.from(vocabMap.values())
+            .sort((a, b) => {
+              const dateA = new Date(a.ultimaConfirmacao || 0);
+              const dateB = new Date(b.ultimaConfirmacao || 0);
+              return dateB - dateA; // Mais recentes primeiro
+            });
+          
+          console.log(`🔄 Vocabulário MERGE: ${vocabularioFornecedor.length} local + ${data.vocabularioFornecedor.length} Drive = ${merged.length} total`);
+          
+          setVocabularioFornecedor(merged);
           // Guardar também no IndexedDB
-          await IndexedDBStorage.saveVocabulario(data.vocabularioFornecedor);
+          await IndexedDBStorage.saveVocabulario(merged);
         }
         
         // 💾 INGREDIENTES & FORNECEDORES: Guardar no IndexedDB também
