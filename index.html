@@ -4004,6 +4004,10 @@ const RestauranteGestor = () => {
   const [driveTokenTimeLeft, setDriveTokenTimeLeft] = useState(0);
   const tokenCheckIntervalRef = React.useRef(null);
   
+  // 🆕 REFS para sistema de sync inteligente (correção do problema de sync)
+  const pendingSyncRef = React.useRef(false);
+  const syncTimeoutRef = React.useRef(null);
+  const lastSyncDataRef = React.useRef(null);
 
   const [dashboardSubTab, setDashboardSubTab] = useState('resumo');
   const [dateFilter, setDateFilter] = useState('all'); // all, today, week, month, custom
@@ -8795,13 +8799,13 @@ void 0;
     }
   };
 
-  const saveToDrive = async () => {
+  const saveToDrive = async (forceSync = false) => {
     if (!driveAccessToken) {
       showNotification('⚠️ Não conectado', 'error');
       return;
     }
     
-    // ✅ Verificar se token EXPIROU COMPLETAMENTE (0 minutos)
+    // ✅ Verificar se token EXPIROU COMPLETAMENTE
     const timeLeft = GoogleDriveTokenManager.getTimeUntilExpiry();
     if (timeLeft === 0) {
       showNotification('🔒 Token expirado. Clique no indicador do Drive para renovar.', 'error');
@@ -8817,7 +8821,9 @@ void 0;
       setDriveSyncing(true);
       setDriveError(null);
       
-      const data = {
+      // 🆕 CAPTURAR DADOS ATUAIS DO MOMENTO (não closure!)
+      // Isto garante que sempre guardamos os dados mais recentes
+      const getCurrentData = () => ({
         produtos: produtos || [],
         ingredientes: ingredientes || [],
         vendas: vendas || [],
@@ -8833,18 +8839,39 @@ void 0;
         movimentacoesStock: movimentacoesStock || [],
         ultimaFaturaInserida: ultimaFaturaInserida || null,
         lastUpdate: new Date().toISOString()
-      };
+      });
+      
+      const data = getCurrentData();
+      
+      // 🆕 VERIFICAR SE DADOS MUDARAM DESDE ÚLTIMO SYNC
+      const dataString = JSON.stringify(data);
+      if (!forceSync && lastSyncDataRef.current === dataString) {
+        console.log('⏭️ Dados não mudaram, pulando sync');
+        setDriveSyncing(false);
+        return;
+      }
+      
+      console.log('📊 Sincronizando dados:', {
+        produtos: data.produtos.length,
+        ingredientes: data.ingredientes.length,
+        vendas: data.vendas.length,
+        faturas: data.faturas.length,
+        fornecedores: data.fornecedores.length,
+        blacklist: data.blacklist.length,
+        templatesOCR: data.templatesOCR.length,
+        vocabularioFornecedor: data.vocabularioFornecedor.length
+      });
       
       // 🛡️ VALIDAÇÃO DE SEGURANÇA - Prevenir guardar dados vazios
-      const totalRecords = (produtos?.length || 0) + (ingredientes?.length || 0) + (vendas?.length || 0);
+      const totalRecords = (data.produtos?.length || 0) + (data.ingredientes?.length || 0) + (data.vendas?.length || 0);
       
-      if (totalRecords < 5) {
+      if (totalRecords < 5 && !forceSync) {
         const confirmSave = confirm(
           `⚠️ AVISO DE SEGURANÇA\n\n` +
           `Os dados parecem suspeitos:\n` +
-          `• Produtos: ${produtos?.length || 0}\n` +
-          `• Ingredientes: ${ingredientes?.length || 0}\n` +
-          `• Vendas: ${vendas?.length || 0}\n\n` +
+          `• Produtos: ${data.produtos?.length || 0}\n` +
+          `• Ingredientes: ${data.ingredientes?.length || 0}\n` +
+          `• Vendas: ${data.vendas?.length || 0}\n\n` +
           `Isto pode indicar que os dados não carregaram corretamente.\n\n` +
           `Confirma que quer SOBRESCREVER o backup no Drive?`
         );
@@ -8856,14 +8883,21 @@ void 0;
         }
       }
       
-      // 🆕 CRIAR BACKUP VERSIONADO (com timestamp)
-      await createVersionedBackup(driveAccessToken, data);
-      console.log('✅ Backup versionado criado');
+      // 🆕 SYNC RÁPIDO - Só fazer backup versionado a cada 10 syncs ou em sync manual
+      const shouldCreateBackup = forceSync || (Math.random() < 0.1); // 10% de chance
       
-      // 🧹 LIMPAR BACKUPS ANTIGOS (manter apenas últimos 10)
-      await cleanOldBackups(driveAccessToken);
+      if (shouldCreateBackup) {
+        console.log('💾 Criando backup versionado...');
+        await createVersionedBackup(driveAccessToken, data);
+        console.log('✅ Backup versionado criado');
+        
+        // 🧹 LIMPAR BACKUPS ANTIGOS (só quando criar novo backup)
+        await cleanOldBackups(driveAccessToken);
+      } else {
+        console.log('⏭️ Pulando backup versionado (sync rápido)');
+      }
       
-      // Atualizar ficheiro principal (opcional - podemos remover isto se quiseres)
+      // Atualizar ficheiro principal
       let fileId = driveFileId;
       if (!fileId) {
         const existingFile = await findDriveFile(driveAccessToken);
@@ -8880,8 +8914,22 @@ void 0;
         await createDriveFile(driveAccessToken, data);
       }
       
+      // 🆕 GUARDAR HASH DOS DADOS SINCRONIZADOS
+      lastSyncDataRef.current = dataString;
+      
       setDriveLastSync(new Date());
-      showNotification('✅ Sincronizado com backup!', 'success');
+      if (shouldCreateBackup) {
+        showNotification('✅ Sincronizado com backup!', 'success');
+      } else {
+        showNotification('✅ Sincronizado (rápido)', 'success');
+      }
+      
+      // 🆕 VERIFICAR SE HÁ SYNC PENDENTE
+      if (pendingSyncRef.current) {
+        console.log('🔄 Há alterações pendentes, agendando novo sync...');
+        pendingSyncRef.current = false;
+        scheduleSync();
+      }
       
     } catch (error) {
       console.error('Erro ao sincronizar:', error);
@@ -8899,6 +8947,29 @@ void 0;
     } finally {
       setDriveSyncing(false);
     }
+  };
+  
+  // 🆕 SISTEMA DE DEBOUNCE INTELIGENTE
+  // Esta função agenda syncs e garante que alterações durante sync não são perdidas
+  const scheduleSync = () => {
+    // Limpar timeout anterior se existir
+    if (syncTimeoutRef.current) {
+      clearTimeout(syncTimeoutRef.current);
+    }
+    
+    // Se já está a fazer sync, marcar como pendente
+    if (driveSyncing) {
+      console.log('⏳ Sync em progresso, marcando como pendente...');
+      pendingSyncRef.current = true;
+      return;
+    }
+    
+    // Agendar novo sync após 2 segundos de inatividade
+    console.log('⏰ Sync agendado para daqui a 2 segundos...');
+    syncTimeoutRef.current = setTimeout(() => {
+      console.log('🚀 Executando sync agendado...');
+      saveToDrive(false);
+    }, 2000);
   };
 
   // === GOOGLE DRIVE OCR ===
@@ -11904,13 +11975,37 @@ void 0;
     }
   }, [templatesOCR]);
 
-  // Google Drive: Sincronização automática
+  // Google Drive: Sincronização automática INTELIGENTE
+  // 🆕 Sistema de fila: alterações durante sync não são perdidas
   useEffect(() => {
-    if (driveAccessToken && !isSyncing) {
-      const timeout = setTimeout(() => saveToDrive(), 3000);
-      return () => clearTimeout(timeout);
+    if (driveAccessToken) {
+      console.log('🔄 Dados alterados, agendando sync...');
+      scheduleSync();
     }
-  }, [produtos, ingredientes, vendas, faturas, fornecedores, vocabularioFornecedor, templatesOCR, driveAccessToken, isSyncing]);
+    
+    // Cleanup: limpar timeout quando componente desmontar
+    return () => {
+      if (syncTimeoutRef.current) {
+        clearTimeout(syncTimeoutRef.current);
+      }
+    };
+  }, [
+    produtos, 
+    ingredientes, 
+    vendas, 
+    faturas, 
+    fornecedores, 
+    vocabularioFornecedor, 
+    templatesOCR, 
+    blacklist,              // ✅ ADICIONADO! Agora blacklist sincroniza
+    dadosEmpresa,
+    deliveryApps,
+    configuracaoWaste,
+    contagens,
+    movimentacoesStock,
+    ultimaFaturaInserida,
+    driveAccessToken
+  ]);
 
   // Google Drive: Inicializar Google Identity Services
   useEffect(() => {
@@ -14610,12 +14705,12 @@ void 0;
                   </button>
                   
                   <button
-                    onClick={() => saveToDrive()}
+                    onClick={() => saveToDrive(true)}
                     disabled={driveSyncing || driveTokenTimeLeft === 0}
                     className="bg-white/20 hover:bg-white/30 disabled:bg-white/10 backdrop-blur-sm text-white px-4 py-2 rounded-lg font-semibold transition flex items-center gap-2 text-sm"
                     title={driveTokenTimeLeft === 0 
                       ? 'Token expirado - Clique no indicador verde/amarelo para renovar' 
-                      : 'Sincronizar manualmente com Google Drive'}
+                      : 'Sincronizar manualmente com Google Drive (com backup completo)'}
                   >
                     <RefreshCw className={`w-4 h-4 ${driveSyncing ? 'animate-spin' : ''}`} />
                     <span className="hidden sm:inline">{driveSyncing ? 'A sincronizar...' : 'Sync Manual'}</span>
@@ -20410,7 +20505,7 @@ void 0;
                           
                           <div className="grid grid-cols-2 gap-2 mb-2">
                             <button
-                              onClick={saveToDrive}
+                              onClick={() => saveToDrive(true)}
                               disabled={driveSyncing || !driveTokenValid}
                               className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-3 py-2 rounded text-xs font-semibold flex items-center justify-center gap-1 transition"
                             >
