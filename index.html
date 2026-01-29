@@ -12207,6 +12207,98 @@ void 0;
     return { custo: c, margem: m, margemPercentual: mp, precoSemIva: ps };
   };
   
+  // 🆕 CALCULAR PREÇO DE VENDA SUGERIDO baseado em dados do sistema
+  const calcPrecoSugerido = (produto) => {
+    const custo = calcCusto(produto);
+    if (custo === 0 || !produto.receita || produto.receita.length === 0) return null;
+    
+    // 1. Verificar se temos vendas históricas para este produto
+    const vendasProduto = vendas.filter(v => v.produtoId === produto.id || v.produto === produto.nome);
+    
+    // 2. Calcular margem média praticada se tivermos histórico (últimos 30 dias)
+    let margemMediaPraticada = null;
+    const treintaDiasAtras = new Date();
+    treintaDiasAtras.setDate(treintaDiasAtras.getDate() - 30);
+    
+    const vendasRecentes = vendasProduto.filter(v => new Date(v.data) >= treintaDiasAtras);
+    
+    if (vendasRecentes.length >= 5) { // Mínimo de 5 vendas para considerar histórico
+      const margensHistoricas = vendasRecentes.map(v => {
+        const precoVenda = v.valor / v.quantidade;
+        const precoSemIva = precoVenda / (1 + produto.iva / 100);
+        const margemPerc = ((precoSemIva - custo) / precoSemIva) * 100;
+        return margemPerc;
+      }).filter(m => m > 0 && m < 100); // Filtrar valores válidos
+      
+      if (margensHistoricas.length > 0) {
+        margemMediaPraticada = margensHistoricas.reduce((a, b) => a + b, 0) / margensHistoricas.length;
+      }
+    }
+    
+    // 3. Determinar margem alvo baseada na categoria, histórico e configurações
+    let margemAlvo;
+    const margemMinima = configuracoes?.alertas?.margemCritica || 55;
+    const margemBoa = configuracoes?.alertas?.margemBaixa || 70;
+    
+    if (margemMediaPraticada !== null && margemMediaPraticada >= margemMinima) {
+      // Se temos histórico bom, usar a média praticada
+      margemAlvo = margemMediaPraticada;
+    } else {
+      // Se não, usar margem baseada na categoria
+      switch(produto.categoria) {
+        case 'cafes':
+          margemAlvo = 85; // Cafés têm margem alta
+          break;
+        case 'bebidas':
+          margemAlvo = 75; // Bebidas têm boa margem
+          break;
+        case 'sobremesas':
+          margemAlvo = 70; // Sobremesas margem razoável
+          break;
+        case 'pratos':
+          margemAlvo = 65; // Pratos margem mais baixa (mais custo)
+          break;
+        case 'takeaway':
+          margemAlvo = 60; // Take-away com custos de embalagem
+          break;
+        case 'lanches':
+          margemAlvo = 68;
+          break;
+        default:
+          margemAlvo = margemBoa; // Margem padrão configurada
+      }
+    }
+    
+    // 4. Calcular preço sugerido
+    // Margem% = (PreçoSemIVA - Custo) / PreçoSemIVA
+    // PreçoSemIVA = Custo / (1 - Margem%)
+    const precoSemIvaSugerido = custo / (1 - margemAlvo / 100);
+    const precoComIvaSugerido = precoSemIvaSugerido * (1 + produto.iva / 100);
+    
+    // 5. Arredondar para .50 ou .00 (psicologia de preços)
+    const precoArredondado = Math.ceil(precoComIvaSugerido * 2) / 2;
+    
+    // 6. Recalcular margem real com o preço arredondado
+    const precoFinalSemIva = precoArredondado / (1 + produto.iva / 100);
+    const margemFinal = ((precoFinalSemIva - custo) / precoFinalSemIva) * 100;
+    
+    // 7. Verificar se a diferença é significativa (> 5%)
+    const diferencaPercentual = ((precoArredondado - produto.precoVenda) / produto.precoVenda) * 100;
+    const diferenciSignificativa = Math.abs(diferencaPercentual) > 5;
+    
+    return {
+      precoSugerido: precoArredondado,
+      margemAlvo: margemAlvo,
+      margemReal: margemFinal,
+      precoAtual: produto.precoVenda,
+      diferencaPreco: precoArredondado - produto.precoVenda,
+      diferencaPercentual: diferencaPercentual,
+      baseadoEmHistorico: margemMediaPraticada !== null,
+      numeroVendas: vendasRecentes.length,
+      diferenciSignificativa: diferenciSignificativa
+    };
+  };
+  
   // Calcular custos e preços por modalidade (Local, Take-Away, Delivery)
   const calcPrecosPorModalidade = (produto) => {
     const custoIngredientes = calcCusto(produto);
@@ -18259,6 +18351,26 @@ void 0;
                                 📦 Take-Away
                               </span>
                             )}
+                            {/* 🆕 BADGE SUGESTÃO DE PREÇO COMPACTO */}
+                            {(() => {
+                              const sugestao = calcPrecoSugerido(p);
+                              if (!sugestao || !sugestao.diferenciSignificativa) return null;
+                              
+                              const precoMaiorQueAtual = sugestao.precoSugerido > p.precoVenda;
+                              const corFundo = precoMaiorQueAtual ? 'bg-blue-50' : 'bg-green-50';
+                              const corTexto = precoMaiorQueAtual ? 'text-blue-700' : 'text-green-700';
+                              const corBorda = precoMaiorQueAtual ? 'border-blue-300' : 'border-green-300';
+                              const icone = precoMaiorQueAtual ? '📈' : '📉';
+                              
+                              return (
+                                <span 
+                                  className={`px-2 py-0.5 ${corFundo} ${corTexto} rounded text-xs font-semibold border ${corBorda} cursor-help`}
+                                  title={`Sugestão: €${sugestao.precoSugerido.toFixed(2)} (margem ${sugestao.margemReal.toFixed(0)}%)${sugestao.baseadoEmHistorico ? ` - Baseado em ${sugestao.numeroVendas} vendas recentes` : ` - Baseado na categoria ${p.categoria}`}`}
+                                >
+                                  {icone} €{sugestao.precoSugerido.toFixed(2)}{sugestao.baseadoEmHistorico ? '📊' : ''}
+                                </span>
+                              );
+                            })()}
                           </div>
                           
                           {/* Métricas financeiras - Grid 3 colunas */}
