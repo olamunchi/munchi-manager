@@ -6718,34 +6718,36 @@ void 0;
     );
     
     if (indexExistente >= 0) {
-      // Atualizar existente
-      const atualizado = [...vocabularioFornecedor];
-      if (foiCorrecao) {
-        atualizado[indexExistente].correcoes = (atualizado[indexExistente].correcoes || 0) + 1;
-        console.log(`✏️ CORREÇÃO registada (total: ${atualizado[indexExistente].correcoes})`);
-      } else {
-        atualizado[indexExistente].confirmacoes = (atualizado[indexExistente].confirmacoes || 0) + 1;
-        console.log(`✅ CONFIRMAÇÃO registada (total: ${atualizado[indexExistente].confirmacoes})`);
-      }
-      atualizado[indexExistente].ultimaConfirmacao = new Date().toISOString();
-      
-      // 🆕 Atualizar últimos valores usados (para sugestão futura)
-      if (dadosLinha.quantidade !== undefined) {
-        atualizado[indexExistente].ultimaQuantidade = dadosLinha.quantidade;
-      }
-      if (dadosLinha.unidade) {
-        atualizado[indexExistente].ultimaUnidade = dadosLinha.unidade;
-      }
-      if (dadosLinha.preco !== undefined) {
-        atualizado[indexExistente].ultimoPreco = dadosLinha.preco;
-      }
-      
-      setVocabularioFornecedor(atualizado);
-      console.log(`📊 Vocabulário atualizado: ${atualizado.length} entradas`);
+      // Atualizar existente - usar função callback para garantir valor atual
+      setVocabularioFornecedor(prev => {
+        const atualizado = [...prev];
+        if (foiCorrecao) {
+          atualizado[indexExistente].correcoes = (atualizado[indexExistente].correcoes || 0) + 1;
+          console.log(`✏️ CORREÇÃO registada (total: ${atualizado[indexExistente].correcoes})`);
+        } else {
+          atualizado[indexExistente].confirmacoes = (atualizado[indexExistente].confirmacoes || 0) + 1;
+          console.log(`✅ CONFIRMAÇÃO registada (total: ${atualizado[indexExistente].confirmacoes})`);
+        }
+        atualizado[indexExistente].ultimaConfirmacao = new Date().toISOString();
+        
+        // 🆕 Atualizar últimos valores usados (para sugestão futura)
+        if (dadosLinha.quantidade !== undefined) {
+          atualizado[indexExistente].ultimaQuantidade = dadosLinha.quantidade;
+        }
+        if (dadosLinha.unidade) {
+          atualizado[indexExistente].ultimaUnidade = dadosLinha.unidade;
+        }
+        if (dadosLinha.preco !== undefined) {
+          atualizado[indexExistente].ultimoPreco = dadosLinha.preco;
+        }
+        
+        console.log(`📊 Vocabulário atualizado: ${atualizado.length} entradas`);
+        return atualizado;
+      });
       
       void 0;
     } else {
-      // Criar novo
+      // Criar novo - usar função callback para garantir valor atual
       const novo = {
         id: `vocab_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         fornecedorNIF: nifFornecedor,
@@ -6761,11 +6763,14 @@ void 0;
         ultimoPreco: dadosLinha.preco
       };
       
-      setVocabularioFornecedor([...vocabularioFornecedor, novo]);
-      console.log(`🆕 NOVA APRENDIZAGEM criada! Total: ${vocabularioFornecedor.length + 1} entradas`);
-      console.log(`   ID: ${novo.id}`);
-      console.log(`   Texto: "${novo.textoOriginal}"`);
-      console.log(`   Ingrediente: ${novo.ingredienteId}`);
+      setVocabularioFornecedor(prev => {
+        const novoArray = [...prev, novo];
+        console.log(`🆕 NOVA APRENDIZAGEM criada! Total: ${novoArray.length} entradas`);
+        console.log(`   ID: ${novo.id}`);
+        console.log(`   Texto: "${novo.textoOriginal}"`);
+        console.log(`   Ingrediente: ${novo.ingredienteId}`);
+        return novoArray;
+      });
       void 0;
     }
   };
