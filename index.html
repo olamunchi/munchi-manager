@@ -13482,6 +13482,42 @@ void 0;
       return true;
     }
     
+    // 24. Números de fatura (padrões: FS XXXXX/XXXXX, FR XXXXX/XXXXX, etc)
+    if (/\b(fs|fr|ft|nc|nd)\s*\d{8}\/\d{10}/i.test(linha)) {
+      OCR_DEBUG.log('FILTRO', 'Número de fatura detectado', { linha });
+      return true;
+    }
+    
+    // 25. Datas em formatos comuns (YYYY-MM-DD, DD/MM/YYYY, DD-MM-YYYY)
+    if (/\b\d{4}[-\/]\d{2}[-\/]\d{2}\b/.test(linha) || /\b\d{2}[-\/]\d{2}[-\/]\d{4}\b/.test(linha)) {
+      OCR_DEBUG.log('FILTRO', 'Data detectada', { linha });
+      return true;
+    }
+    
+    // 26. Horas (formato HH:MM ou HH:MM:SS)
+    if (/\b\d{2}:\d{2}(:\d{2})?\b/.test(linha) && !/\d+[.,]\d+/.test(linha)) {
+      OCR_DEBUG.log('FILTRO', 'Hora detectada', { linha });
+      return true;
+    }
+    
+    // 27. Via de documento (1a. VIA, 2a. VIA, Original, Duplicado, Triplicado)
+    if (/\b\d+[aª]\.?\s*via\b/i.test(linha) || /\b(original|duplicado|triplicado|cópia|copia)\b/i.test(linhaLower)) {
+      OCR_DEBUG.log('FILTRO', 'Via de documento', { linha });
+      return true;
+    }
+    
+    // 28. Padrão específico de cabeçalho de fatura: "XXXX * YYYY-MM-DD * HH:MM * FS..."
+    if (/\d{4}\s*\*\s*\d{4}-\d{2}-\d{2}\s*\*\s*\d{2}:\d{2}\s*\*\s*(fs|fr|ft)/i.test(linha)) {
+      OCR_DEBUG.log('FILTRO', 'Cabeçalho de fatura com asteriscos', { linha });
+      return true;
+    }
+    
+    // 29. Linhas que começam com códigos de 4 dígitos seguidos de asterisco (ex: "0451 *")
+    if (/^\d{4}\s*\*/.test(linha)) {
+      OCR_DEBUG.log('FILTRO', 'Código inicial com asterisco', { linha });
+      return true;
+    }
+    
     // ✅ ACEITAR TODO O RESTO
     // Use a BLACKLIST para filtrar linhas indesejadas por fornecedor
     OCR_DEBUG.log('FILTRO', '✓ Linha aceite', { linha });
