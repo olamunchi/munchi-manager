@@ -4167,6 +4167,7 @@ const RestauranteGestor = () => {
     data: new Date().toISOString().split('T')[0],
     fornecedorId: '',
     tipoDocumento: 'FT',
+    categoria: 'compras',
     items: [],
     observacoes: ''
   });
@@ -4176,10 +4177,7 @@ const RestauranteGestor = () => {
     preco: '',
     ingredienteId: ''
   });
-  const [compras, setCompras] = useState([]);
   const [editandoCompra, setEditandoCompra] = useState(null);
-  const [filtroFornecedorCompras, setFiltroFornecedorCompras] = useState('todos');
-  const [filtroCategoriaCompras, setFiltroCategoriaCompras] = useState('todas');
   const [searchIngredienteCompra, setSearchIngredienteCompra] = useState('');
   const [showDropdownIngredienteCompra, setShowDropdownIngredienteCompra] = useState(false);
   
@@ -4793,12 +4791,12 @@ const RestauranteGestor = () => {
   const [loadingBackups, setLoadingBackups] = useState(false); // 🆕 Loading ao listar backups
   const [exportarExpanded, setExportarExpanded] = useState(false);
   const [exportDateStart, setExportDateStart] = useState('');
-  
-  // 🆕 Estados para filtros de Compras Registadas
-  const [anoFaturaSelecionado, setAnoFaturaSelecionado] = useState(new Date().getFullYear());
-  const [mesFaturaSelecionado, setMesFaturaSelecionado] = useState(null); // null = todos os meses
-  const [fornecedorFiltro, setFornecedorFiltro] = useState(''); // '' = todos os fornecedores
   const [exportDateEnd, setExportDateEnd] = useState('');
+  
+  // 🆕 Estados para filtros de faturas
+  const [anoFaturaSelecionado, setAnoFaturaSelecionado] = useState(new Date().getFullYear());
+  const [mesFaturaSelecionado, setMesFaturaSelecionado] = useState(null);
+  const [fornecedorFiltro, setFornecedorFiltro] = useState('');
   
   // 🆕 Estado para destacar última fatura inserida
   const [ultimaFaturaInserida, setUltimaFaturaInserida] = useState(null);
@@ -4869,21 +4867,7 @@ const RestauranteGestor = () => {
   
   // 🚫 INDEXEDDB DESATIVADO - movimentações só vão para Google Drive
   
-  // 🆕 CARREGAR COMPRAS DO INDEXEDDB
-  useEffect(() => {
-    const carregarCompras = async () => {
-      try {
-        const comprasDB = await db.despesas
-          .where('categoria')
-          .equals('compras')
-          .toArray();
-        setCompras(comprasDB);
-      } catch (error) {
-        console.error('Erro ao carregar compras:', error);
-      }
-    };
-    carregarCompras();
-  }, []);
+  // Faturas são carregadas do Google Drive, não do IndexedDB
   // useEffect(() => {
   //   if (movimentacoesStock.length === 0) return;
   //   
@@ -18099,51 +18083,68 @@ void 0;
                     </div>
                     <button 
                       onClick={() => {
+                        console.log('🔍 Botão Guardar clicado');
+                        console.log('novaCompra:', novaCompra);
+                        
                         if (!novaCompra.fornecedorId || !novaCompra.numero || novaCompra.items.length === 0) {
                           alert('⚠️ Preencha fornecedor, número da fatura e adicione pelo menos um item!');
                           return;
                         }
                         
                         const total = novaCompra.items.reduce((sum, item) => sum + (parseFloat(item.quantidade) * parseFloat(item.preco)), 0);
+                        const fornecedor = fornecedores.find(f => (f.id || f) === novaCompra.fornecedorId);
                         
-                        const compraFinal = {
-                          ...novaCompra,
+                        const novaFaturaCompleta = {
                           id: editandoCompra || Date.now(),
-                          categoria: 'compras',
+                          numero: novaCompra.numero,
+                          data: novaCompra.data,
+                          fornecedorId: novaCompra.fornecedorId,
+                          fornecedorNome: fornecedor?.nome || fornecedor,
+                          tipo: novaCompra.tipoDocumento,
+                          categoria: novaCompra.categoria || 'compras',
+                          itens: novaCompra.items.map(item => ({
+                            id: item.id,
+                            ingredienteId: item.ingredienteId,
+                            descricao: item.ingrediente,
+                            quantidade: parseFloat(item.quantidade),
+                            precoTotal: parseFloat(item.preco) * parseFloat(item.quantidade),
+                            iva: 13
+                          })),
+                          totais: {
+                            subtotal: total,
+                            total: total
+                          },
                           total: total,
+                          notas: novaCompra.observacoes,
+                          documentoPDF: novaCompra.documentoPDF || null,
+                          nomeDocumento: novaCompra.nomeDocumento || '',
                           timestamp: new Date().toISOString()
                         };
                         
+                        console.log('💾 A guardar fatura:', novaFaturaCompleta);
+                        
                         if (editandoCompra) {
-                          db.despesas.update(editandoCompra, compraFinal).then(() => {
-                            showNotification('✅ Compra atualizada!', 'success');
-                            db.despesas.where('categoria').equals('compras').toArray().then(setCompras);
-                            setNovaCompra({
-                              numero: '',
-                              data: new Date().toISOString().split('T')[0],
-                              fornecedorId: '',
-                              tipoDocumento: 'FT',
-                              items: [],
-                              observacoes: ''
-                            });
-                            setEditandoCompra(null);
-                            triggerSync();
-                          });
+                          // Atualizar fatura existente
+                          setFaturas(faturas.map(f => f.id === editandoCompra ? novaFaturaCompleta : f));
+                          showNotification('✅ Fatura atualizada!', 'success');
                         } else {
-                          db.despesas.add(compraFinal).then(() => {
-                            showNotification('✅ Compra guardada!', 'success');
-                            db.despesas.where('categoria').equals('compras').toArray().then(setCompras);
-                            setNovaCompra({
-                              numero: '',
-                              data: new Date().toISOString().split('T')[0],
-                              fornecedorId: '',
-                              tipoDocumento: 'FT',
-                              items: [],
-                              observacoes: ''
-                            });
-                            triggerSync();
-                          });
+                          // Adicionar nova fatura
+                          setFaturas([...faturas, novaFaturaCompleta]);
+                          showNotification('✅ Fatura guardada!', 'success');
                         }
+                        
+                        // Limpar formulário
+                        setNovaCompra({
+                          numero: '',
+                          data: new Date().toISOString().split('T')[0],
+                          fornecedorId: '',
+                          tipoDocumento: 'FT',
+                          categoria: 'compras',
+                          items: [],
+                          observacoes: ''
+                        });
+                        setEditandoCompra(null);
+                        triggerSync();
                       }}
                       className="px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:shadow-lg transition font-semibold flex items-center gap-2"
                     >
@@ -18409,31 +18410,6 @@ void 0;
                         </div>
                       </div>
                     </div>
-
-                    {/* Filtro de Categoria */}
-                    <div className="bg-white rounded-xl shadow-lg p-5">
-                      <h4 className="font-semibold text-gray-700 mb-3 text-sm">🔍 Filtrar por Tipo</h4>
-                      <div>
-                        <select 
-                          value={filtroCategoriaCompras}
-                          onChange={(e) => setFiltroCategoriaCompras(e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                        >
-                          <option value="todas">📋 Todos os tipos</option>
-                          <option value="compras">🛒 Compras</option>
-                          <option value="renda">🏠 Renda</option>
-                          <option value="eletricidade">💡 Eletricidade</option>
-                          <option value="agua">💧 Água</option>
-                          <option value="gas">🔥 Gás</option>
-                          <option value="internet">🌐 Internet/Telefone</option>
-                          <option value="salarios">👥 Salários</option>
-                          <option value="marketing">📢 Marketing</option>
-                          <option value="consumiveis">🧻 Consumíveis</option>
-                          <option value="manutencao">🔧 Manutenção</option>
-                          <option value="outros">📦 Outros</option>
-                        </select>
-                      </div>
-                    </div>
                   </div>
 
                   {/* COLUNA DIREITA: Importação OCR */}
@@ -18525,86 +18501,170 @@ void 0;
 
                 {/* Compras Registadas */}
                 <div className="bg-white rounded-xl shadow-lg p-5">
+                  
+                  {/* Filtros: Ano, Mês e Fornecedor */}
+                  <div className="mb-4 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-200">
+                    <div className="grid grid-cols-3 gap-3">
+                      {/* Filtro de Ano */}
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-700 mb-1">📅 Ano</label>
+                        <select
+                          value={anoFaturaSelecionado}
+                          onChange={(e) => setAnoFaturaSelecionado(Number(e.target.value))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                        >
+                          {(() => {
+                            const anos = [...new Set(
+                              faturas
+                                .filter(f => f.data)
+                                .map(f => new Date(f.data).getFullYear())
+                                .filter(ano => !isNaN(ano))
+                            )].sort((a, b) => b - a);
+                            
+                            if (anos.length === 0) {
+                              anos.push(new Date().getFullYear());
+                            }
+                            
+                            return anos.map(ano => (
+                              <option key={ano} value={ano}>{ano}</option>
+                            ));
+                          })()}
+                        </select>
+                      </div>
+                      
+                      {/* Filtro de Mês */}
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-700 mb-1">📆 Mês</label>
+                        <select
+                          value={mesFaturaSelecionado ?? ''}
+                          onChange={(e) => setMesFaturaSelecionado(e.target.value === '' ? null : Number(e.target.value))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                        >
+                          <option value="">Todos os meses</option>
+                          <option value="0">Janeiro</option>
+                          <option value="1">Fevereiro</option>
+                          <option value="2">Março</option>
+                          <option value="3">Abril</option>
+                          <option value="4">Maio</option>
+                          <option value="5">Junho</option>
+                          <option value="6">Julho</option>
+                          <option value="7">Agosto</option>
+                          <option value="8">Setembro</option>
+                          <option value="9">Outubro</option>
+                          <option value="10">Novembro</option>
+                          <option value="11">Dezembro</option>
+                        </select>
+                      </div>
+                      
+                      {/* Filtro de Fornecedor */}
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-700 mb-1">🏪 Fornecedor</label>
+                        <select
+                          value={fornecedorFiltro}
+                          onChange={(e) => setFornecedorFiltro(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                        >
+                          <option value="">Todos os fornecedores</option>
+                          {(() => {
+                            const fornecedoresUnicos = [...new Set(
+                              faturas
+                                .map(f => f.fornecedorNome || '')
+                                .filter(Boolean)
+                            )].sort();
+                            return fornecedoresUnicos.map(nome => (
+                              <option key={nome} value={nome}>{nome}</option>
+                            ));
+                          })()}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                  
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="font-semibold text-gray-800 flex items-center gap-2">
                       <span className="text-xl">🛒</span> 
-                      Compras Registadas ({compras
-                        .filter(c => filtroFornecedorCompras === 'todos' || c.fornecedorId === filtroFornecedorCompras)
-                        .filter(c => filtroCategoriaCompras === 'todas' || c.categoria === filtroCategoriaCompras)
-                        .length})
+                      Compras Registadas ({faturas
+                        .filter(f => {
+                          const faturaDate = new Date(f.data);
+                          const ano = faturaDate.getFullYear();
+                          const mes = faturaDate.getMonth();
+                          
+                          if (ano !== anoFaturaSelecionado) return false;
+                          if (mesFaturaSelecionado !== null && mes !== mesFaturaSelecionado) return false;
+                          
+                          if (fornecedorFiltro && f.fornecedorNome !== fornecedorFiltro) return false;
+                          
+                          return true;
+                        }).length})
                     </h3>
-                    <div className="flex items-center gap-3">
-                      {/* Filtro Fornecedor */}
-                      <select 
-                        value={filtroFornecedorCompras}
-                        onChange={(e) => setFiltroFornecedorCompras(e.target.value)}
-                        className="px-3 py-1.5 border border-gray-300 rounded-lg text-xs bg-white"
-                      >
-                        <option value="todos">Todos fornecedores</option>
-                        {fornecedores.map(f => (
-                          <option key={f.id || f} value={f.id || f}>
-                            {f.nome || f}
-                          </option>
-                        ))}
-                      </select>
-                      
-                      <span className="flex items-center gap-1 bg-green-100 text-green-700 px-3 py-1 rounded-full font-semibold text-xs">
+                    <div className="flex items-center gap-3 text-xs">
+                      <span className="flex items-center gap-1 bg-green-100 text-green-700 px-3 py-1 rounded-full font-semibold">
                         <FileText className="w-3 h-3" />
-                        {compras.filter(c => c.documentoPDF).length} com PDF
+                        {faturas.filter(f => f.documentoPDF).length} com PDF
                       </span>
-                      <span className="flex items-center gap-1 bg-red-100 text-red-700 px-3 py-1 rounded-full font-semibold text-xs">
+                      <span className="flex items-center gap-1 bg-red-100 text-red-700 px-3 py-1 rounded-full font-semibold">
                         <AlertCircle className="w-3 h-3" />
-                        {compras.filter(c => !c.documentoPDF).length} sem PDF
+                        {faturas.filter(f => !f.documentoPDF).length} sem PDF
                       </span>
                     </div>
                   </div>
 
                   {/* Invoice Cards */}
                   <div className="space-y-3">
-                    {compras.length === 0 ? (
+                    {faturas.length === 0 ? (
                       <p className="text-center text-gray-400 py-8">Nenhuma compra registada ainda</p>
                     ) : (
-                      compras
-                        .filter(c => filtroFornecedorCompras === 'todos' || c.fornecedorId === filtroFornecedorCompras)
-                        .filter(c => filtroCategoriaCompras === 'todas' || c.categoria === filtroCategoriaCompras)
-                        .map(compra => {
-                          const fornecedor = fornecedores.find(f => (f.id || f) === compra.fornecedorId);
+                      faturas
+                        .filter(f => {
+                          const faturaDate = new Date(f.data);
+                          const ano = faturaDate.getFullYear();
+                          const mes = faturaDate.getMonth();
+                          
+                          if (ano !== anoFaturaSelecionado) return false;
+                          if (mesFaturaSelecionado !== null && mes !== mesFaturaSelecionado) return false;
+                          
+                          if (fornecedorFiltro && f.fornecedorNome !== fornecedorFiltro) return false;
+                          
+                          return true;
+                        })
+                        .map(fatura => {
                           return (
-                            <div key={compra.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition bg-gradient-to-r from-blue-50 to-purple-50">
+                            <div key={fatura.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition bg-gradient-to-r from-blue-50 to-purple-50">
                               <div className="flex items-center justify-between">
                                 <div className="flex-1">
                                   <div className="flex items-center gap-2 mb-1">
-                                    <span className="font-bold text-blue-700">📄 {compra.numero}</span>
+                                    <span className="font-bold text-blue-700">📄 {fatura.numero || `#${fatura.id}`}</span>
                                     <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
-                                      compra.tipoDocumento === 'FT' ? 'bg-green-100 text-green-700' :
-                                      compra.tipoDocumento === 'FS' ? 'bg-purple-100 text-purple-700' :
+                                      fatura.tipo === 'FT' ? 'bg-green-100 text-green-700' :
+                                      fatura.tipo === 'FS' ? 'bg-purple-100 text-purple-700' :
                                       'bg-blue-100 text-blue-700'
                                     }`}>
-                                      {compra.tipoDocumento} - {
-                                        compra.tipoDocumento === 'FT' ? 'Fatura' :
-                                        compra.tipoDocumento === 'FS' ? 'Fatura Simplificada' :
-                                        compra.tipoDocumento === 'FR' ? 'Fatura-Recibo' :
-                                        compra.tipoDocumento === 'NC' ? 'Nota de Crédito' :
-                                        compra.tipoDocumento === 'ND' ? 'Nota de Débito' :
-                                        compra.tipoDocumento === 'GR' ? 'Guia de Remessa' : compra.tipoDocumento
+                                      {fatura.tipo} - {
+                                        fatura.tipo === 'FT' ? 'Fatura' :
+                                        fatura.tipo === 'FS' ? 'Fatura Simplificada' :
+                                        fatura.tipo === 'FR' ? 'Fatura-Recibo' :
+                                        fatura.tipo === 'NC' ? 'Nota de Crédito' :
+                                        fatura.tipo === 'ND' ? 'Nota de Débito' :
+                                        fatura.tipo === 'GR' ? 'Guia de Remessa' : fatura.tipo
                                       }
                                     </span>
                                     <span className="text-xs text-gray-500">
-                                      {new Date(compra.data).toLocaleDateString('pt-PT')}
+                                      {new Date(fatura.data).toLocaleDateString('pt-PT')}
                                     </span>
                                   </div>
-                                  <p className="text-sm text-gray-600">{fornecedor?.nome || fornecedor || 'Fornecedor desconhecido'}</p>
+                                  <p className="text-sm text-gray-600">{fatura.fornecedorNome || 'Fornecedor desconhecido'}</p>
                                   <div className="flex gap-3 mt-2 text-xs text-gray-500">
-                                    <span>{compra.items?.length || 0} items</span>
+                                    <span>{fatura.itens?.length || 0} items</span>
                                     <span>•</span>
-                                    <span>Total: €{(compra.total || 0).toFixed(2)}</span>
+                                    <span>Total: €{(fatura.totais?.total || fatura.total || 0).toFixed(2)}</span>
                                   </div>
                                 </div>
                                 <div className="flex gap-2">
                                   <button 
                                     onClick={() => {
-                                      setNovaCompra(compra);
-                                      setEditandoCompra(compra.id);
+                                      setFaturaEditando(fatura.id);
+                                      setEditandoFatura(true);
+                                      setNovaFatura(fatura);
                                       window.scrollTo({ top: 0, behavior: 'smooth' });
                                     }}
                                     className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition"
@@ -18614,12 +18674,10 @@ void 0;
                                   </button>
                                   <button 
                                     onClick={() => {
-                                      if (confirm('❌ Tem a certeza que deseja eliminar esta compra?')) {
-                                        db.despesas.delete(compra.id).then(() => {
-                                          showNotification('🗑️ Compra eliminada', 'success');
-                                          db.despesas.where('categoria').equals('compras').toArray().then(setCompras);
-                                          triggerSync();
-                                        });
+                                      if (confirm('❌ Tem a certeza que deseja eliminar esta fatura?')) {
+                                        setFaturas(faturas.filter(f => f.id !== fatura.id));
+                                        showNotification('🗑️ Fatura eliminada', 'success');
+                                        triggerSync();
                                       }
                                     }}
                                     className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition"
