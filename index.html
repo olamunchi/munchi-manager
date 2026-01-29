@@ -106,17 +106,54 @@ db.version(1).stores({
   movimentacoesStock: '++id, data, tipo, ingredienteId, produtoId',
 });
 
-// 🆕 VERSÃO 2: Dados críticos para funcionamento offline
+// VERSÃO 2: Dados críticos para funcionamento offline (DEPRECATED)
 db.version(2).stores({
   movimentacoesStock: '++id, data, tipo, ingredienteId, produtoId',
   vocabulario: 'id, fornecedorNIF, textoNormalizado, ingredienteId',
   ingredientes: 'id, nome, categoria',
   fornecedores: 'id, nif, nome',
-  templates: 'nifFornecedor, linhaInicio, linhaFim'  // ✅ nifFornecedor é o identificador
+  templates: 'nifFornecedor, linhaInicio, linhaFim'
+});
+
+// 🆕 VERSÃO 3: FORÇAR RECRIAÇÃO DAS TABELAS (corrigir schema corrupto)
+db.version(3).stores({
+  movimentacoesStock: '++id, data, tipo, ingredienteId, produtoId',
+  vocabulario: 'id, fornecedorNIF, textoNormalizado, ingredienteId',
+  ingredientes: 'id, nome, categoria',
+  fornecedores: 'id, nif, nome',
+  templates: 'nifFornecedor, linhaInicio, linhaFim'
+}).upgrade(tx => {
+  // Limpar todas as tabelas ao fazer upgrade para v3
+  console.log('🔄 Upgrade para v3: Recriando tabelas IndexedDB...');
+  return Promise.all([
+    tx.table('movimentacoesStock').clear(),
+    tx.table('vocabulario').clear(),
+    tx.table('ingredientes').clear(),
+    tx.table('fornecedores').clear(),
+    tx.table('templates').clear()
+  ]).then(() => {
+    console.log('✅ Tabelas recriadas com sucesso!');
+  });
 });
 
 // Helper functions para IndexedDB
 const IndexedDBStorage = {
+  // 🛡️ Verificar se tabela existe antes de usar
+  async _checkTable(tableName) {
+    try {
+      const tableExists = db.tables.some(t => t.name === tableName);
+      if (!tableExists) {
+        console.error(`❌ Tabela '${tableName}' não existe no schema!`);
+        console.log('📋 Tabelas disponíveis:', db.tables.map(t => t.name).join(', '));
+        return false;
+      }
+      return true;
+    } catch (e) {
+      console.error(`❌ Erro ao verificar tabela '${tableName}':`, e);
+      return false;
+    }
+  },
+
   // Salvar movimentações - 🚫 DESATIVADO
   async saveMovimentacoes(movimentacoes) {
     // 🚫 DESATIVADO: IndexedDB desativado, só Google Drive
@@ -158,6 +195,7 @@ const IndexedDBStorage = {
   // VOCABULÁRIO: Sistema de aprendizagem OCR
   async saveVocabulario(data) {
     try {
+      if (!await this._checkTable('vocabulario')) return false;
       if (!data || !Array.isArray(data) || data.length === 0) return true;
       
       // Validar e limpar dados
@@ -199,6 +237,7 @@ const IndexedDBStorage = {
 
   async loadVocabulario() {
     try {
+      if (!await this._checkTable('vocabulario')) return [];
       const data = await db.vocabulario.toArray();
       console.log('✅ Vocabulário ← IndexedDB:', data.length, 'entradas');
       return data;
@@ -211,6 +250,7 @@ const IndexedDBStorage = {
   // INGREDIENTES: Necessários para dropdown em faturas
   async saveIngredientes(data) {
     try {
+      if (!await this._checkTable('ingredientes')) return false;
       if (!data || !Array.isArray(data) || data.length === 0) return true;
       
       // Validar e limpar dados
@@ -247,6 +287,7 @@ const IndexedDBStorage = {
 
   async loadIngredientes() {
     try {
+      if (!await this._checkTable('ingredientes')) return [];
       const data = await db.ingredientes.toArray();
       console.log('✅ Ingredientes ← IndexedDB:', data.length);
       return data;
@@ -259,6 +300,7 @@ const IndexedDBStorage = {
   // FORNECEDORES: Necessários para dropdown em faturas
   async saveFornecedores(data) {
     try {
+      if (!await this._checkTable('fornecedores')) return false;
       if (!data || !Array.isArray(data) || data.length === 0) return true;
       
       // Validar e limpar dados
@@ -295,6 +337,7 @@ const IndexedDBStorage = {
 
   async loadFornecedores() {
     try {
+      if (!await this._checkTable('fornecedores')) return [];
       const data = await db.fornecedores.toArray();
       console.log('✅ Fornecedores ← IndexedDB:', data.length);
       return data;
@@ -307,6 +350,7 @@ const IndexedDBStorage = {
   // TEMPLATES OCR: Necessários para extrair dados de PDFs
   async saveTemplates(data) {
     try {
+      if (!await this._checkTable('templates')) return false;
       if (!data || !Array.isArray(data) || data.length === 0) return true;
       
       // Templates usam nifFornecedor como identificador único
@@ -343,6 +387,7 @@ const IndexedDBStorage = {
 
   async loadTemplates() {
     try {
+      if (!await this._checkTable('templates')) return [];
       const data = await db.templates.toArray();
       console.log('✅ Templates OCR ← IndexedDB:', data.length);
       return data;
