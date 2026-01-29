@@ -6628,12 +6628,20 @@ void 0;
     
     const textoNorm = normalizarTexto(textoOCR);
     
+    console.log(`🔍 BUSCAR: "${textoOCR}" (fornecedor ${nifFornecedor})`);
+    console.log(`   Vocabulário total: ${vocabularioFornecedor.length} entradas`);
+    
     // Filtrar vocabulário deste fornecedor
     const vocabFornecedor = vocabularioFornecedor.filter(
       v => v.fornecedorNIF === nifFornecedor
     );
     
-    if (vocabFornecedor.length === 0) return null;
+    console.log(`   Vocabulário deste fornecedor: ${vocabFornecedor.length} entradas`);
+    
+    if (vocabFornecedor.length === 0) {
+      console.log(`   ❌ Nenhuma aprendizagem para este fornecedor`);
+      return null;
+    }
     
     // Procurar melhor match
     let melhorMatch = null;
@@ -6693,9 +6701,14 @@ void 0;
    * Adiciona ou atualiza entrada no vocabulário
    */
   const aprenderAssociacao = (textoOCR, ingredienteId, nifFornecedor, foiCorrecao = false, dadosLinha = {}) => {
-    if (!textoOCR || !ingredienteId || !nifFornecedor) return;
+    if (!textoOCR || !ingredienteId || !nifFornecedor) {
+      console.log('⚠️ aprenderAssociacao: Faltam parâmetros', { textoOCR, ingredienteId, nifFornecedor });
+      return;
+    }
     
     const textoNorm = normalizarTexto(textoOCR);
+    
+    console.log(`📚 APRENDER: "${textoOCR}" → ingrediente ${ingredienteId} (fornecedor ${nifFornecedor})`);
     
     // Verificar se já existe
     const indexExistente = vocabularioFornecedor.findIndex(
@@ -6709,8 +6722,10 @@ void 0;
       const atualizado = [...vocabularioFornecedor];
       if (foiCorrecao) {
         atualizado[indexExistente].correcoes = (atualizado[indexExistente].correcoes || 0) + 1;
+        console.log(`✏️ CORREÇÃO registada (total: ${atualizado[indexExistente].correcoes})`);
       } else {
         atualizado[indexExistente].confirmacoes = (atualizado[indexExistente].confirmacoes || 0) + 1;
+        console.log(`✅ CONFIRMAÇÃO registada (total: ${atualizado[indexExistente].confirmacoes})`);
       }
       atualizado[indexExistente].ultimaConfirmacao = new Date().toISOString();
       
@@ -6726,6 +6741,7 @@ void 0;
       }
       
       setVocabularioFornecedor(atualizado);
+      console.log(`📊 Vocabulário atualizado: ${atualizado.length} entradas`);
       
       void 0;
     } else {
@@ -6746,6 +6762,10 @@ void 0;
       };
       
       setVocabularioFornecedor([...vocabularioFornecedor, novo]);
+      console.log(`🆕 NOVA APRENDIZAGEM criada! Total: ${vocabularioFornecedor.length + 1} entradas`);
+      console.log(`   ID: ${novo.id}`);
+      console.log(`   Texto: "${novo.textoOriginal}"`);
+      console.log(`   Ingrediente: ${novo.ingredienteId}`);
       void 0;
     }
   };
@@ -14142,7 +14162,16 @@ void 0;
     
     // 🧠 FASE 2: APRENDER COM AS CONFIRMAÇÕES DO UTILIZADOR
     if (nifFornecedor) {
-      linhasValidadas.forEach(linha => {
+      console.log(`🎓 INICIANDO APRENDIZAGEM para fornecedor ${nifFornecedor}`);
+      console.log(`   Linhas validadas: ${linhasValidadas.length}`);
+      
+      linhasValidadas.forEach((linha, idx) => {
+        console.log(`   Linha ${idx + 1}:`, {
+          nomeProduto: linha.nomeProduto,
+          ingredienteConfirmado: linha.ingredienteConfirmado,
+          ingredienteSugerido: linha.ingredienteSugerido
+        });
+        
         if (linha.ingredienteConfirmado && linha.nomeProduto) {
           const textoOCR = linha.nomeProduto;
           const ingredienteId = linha.ingredienteConfirmado;
@@ -14150,6 +14179,8 @@ void 0;
           // Verificar se foi alterado (correção) ou confirmado (sugestão aceite)
           const foiAlterado = linha.ingredienteSugerido && 
                              linha.ingredienteConfirmado !== linha.ingredienteSugerido.id;
+          
+          console.log(`   ➡️ Vai aprender: "${textoOCR}" → ${ingredienteId} (alterado: ${foiAlterado})`);
           
           // 🆕 Passar dados da linha para aprendizagem
           const dadosLinha = {
