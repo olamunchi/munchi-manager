@@ -112,7 +112,7 @@ db.version(2).stores({
   vocabulario: 'id, fornecedorNIF, textoNormalizado, ingredienteId',
   ingredientes: 'id, nome, categoria',
   fornecedores: 'id, nif, nome',
-  templates: 'id, fornecedorId, fornecedorNIF'
+  templates: 'nifFornecedor, linhaInicio, linhaFim'  // ✅ nifFornecedor é o identificador
 });
 
 // Helper functions para IndexedDB
@@ -159,12 +159,24 @@ const IndexedDBStorage = {
   async saveVocabulario(data) {
     try {
       if (!data || data.length === 0) return true;
+      
+      // Garantir que todos têm ID (criar se não tiver)
+      const comIds = data.map((item, index) => {
+        if (item && item.id) return item;
+        // Criar ID se faltar (não deveria acontecer, mas é fallback)
+        return {
+          ...item,
+          id: `vocab_fallback_${Date.now()}_${index}`
+        };
+      });
+      
       await db.vocabulario.clear();
-      await db.vocabulario.bulkAdd(data);
-      console.log('💾 Vocabulário → IndexedDB:', data.length, 'entradas');
+      await db.vocabulario.bulkPut(comIds);
+      console.log('💾 Vocabulário → IndexedDB:', comIds.length, 'entradas');
       return true;
     } catch (e) {
       console.error('❌ Erro ao guardar vocabulário:', e);
+      console.log('Amostra:', data?.[0]);
       return false;
     }
   },
@@ -184,12 +196,24 @@ const IndexedDBStorage = {
   async saveIngredientes(data) {
     try {
       if (!data || data.length === 0) return true;
+      
+      // Garantir que todos têm ID (criar se não tiver)
+      const comIds = data.map((item, index) => {
+        if (item && item.id) return item;
+        // Criar ID se faltar (não deveria acontecer, mas é fallback)
+        return {
+          ...item,
+          id: `ing_fallback_${Date.now()}_${index}`
+        };
+      });
+      
       await db.ingredientes.clear();
-      await db.ingredientes.bulkAdd(data);
-      console.log('💾 Ingredientes → IndexedDB:', data.length);
+      await db.ingredientes.bulkPut(comIds);
+      console.log('💾 Ingredientes → IndexedDB:', comIds.length);
       return true;
     } catch (e) {
       console.error('❌ Erro ao guardar ingredientes:', e);
+      console.log('Amostra:', data?.[0]);
       return false;
     }
   },
@@ -209,12 +233,24 @@ const IndexedDBStorage = {
   async saveFornecedores(data) {
     try {
       if (!data || data.length === 0) return true;
+      
+      // Garantir que todos têm ID (criar se não tiver)
+      const comIds = data.map((item, index) => {
+        if (item && item.id) return item;
+        // Criar ID se faltar (não deveria acontecer, mas é fallback)
+        return {
+          ...item,
+          id: `forn_fallback_${Date.now()}_${index}`
+        };
+      });
+      
       await db.fornecedores.clear();
-      await db.fornecedores.bulkAdd(data);
-      console.log('💾 Fornecedores → IndexedDB:', data.length);
+      await db.fornecedores.bulkPut(comIds);
+      console.log('💾 Fornecedores → IndexedDB:', comIds.length);
       return true;
     } catch (e) {
       console.error('❌ Erro ao guardar fornecedores:', e);
+      console.log('Amostra:', data?.[0]);
       return false;
     }
   },
@@ -234,12 +270,23 @@ const IndexedDBStorage = {
   async saveTemplates(data) {
     try {
       if (!data || data.length === 0) return true;
+      
+      // Templates usam nifFornecedor como identificador único
+      // Filtrar apenas templates válidos (com nifFornecedor)
+      const validos = data.filter(t => t && t.nifFornecedor);
+      
+      if (validos.length === 0) {
+        console.log('ℹ️ Nenhum template para guardar');
+        return true;
+      }
+      
       await db.templates.clear();
-      await db.templates.bulkAdd(data);
-      console.log('💾 Templates OCR → IndexedDB:', data.length);
+      await db.templates.bulkPut(validos);
+      console.log('💾 Templates OCR → IndexedDB:', validos.length);
       return true;
     } catch (e) {
       console.error('❌ Erro ao guardar templates:', e);
+      console.log('Amostra:', data?.[0]);
       return false;
     }
   },
