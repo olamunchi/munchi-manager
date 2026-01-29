@@ -9520,6 +9520,22 @@ void 0;
     };
   }, [templatesOCR]);
 
+  // 🆕 Carregar do Drive DEPOIS do IndexedDB (ordem correta!)
+  useEffect(() => {
+    // Só carregar do Drive se:
+    // 1. Temos token válido
+    // 2. vocabularioFornecedor já foi inicializado (pode estar vazio, mas foi carregado)
+    if (driveAccessToken && vocabularioFornecedor !== undefined) {
+      // Flag para evitar loops
+      const shouldLoad = sessionStorage.getItem('drive_initial_load');
+      if (!shouldLoad) {
+        sessionStorage.setItem('drive_initial_load', 'done');
+        console.log('🔄 Carregando do Drive DEPOIS do IndexedDB...');
+        loadFromDrive(driveAccessToken);
+      }
+    }
+  }, [driveAccessToken, vocabularioFornecedor]);
+
   // Close ingredient suggestions when changing tabs
   useEffect(() => {
     setShowIngredienteSuggestions(false);
@@ -11866,7 +11882,8 @@ void 0;
       if (tokenData && GoogleDriveTokenManager.isTokenValid()) {
         setDriveAccessToken(tokenData.access_token);
         loadUserInfo(tokenData.access_token);
-        loadFromDrive(tokenData.access_token);
+        // 🚫 NÃO carregar do Drive aqui - esperar IndexedDB carregar primeiro
+        // loadFromDrive(tokenData.access_token);
         showNotification('✅ Reconectado automaticamente ao Google Drive', 'success');
       } else if (tokenData) {
         // Token existe mas está expirado
