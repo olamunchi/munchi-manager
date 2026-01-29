@@ -6435,12 +6435,7 @@ void 0;
    * Adiciona ou atualiza entrada no vocabulário
    */
   const aprenderAssociacao = (textoOCR, ingredienteId, nifFornecedor, foiCorrecao = false, dadosLinha = {}) => {
-    console.log('🧠 aprenderAssociacao CHAMADA:', {textoOCR, ingredienteId, nifFornecedor, foiCorrecao});
-    
-    if (!textoOCR || !ingredienteId || !nifFornecedor) {
-      console.warn('⚠️ aprenderAssociacao ABORTADA - faltam dados:', {textoOCR: !!textoOCR, ingredienteId: !!ingredienteId, nifFornecedor: !!nifFornecedor});
-      return;
-    }
+    if (!textoOCR || !ingredienteId || !nifFornecedor) return;
     
     const textoNorm = normalizarTexto(textoOCR);
     
@@ -6474,7 +6469,7 @@ void 0;
       
       setVocabularioFornecedor(atualizado);
       
-      console.log('✅ Vocabulário ATUALIZADO:', textoOCR, foiCorrecao ? '+1 correção' : '+1 confirmação');
+      void 0;
     } else {
       // Criar novo
       const novo = {
@@ -6493,7 +6488,7 @@ void 0;
       };
       
       setVocabularioFornecedor([...vocabularioFornecedor, novo]);
-      console.log('✅ Vocabulário NOVO criado:', textoOCR, '→', ingredienteId);
+      void 0;
     }
   };
 
@@ -8464,54 +8459,7 @@ void 0;
         if (data.deliveryApps) setDeliveryApps(data.deliveryApps);
         if (data.blacklist) setBlacklist(data.blacklist);
         if (data.templatesOCR) setTemplatesOCR(data.templatesOCR);
-        if (data.vocabularioFornecedor) {
-          // 🧠 MERGE vocabulário: combinar Drive + Local sem perder dados
-          // ⚠️ IMPORTANTE: Ler do localStorage, não do React State!
-          let vocabLocal = [];
-          try {
-            const localStorageVocab = await window.storage.get('vocabularioFornecedor');
-            if (localStorageVocab && localStorageVocab.value) {
-              vocabLocal = JSON.parse(localStorageVocab.value);
-            }
-          } catch (e) {
-            console.warn('⚠️ Falha ao ler vocabulário local:', e);
-            vocabLocal = vocabularioFornecedor || [];
-          }
-          
-          const vocabDrive = data.vocabularioFornecedor || [];
-          
-          // Criar mapa por chave única (fornecedor+texto+ingrediente)
-          const vocabMap = new Map();
-          
-          // Adicionar do Drive primeiro
-          vocabDrive.forEach(v => {
-            const key = `${v.fornecedorNIF}_${v.textoNormalizado}_${v.ingredienteId}`;
-            vocabMap.set(key, v);
-          });
-          
-          // Fazer merge com local (manter o mais recente)
-          vocabLocal.forEach(vLocal => {
-            const key = `${vLocal.fornecedorNIF}_${vLocal.textoNormalizado}_${vLocal.ingredienteId}`;
-            const vDrive = vocabMap.get(key);
-            
-            if (!vDrive) {
-              // Não existe no Drive, adicionar do local
-              vocabMap.set(key, vLocal);
-            } else {
-              // Existe em ambos, manter o mais recente
-              const dataLocal = new Date(vLocal.ultimaConfirmacao);
-              const dataDrive = new Date(vDrive.ultimaConfirmacao);
-              
-              if (dataLocal > dataDrive) {
-                vocabMap.set(key, vLocal);
-              }
-            }
-          });
-          
-          const vocabMerged = Array.from(vocabMap.values());
-          console.log(`🧠 MERGE vocabulário: Drive(${vocabDrive.length}) + Local(${vocabLocal.length}) = ${vocabMerged.length}`);
-          setVocabularioFornecedor(vocabMerged);
-        }
+        if (data.vocabularioFornecedor) setVocabularioFornecedor(data.vocabularioFornecedor);
         if (data.configuracaoWaste) setConfiguracaoWaste(data.configuracaoWaste);
         if (data.contagens) setContagens(data.contagens);
         if (data.movimentacoesStock) setMovimentacoesStock(data.movimentacoesStock);
@@ -8579,18 +8527,6 @@ void 0;
       setDriveSyncing(true);
       setDriveError(null);
       
-      // 🧠 LER VOCABULÁRIO DO LOCALSTORAGE (mais recente que React State)
-      let vocabParaGuardar = vocabularioFornecedor || [];
-      try {
-        const localVocab = await window.storage.get('vocabularioFornecedor');
-        if (localVocab && localVocab.value) {
-          vocabParaGuardar = JSON.parse(localVocab.value);
-          console.log(`🧠 Usando vocabulário do localStorage (${vocabParaGuardar.length} entradas) em vez do React State (${vocabularioFornecedor?.length || 0})`);
-        }
-      } catch (e) {
-        console.warn('⚠️ Falha ao ler vocabulário do localStorage, usando React State');
-      }
-      
       const data = {
         produtos: produtos || [],
         ingredientes: ingredientes || [],
@@ -8601,7 +8537,7 @@ void 0;
         deliveryApps: deliveryApps || [],
         blacklist: blacklist || [],
         templatesOCR: templatesOCR || [],
-        vocabularioFornecedor: vocabParaGuardar,
+        vocabularioFornecedor: vocabularioFornecedor || [],
         configuracaoWaste: configuracaoWaste || {},
         contagens: contagens || [],
         movimentacoesStock: movimentacoesStock || [],
@@ -9213,22 +9149,6 @@ void 0;
   //     window.storage.set('ultimaFaturaInserida', JSON.stringify(ultimaFaturaInserida)).catch(() => {});
   //   }
   // }, [ultimaFaturaInserida]);
-
-  // 🧠 EXCEÇÃO: Vocabulário É guardado no localStorage (é pequeno e crítico)
-  useEffect(() => {
-    if (vocabularioFornecedor && vocabularioFornecedor.length > 0) {
-      console.log(`💾 useEffect: Guardando vocabulário (${vocabularioFornecedor.length} entradas)...`);
-      window.storage.set('vocabularioFornecedor', JSON.stringify(vocabularioFornecedor))
-        .then(() => {
-          console.log(`✅ Vocabulário guardado com sucesso! (${vocabularioFornecedor.length} entradas)`);
-        })
-        .catch((err) => {
-          console.error('⚠️ Falha ao guardar vocabulário:', err);
-        });
-    } else {
-      console.log('⚠️ useEffect: Vocabulário vazio ou undefined, não guardou');
-    }
-  }, [vocabularioFornecedor]);
 
   // 🚫 LocalStorage desativado - apenas Google Drive é usado
   // Os dados são guardados automaticamente no Drive quando mudarem
@@ -11502,7 +11422,7 @@ void 0;
       const timeout = setTimeout(() => saveToDrive(), 3000);
       return () => clearTimeout(timeout);
     }
-  }, [produtos, ingredientes, vendas, faturas, fornecedores, driveAccessToken]);
+  }, [produtos, ingredientes, vendas, faturas, fornecedores, vocabularioFornecedor, driveAccessToken]);
 
   // Google Drive: Inicializar Google Identity Services
   useEffect(() => {
@@ -13811,10 +13731,8 @@ void 0;
     const nifFornecedor = metadata.nif || novaFatura.fornecedorNIF;
     
     // 🧠 FASE 2: APRENDER COM AS CONFIRMAÇÕES DO UTILIZADOR
-    console.log('🧠 FASE 2: APRENDER - nifFornecedor:', nifFornecedor, '| linhas:', linhasValidadas.length);
     if (nifFornecedor) {
       linhasValidadas.forEach(linha => {
-        console.log('  📋 Linha:', {nomeProduto: linha.nomeProduto, ingredienteConfirmado: linha.ingredienteConfirmado, ingredienteSugerido: linha.ingredienteSugerido?.id});
         if (linha.ingredienteConfirmado && linha.nomeProduto) {
           const textoOCR = linha.nomeProduto;
           const ingredienteId = linha.ingredienteConfirmado;
