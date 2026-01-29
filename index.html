@@ -4681,6 +4681,12 @@ const RestauranteGestor = () => {
       despesas,
       fornecedores,
       faturas,
+      vocabularioFornecedor,  // 🧠 SISTEMA DE APRENDIZAGEM
+      templatesOCR,           // 📋 TEMPLATES OCR
+      blacklist,              // 🚫 BLACKLIST
+      dadosEmpresa,           // 🏢 DADOS EMPRESA
+      deliveryApps,           // 🛵 DELIVERY APPS
+      embalagens,             // 📦 EMBALAGENS
       diagnosticarPDFs: () => {
         console.log('🔍 DIAGNÓSTICO DE PDFs NAS FATURAS');
         console.log('═'.repeat(60));
@@ -4966,6 +4972,83 @@ const RestauranteGestor = () => {
           console.log('Recarregue a página (F5) para ver os resultados.');
         }, 500);
       },
+      diagnosticarAprendizagem: () => {
+        console.log('🧠 DIAGNÓSTICO DO SISTEMA DE APRENDIZAGEM');
+        console.log('═'.repeat(60));
+        
+        console.log(`\n📊 RESUMO:`);
+        console.log(`Total entradas: ${vocabularioFornecedor?.length || 0}`);
+        
+        if (!vocabularioFornecedor || vocabularioFornecedor.length === 0) {
+          console.log('\n⚠️ VOCABULÁRIO VAZIO!');
+          console.log('Possíveis causas:');
+          console.log('1. Nunca confirmou ingredientes em faturas');
+          console.log('2. Dados não foram carregados do Drive');
+          console.log('3. window.storage.set() não está a ser chamado');
+          console.log('\n💡 Solução: Faça upload de uma fatura e confirme 2-3 ingredientes');
+          return;
+        }
+        
+        // Agrupar por fornecedor
+        const porFornecedor = {};
+        vocabularioFornecedor.forEach(v => {
+          if (!porFornecedor[v.fornecedorNIF]) {
+            porFornecedor[v.fornecedorNIF] = [];
+          }
+          porFornecedor[v.fornecedorNIF].push(v);
+        });
+        
+        console.log(`\n📋 POR FORNECEDOR:`);
+        Object.entries(porFornecedor).forEach(([nif, entradas]) => {
+          const fornecedor = fornecedores.find(f => f.nif === nif);
+          console.log(`\n${fornecedor?.nome || nif}: ${entradas.length} produtos aprendidos`);
+          
+          // Mostrar os 5 com maior confiança
+          const top5 = [...entradas]
+            .map(e => ({
+              texto: e.textoOriginal,
+              confirmacoes: e.confirmacoes || 0,
+              correcoes: e.correcoes || 0,
+              confianca: Math.round(
+                ((e.confirmacoes || 0) * 42.75) + 
+                ((e.similaridade || 100) * 0.35) - 
+                ((e.correcoes || 0) * 25)
+              )
+            }))
+            .sort((a, b) => b.confianca - a.confianca)
+            .slice(0, 5);
+          
+          console.table(top5);
+        });
+        
+        // Estatísticas gerais
+        const comAltaConfianca = vocabularioFornecedor.filter(v => {
+          const conf = ((v.confirmacoes || 0) * 42.75) + ((v.similaridade || 100) * 0.35) - ((v.correcoes || 0) * 25);
+          return conf >= 80;
+        }).length;
+        
+        console.log(`\n📈 ESTATÍSTICAS:`);
+        console.log(`✅ Alta confiança (≥80%): ${comAltaConfianca}`);
+        console.log(`⚠️ Média confiança (60-79%): ${vocabularioFornecedor.length - comAltaConfianca}`);
+        console.log(`\n💡 Para melhorar: Confirme os mesmos ingredientes 2-3 vezes`);
+        
+        console.log('\n' + '═'.repeat(60));
+      },
+      exportarVocabulario: () => {
+        if (!vocabularioFornecedor || vocabularioFornecedor.length === 0) {
+          console.log('⚠️ Vocabulário vazio - nada para exportar');
+          return;
+        }
+        
+        const json = JSON.stringify(vocabularioFornecedor, null, 2);
+        console.log('📋 VOCABULÁRIO EXPORTADO (copiado para clipboard):');
+        console.log(json);
+        
+        navigator.clipboard.writeText(json).then(() => {
+          console.log('\n✅ Copiado para clipboard!');
+          console.log('Cole num ficheiro .json para guardar backup');
+        });
+      },
       corrigirIngredientes: () => {
         console.log('🔧 Corrigindo custos dos INGREDIENTES...\n');
         
@@ -4997,7 +5080,10 @@ const RestauranteGestor = () => {
     console.log('  - window.DEBUG_MUNCHI.produtos');
     console.log('  - window.DEBUG_MUNCHI.vendas');
     console.log('  - window.DEBUG_MUNCHI.faturas');
+    console.log('  - window.DEBUG_MUNCHI.vocabularioFornecedor ← 🧠 APRENDIZAGEM');
     console.log('  - window.DEBUG_MUNCHI.diagnosticar() ← Execute isto!');
+    console.log('  - window.DEBUG_MUNCHI.diagnosticarAprendizagem() ← 🧠 Ver vocabulário');
+    console.log('  - window.DEBUG_MUNCHI.exportarVocabulario() ← 📋 Exportar vocabulário');
     console.log('  - window.DEBUG_MUNCHI.diagnosticarPDFs() ← Verificar PDFs das faturas');
     console.log('  - window.DEBUG_MUNCHI.testarPDF("FT 2025/001") ← Testar PDF específico');
     console.log('  - window.DEBUG_MUNCHI.corrigirCustos() ← Corrigir produtos');
@@ -11469,6 +11555,27 @@ void 0;
       console.log('⚠️ AUTO-SYNC NÃO AGENDADO - sem token do Drive');
     }
   }, [produtos, ingredientes, vendas, faturas, fornecedores, vocabularioFornecedor, driveAccessToken]);
+
+  // 🧠 CRITICAL FIX: Guardar vocabularioFornecedor no window.storage (artifact persistent storage)
+  useEffect(() => {
+    if (vocabularioFornecedor && vocabularioFornecedor.length > 0) {
+      const saveVocabulario = async () => {
+        try {
+          await window.storage.set('vocabularioFornecedor', JSON.stringify(vocabularioFornecedor));
+          console.log('💾 Vocabulário guardado no storage persistente:', {
+            count: vocabularioFornecedor.length,
+            timestamp: new Date().toISOString()
+          });
+        } catch (error) {
+          console.error('❌ Erro ao guardar vocabulário no storage:', error);
+        }
+      };
+      
+      // Debounce: aguardar 1s antes de guardar
+      const timeout = setTimeout(saveVocabulario, 1000);
+      return () => clearTimeout(timeout);
+    }
+  }, [vocabularioFornecedor]);
 
   // Google Drive: Inicializar Google Identity Services
   useEffect(() => {
