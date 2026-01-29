@@ -13061,6 +13061,48 @@ void 0;
       return [linha];
     }
     
+    // MÉTODO 4: Por códigos IVA repetidos - (A), (B), (C), etc
+    // Padrão Continente: "(A) CREME 500 (A) OVOS 18UN" → 2 produtos
+    const padraoIVA = /\([A-Z]\)\s+/g;
+    const matchesIVA = [...linha.matchAll(padraoIVA)];
+    
+    if (matchesIVA.length >= 2) {
+      console.log(`🔍 [SEPARACAO] ✅ SEPARANDO ${matchesIVA.length} produtos (por códigos IVA)!`);
+      OCR_DEBUG.log('SEPARACAO', `${matchesIVA.length} códigos IVA detectados - SEPARANDO`, { 
+        posicoes: matchesIVA.map(m => m.index),
+        linha: linha.substring(0, 80) 
+      });
+      
+      const produtos = [];
+      
+      for (let i = 0; i < matchesIVA.length; i++) {
+        const matchAtual = matchesIVA[i];
+        const proximoMatch = matchesIVA[i + 1];
+        
+        if (proximoMatch) {
+          // Cortar do código atual até o próximo
+          const fragmento = linha.substring(matchAtual.index, proximoMatch.index).trim();
+          if (fragmento.length > 5) {
+            produtos.push(fragmento);
+            console.log(`🔍 [SEPARACAO] Produto ${i+1}: "${fragmento}"`);
+          }
+        } else {
+          // Último produto - pegar até o fim
+          const fragmento = linha.substring(matchAtual.index).trim();
+          if (fragmento.length > 5) {
+            produtos.push(fragmento);
+            console.log(`🔍 [SEPARACAO] Produto ${i+1} (último): "${fragmento}"`);
+          }
+        }
+      }
+      
+      if (produtos.length > 1) {
+        console.log(`🔍 [SEPARACAO] ✅ Resultado: ${produtos.length} produtos separados (por IVA)`);
+        OCR_DEBUG.log('SEPARACAO', `Separados em ${produtos.length} produtos (IVA)`, { produtos });
+        return produtos;
+      }
+    }
+    
     // MÉTODO 1: Por códigos de produto (6 dígitos + ponto + dígito(s))
     // Padrão Recheio: 118971.1, 141407.1, 170245.0, 262503.0, etc.
     const codigos = linha.match(/\d{6}\.\d+/g);
