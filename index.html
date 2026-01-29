@@ -14050,6 +14050,14 @@ void 0;
   
   // Função para finalizar fatura após confirmações de preço
   const finalizarFaturaOCR = (ingredientesAtualizados, linhasValidadas, metadata) => {
+    // 🔍 DEBUG PERMANENTE - Não remover!
+    console.log('═══════════════════════════════════════════════════════');
+    console.log('🎯 finalizarFaturaOCR CHAMADA');
+    console.log('   linhasValidadas:', linhasValidadas.length);
+    console.log('   metadata.nif:', metadata.nif);
+    console.log('   novaFatura.fornecedorNIF:', novaFatura?.fornecedorNIF);
+    console.log('═══════════════════════════════════════════════════════');
+    
     void 0;
     
     // Atualizar ingredientes
