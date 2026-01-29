@@ -6469,7 +6469,14 @@ void 0;
       
       setVocabularioFornecedor(atualizado);
       
-      void 0;
+      console.log('🧠 APRENDIZAGEM ATUALIZADA:', {
+        texto: textoOCR,
+        ingrediente: ingredienteId,
+        fornecedor: nifFornecedor,
+        confirmacoes: atualizado[indexExistente].confirmacoes,
+        correcoes: atualizado[indexExistente].correcoes,
+        totalVocabulario: atualizado.length
+      });
     } else {
       // Criar novo
       const novo = {
@@ -6488,7 +6495,13 @@ void 0;
       };
       
       setVocabularioFornecedor([...vocabularioFornecedor, novo]);
-      void 0;
+      console.log('🧠 NOVO VOCABULÁRIO CRIADO:', {
+        texto: textoOCR,
+        ingrediente: ingredienteId,
+        fornecedor: nifFornecedor,
+        id: novo.id,
+        totalVocabulario: vocabularioFornecedor.length + 1
+      });
     }
   };
 
@@ -8545,6 +8558,13 @@ void 0;
         lastUpdate: new Date().toISOString()
       };
       
+      console.log('💾 GUARDANDO NO DRIVE:', {
+        vocabularioCount: vocabularioFornecedor?.length || 0,
+        produtosCount: produtos?.length || 0,
+        ingredientesCount: ingredientes?.length || 0,
+        timestamp: data.lastUpdate
+      });
+      
       // 🛡️ VALIDAÇÃO DE SEGURANÇA - Prevenir guardar dados vazios
       const totalRecords = (produtos?.length || 0) + (ingredientes?.length || 0) + (vendas?.length || 0);
       
@@ -9012,7 +9032,12 @@ void 0;
         // 🧠 CORRIGIDO: VOCABULÁRIO DE APRENDIZAGEM: Carregar
         if (data.vocabularioFornecedor && data.vocabularioFornecedor.length > 0) {
           setVocabularioFornecedor(data.vocabularioFornecedor);
-          void 0;
+          console.log('🧠 VOCABULÁRIO CARREGADO DO DRIVE:', {
+            count: data.vocabularioFornecedor.length,
+            sample: data.vocabularioFornecedor.slice(0, 3)
+          });
+        } else {
+          console.log('⚠️ NENHUM VOCABULÁRIO NO DRIVE ou está vazio');
         }
         
         // 🆕 WASTE TRACKING: Carregar configuração e contagens
@@ -9099,7 +9124,16 @@ void 0;
           });
           setFaturas(faturasConvertidas);
         }
-        if (voc) setVocabularioFornecedor(JSON.parse(voc.value)); // 🧠 Restaurar aprendizagem
+        if (voc) {
+          const vocabCarregado = JSON.parse(voc.value);
+          setVocabularioFornecedor(vocabCarregado);
+          console.log('🧠 VOCABULÁRIO CARREGADO DO STORAGE:', {
+            count: vocabCarregado.length,
+            sample: vocabCarregado.slice(0, 3)
+          });
+        } else {
+          console.log('⚠️ NENHUM VOCABULÁRIO NO STORAGE');
+        }
         if (templ) setTemplatesOCR(JSON.parse(templ.value)); // 📋 Restaurar templates
         if (ultFat) setUltimaFaturaInserida(JSON.parse(ultFat.value)); // 🆕 Restaurar última fatura
         
@@ -11419,8 +11453,20 @@ void 0;
   // Google Drive: Sincronização automática
   useEffect(() => {
     if (driveAccessToken) {
-      const timeout = setTimeout(() => saveToDrive(), 3000);
-      return () => clearTimeout(timeout);
+      console.log('⏰ AUTO-SYNC AGENDADO em 3s devido a mudanças:', {
+        vocabularioCount: vocabularioFornecedor?.length || 0,
+        hasToken: !!driveAccessToken
+      });
+      const timeout = setTimeout(() => {
+        console.log('🔄 EXECUTANDO AUTO-SYNC AGORA');
+        saveToDrive();
+      }, 3000);
+      return () => {
+        console.log('🚫 AUTO-SYNC CANCELADO (nova mudança detectada)');
+        clearTimeout(timeout);
+      };
+    } else {
+      console.log('⚠️ AUTO-SYNC NÃO AGENDADO - sem token do Drive');
     }
   }, [produtos, ingredientes, vendas, faturas, fornecedores, vocabularioFornecedor, driveAccessToken]);
 
