@@ -11906,11 +11906,11 @@ void 0;
 
   // Google Drive: Sincronização automática
   useEffect(() => {
-    if (driveAccessToken) {
+    if (driveAccessToken && !isSyncing) {
       const timeout = setTimeout(() => saveToDrive(), 3000);
       return () => clearTimeout(timeout);
     }
-  }, [produtos, ingredientes, vendas, faturas, fornecedores, vocabularioFornecedor, templatesOCR, driveAccessToken]);
+  }, [produtos, ingredientes, vendas, faturas, fornecedores, vocabularioFornecedor, templatesOCR, driveAccessToken, isSyncing]);
 
   // Google Drive: Inicializar Google Identity Services
   useEffect(() => {
