@@ -12889,7 +12889,7 @@ void 0;
 
 
   const vPorProd = {};
-  vendas.forEach(v => {
+  filteredVendas.forEach(v => {
     if (!vPorProd[v.produto]) vPorProd[v.produto] = { quantidade: 0, total: 0, lucro: 0 };
     vPorProd[v.produto].quantidade += v.quantidade;
     vPorProd[v.produto].total += v.valor;
