@@ -4206,6 +4206,12 @@ const RestauranteGestor = () => {
   const [desempenhoProdutoExpanded, setDesempenhoProdutoExpanded] = useState(false);
   const [searchTakeAway, setSearchTakeAway] = useState('');
   
+  // 🆕 ESTADOS PARA ANÁLISE UNIFICADA DE PRODUTOS
+  const [produtosAnaliseTab, setProdutosAnaliseTab] = useState('categorias'); // 'categorias', 'ranking', 'individual'
+  const [produtoDetalheExpandido, setProdutoDetalheExpandido] = useState(null); // nome do produto expandido
+  const [buscaProdutoIndividual, setBuscaProdutoIndividual] = useState(''); // busca no tab individual
+  const [ordenarPor, setOrdenarPor] = useState('faturacao'); // 'faturacao', 'quantidade', 'lucro', 'margem'
+  
   // 🆕 ESTADOS PARA O NOVO TAB DE COMPRAS
   const [faturaEditando, setFaturaEditando] = useState(null);
   const [searchIngredienteCompra, setSearchIngredienteCompra] = useState('');
@@ -4826,6 +4832,7 @@ const RestauranteGestor = () => {
   const [categoriaFiltroDesempenho, setCategoriaFiltroDesempenho] = useState('todos');
   const [mesSelecionado, setMesSelecionado] = useState(new Date().getMonth());
   const [anoSelecionado, setAnoSelecionado] = useState(new Date().getFullYear());
+  
   const [backupExpanded, setBackupExpanded] = useState(false);
   const [driveBackups, setDriveBackups] = useState([]); // 🆕 Lista de backups disponíveis
   const [showBackupRecovery, setShowBackupRecovery] = useState(false); // 🆕 Modal de recovery
@@ -12379,6 +12386,19 @@ void 0;
   };
 
 
+  // ============================================
+  // 🎨 CATEGORIAS DE PRODUTOS (FONTE ÚNICA DE VERDADE)
+  // ============================================
+  const CATEGORIAS_PRODUTOS = {
+    'cafes': { nome: '☕ Cafés', cor: 'amber', emoji: '☕' },
+    'bebidas': { nome: '🥤 Bebidas', cor: 'blue', emoji: '🥤' },
+    'pratos': { nome: '🍽️ Pratos', cor: 'orange', emoji: '🍽️' },
+    'sobremesas': { nome: '🍰 Sobremesas', cor: 'pink', emoji: '🍰' },
+    'lanches': { nome: '🥪 Lanches', cor: 'yellow', emoji: '🥪' },
+    'takeaway': { nome: '📦 Take Away', cor: 'purple', emoji: '📦' },
+    'outros': { nome: '📋 Outros', cor: 'gray', emoji: '📋' }
+  };
+
   // Filter data by date
   const getFilteredData = (data, dateField = 'data') => {
     const now = new Date();
@@ -16626,288 +16646,422 @@ void 0;
               </div>
 
               {/* ============================================ */}
-              {/* SECTION: MÉTRICAS POR PRODUTO (GERAL) */}
-              {/* ============================================ */}
+              {/* 🆕 ANÁLISE UNIFICADA DE PRODUTOS (3 TABS) */}
 
+              {/* ============================================ */}
+              {/* 🆕 SISTEMA UNIFICADO DE ANÁLISE DE PRODUTOS */}
+              {/* ============================================ */}
               <div className="bg-white rounded-lg shadow p-4 mb-3">
-                {/* Header clicável */}
-                <div 
-                  onClick={() => setDesempenhoProdutoExpanded(!desempenhoProdutoExpanded)}
-                  className="flex items-center justify-between cursor-pointer hover:bg-gray-50 -m-4 p-4 rounded-lg transition"
-                >
-                  <h2 className="text-xl font-bold flex items-center gap-2">
-                    📊 Desempenho por Produto
-                  </h2>
-                  <span className="text-2xl text-gray-600 transform transition-transform duration-200" style={{ transform: desempenhoProdutoExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}>
-                    ▼
-                  </span>
+                {/* Header */}
+                <h2 className="text-xl font-bold mb-3 flex items-center gap-2">
+                  📊 Análise de Produtos
+                </h2>
+                
+                {/* Tabs */}
+                <div className="flex gap-2 mb-4 border-b">
+                  <button
+                    onClick={() => setProdutosAnaliseTab('categorias')}
+                    className={`px-4 py-2 text-sm font-semibold transition border-b-2 ${
+                      produtosAnaliseTab === 'categorias'
+                        ? 'border-blue-600 text-blue-600'
+                        : 'border-transparent text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    📊 Por Categoria
+                  </button>
+                  <button
+                    onClick={() => setProdutosAnaliseTab('ranking')}
+                    className={`px-4 py-2 text-sm font-semibold transition border-b-2 ${
+                      produtosAnaliseTab === 'ranking'
+                        ? 'border-blue-600 text-blue-600'
+                        : 'border-transparent text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    📋 Ranking
+                  </button>
                 </div>
                 
-                {/* Conteúdo expansível */}
-                {desempenhoProdutoExpanded && (
-                  <div className="mt-4">
-                    {/* Filtro de Categoria - DROPDOWN */}
-                    <div className="mb-4 p-3 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-200">
-                      <label className="text-xs font-semibold text-gray-700 block mb-2">Filtrar por categoria:</label>
-                      <select
-                        value={categoriaFiltroDesempenho}
-                        onChange={(e) => setCategoriaFiltroDesempenho(e.target.value)}
-                        className="w-full md:w-64 px-4 py-2 border-2 border-blue-300 rounded-lg text-sm font-semibold bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      >
-                        <option value="todos">📊 Todos os Produtos</option>
-                        <option value="cafes">☕ Cafés</option>
-                        <option value="bebidas">🥤 Bebidas</option>
-                        <option value="pratos">🍳 Pratos</option>
-                        <option value="sobremesas">🍰 Sobremesas</option>
-                        <option value="takeaway">📦 Take Away</option>
-                      </select>
+                {/* TAB 1: POR CATEGORIA */}
+                {produtosAnaliseTab === 'categorias' && (
+                  <div>
+                    <p className="text-xs text-gray-600 mb-3">Vendas agrupadas por categoria (Cafés, Bebidas, Pratos, Sobremesas...)</p>
+                    
+                    {(() => {
+                      // Agrupar vendas por categoria de produto
+                      const vendasPorCategoria = {};
+                      
+                      filteredVendas.forEach(v => {
+                        const produto = produtos.find(p => p.nome === v.produto);
+                        const categoria = produto?.categoria || 'outros';
+                        
+                        if (!vendasPorCategoria[categoria]) {
+                          vendasPorCategoria[categoria] = {
+                            quantidade: 0,
+                            faturacao: 0,
+                            lucro: 0
+                          };
+                        }
+                        
+                        vendasPorCategoria[categoria].quantidade = Math.round((vendasPorCategoria[categoria].quantidade + v.quantidade) * 100) / 100;
+                        vendasPorCategoria[categoria].faturacao = Math.round((vendasPorCategoria[categoria].faturacao + v.valor) * 100) / 100;
+                        vendasPorCategoria[categoria].lucro = Math.round((vendasPorCategoria[categoria].lucro + calcLucroVenda(v).lucro) * 100) / 100;
+                      });
+                      
+                      const categoriasComDados = Object.entries(vendasPorCategoria)
+                        .filter(([_, dados]) => dados.quantidade > 0)
+                        .sort((a, b) => b[1].faturacao - a[1].faturacao);
+                      
+                      if (categoriasComDados.length === 0) {
+                        return (
+                          <div className="text-center py-8 bg-gray-50 rounded-lg">
+                            <p className="text-gray-600">📦 Sem vendas no período selecionado</p>
+                            <p className="text-xs text-gray-500 mt-2">Adicione produtos com categorias para ver métricas</p>
+                          </div>
+                        );
+                      }
+                      
+                      return (
+                        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+                          {categoriasComDados.map(([cat, dados]) => {
+                            const info = CATEGORIAS_PRODUTOS[cat] || { nome: cat, cor: 'gray', emoji: '📋' };
+                            const margemPerc = dados.faturacao > 0 ? (dados.lucro / dados.faturacao) * 100 : 0;
+                            
+                            return (
+                              <div key={cat} className={`bg-${info.cor}-50 border-2 border-${info.cor}-300 rounded-lg p-3`}>
+                                <p className="text-xs font-bold mb-1">{info.nome}</p>
+                                <p className="text-2xl font-bold text-gray-900 mb-1">
+                                  {Math.round(dados.quantidade)}
+                                </p>
+                                <p className="text-xs text-gray-600 mb-2">unidades vendidas</p>
+                                
+                                <div className="bg-white rounded p-2 text-xs space-y-1">
+                                  <div className="flex justify-between">
+                                    <span className="text-gray-600">Faturação:</span>
+                                    <span className="font-bold text-green-700">€{dados.faturacao.toFixed(0)}</span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-gray-600">Lucro:</span>
+                                    <span className="font-bold text-blue-700">€{dados.lucro.toFixed(0)}</span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-gray-600">Margem:</span>
+                                    <span className={`font-bold ${
+                                      margemPerc > 60 ? 'text-green-600' :
+                                      margemPerc > 40 ? 'text-blue-600' : 'text-orange-600'
+                                    }`}>
+                                      {margemPerc.toFixed(1)}%
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+                
+                {/* TAB 2: RANKING */}
+                {produtosAnaliseTab === 'ranking' && (
+                  <div>
+                    {/* Filtros */}
+                    <div className="mb-4 p-3 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-200 flex flex-wrap gap-3 items-end">
+                      <div className="flex-1 min-w-[200px]">
+                        <label className="text-xs font-semibold text-gray-700 block mb-2">🔍 Buscar produto:</label>
+                        <input
+                          type="text"
+                          value={buscaProdutoIndividual}
+                          onChange={(e) => setBuscaProdutoIndividual(e.target.value)}
+                          placeholder="Digite o nome do produto..."
+                          className="w-full px-4 py-2 border-2 border-blue-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
+                      </div>
+                      
+                      <div className="flex-1 min-w-[200px]">
+                        <label className="text-xs font-semibold text-gray-700 block mb-2">Filtrar por categoria:</label>
+                        <select
+                          value={categoriaFiltroDesempenho}
+                          onChange={(e) => setCategoriaFiltroDesempenho(e.target.value)}
+                          className="w-full px-4 py-2 border-2 border-blue-300 rounded-lg text-sm font-semibold bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        >
+                          <option value="todos">📊 Todos os Produtos</option>
+                          {Object.entries(CATEGORIAS_PRODUTOS).map(([key, info]) => (
+                            <option key={key} value={key}>{info.nome}</option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
                     
                     <p className="text-xs text-gray-600 mb-3">
-                      Ranking de vendas, lucro e margens
+                      💡 Clica nos títulos das colunas para ordenar
                       {categoriaFiltroDesempenho !== 'todos' && (
-                        <span className="font-bold text-blue-600"> - {categoriaFiltroDesempenho}</span>
+                        <span className="font-bold text-blue-600"> • {CATEGORIAS_PRODUTOS[categoriaFiltroDesempenho]?.nome || categoriaFiltroDesempenho}</span>
+                      )}
+                      {buscaProdutoIndividual && (
+                        <span className="font-bold text-purple-600"> • Busca: "{buscaProdutoIndividual}"</span>
                       )}
                     </p>
-                
-                {(() => {
-                  // Calcular vendas por produto
-                  const vendasPorProduto = {};
-                  
-                  filteredVendas.forEach(v => {
-                    if (!vendasPorProduto[v.produto]) {
-                      vendasPorProduto[v.produto] = {
-                        nome: v.produto,
-                        quantidade: 0,
-                        faturacao: 0,
-                        lucro: 0
-                      };
-                    }
                     
-                    // Arredondar TUDO para evitar erros de ponto flutuante
-                    vendasPorProduto[v.produto].quantidade = Math.round((vendasPorProduto[v.produto].quantidade + v.quantidade) * 100) / 100;
-                    vendasPorProduto[v.produto].faturacao = Math.round((vendasPorProduto[v.produto].faturacao + v.valor) * 100) / 100;
-                    vendasPorProduto[v.produto].lucro = Math.round((vendasPorProduto[v.produto].lucro + calcLucroVenda(v).lucro) * 100) / 100;
-                  });
-                  
-                  const produtosArray = Object.values(vendasPorProduto)
-                    .sort((a, b) => b.faturacao - a.faturacao);
-                  
-                  // Aplicar filtro de categoria
-                  let produtosFiltrados = produtosArray;
-                  if (categoriaFiltroDesempenho !== 'todos') {
-                    produtosFiltrados = produtosArray.filter(pVenda => {
-                      const produto = produtos.find(p => p.nome === pVenda.nome);
-                      return produto && produto.categoria === categoriaFiltroDesempenho;
-                    });
-                  }
-                  
-                  if (produtosFiltrados.length === 0) {
-                    return (
-                      <div className="text-center py-8 bg-gray-50 rounded-lg">
-                        <p className="text-gray-600">
-                          📦 Sem vendas de produtos da categoria "{categoriaFiltroDesempenho}" no período selecionado
-                        </p>
-                      </div>
-                    );
-                  }
-                  
-                  return (
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="bg-gradient-to-r from-blue-100 to-indigo-100 border-b-2 border-blue-300">
-                            <th className="text-left p-2 font-bold text-blue-900">#</th>
-                            <th className="text-left p-2 font-bold text-blue-900">Produto</th>
-                            <th className="text-right p-2 font-bold text-blue-900">Qtd Vendida</th>
-                            <th className="text-right p-2 font-bold text-blue-900">Faturação</th>
-                            <th className="text-right p-2 font-bold text-blue-900">Lucro</th>
-                            <th className="text-right p-2 font-bold text-blue-900">Margem %</th>
-                            <th className="text-right p-2 font-bold text-blue-900">Ticket Médio</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {produtosFiltrados.map((p, idx) => {
-                            const margemPerc = p.faturacao > 0 ? (p.lucro / p.faturacao) * 100 : 0;
-                            const ticketMedio = p.quantidade > 0 ? p.faturacao / p.quantidade : 0;
-                            
-                            // Verificar se produto tem receita
-                            const produto = produtos.find(pr => pr.nome === p.nome);
-                            const temReceita = produto && produto.receita && produto.receita.length > 0;
-                            
-                            // DEBUG apenas para primeiro produto
-                            if (idx === 0) {
-                              void 0;
-                              void 0;
-                              void 0;
-                              void 0;
-                              if (produto) {
-                                void 0;
-                                void 0;
-                              }
-                            }
-                            
-                            return (
-                              <tr key={p.nome} className="border-b hover:bg-blue-50 transition">
-                                <td className="p-2 font-bold text-blue-600">#{idx + 1}</td>
-                                <td className="p-2 font-semibold">
-                                  {p.nome}
-                                  {!temReceita && (
-                                    <span className="ml-2 text-xs text-orange-600 font-bold" title="Produto sem receita - margem não calculada">
-                                      ⚠️
-                                    </span>
-                                  )}
-                                </td>
-                                <td className="p-2 text-right font-semibold">{p.quantidade}</td>
-                                <td className="p-2 text-right font-semibold text-green-700">€{p.faturacao.toFixed(2)}</td>
-                                <td className="p-2 text-right font-semibold text-blue-700">€{p.lucro.toFixed(2)}</td>
-                                <td className={`p-2 text-right font-bold ${
-                                  !temReceita ? 'text-red-600' :
-                                  margemPerc > 60 ? 'text-green-600' :
-                                  margemPerc > 40 ? 'text-blue-600' : 'text-orange-600'
-                                }`}>
-                                  {!temReceita && '⚠️ '}
-                                  {margemPerc.toFixed(1)}%
-                                </td>
-                                <td className="p-2 text-right text-gray-700">€{ticketMedio.toFixed(2)}</td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                        <tfoot>
-                          <tr className="bg-gradient-to-r from-gray-100 to-gray-200 border-t-2 border-gray-400 font-bold">
-                            <td className="p-2" colspan="2">TOTAL</td>
-                            <td className="p-2 text-right text-blue-900">
-                              {produtosFiltrados.reduce((s, p) => s + p.quantidade, 0)}
-                            </td>
-                            <td className="p-2 text-right text-green-700">
-                              €{produtosFiltrados.reduce((s, p) => s + p.faturacao, 0).toFixed(2)}
-                            </td>
-                            <td className="p-2 text-right text-blue-700">
-                              €{produtosFiltrados.reduce((s, p) => s + p.lucro, 0).toFixed(2)}
-                            </td>
-                            <td className="p-2 text-right text-gray-700">
-                              {(() => {
-                                const totalFat = produtosFiltrados.reduce((s, p) => s + p.faturacao, 0);
-                                const totalLucro = produtosFiltrados.reduce((s, p) => s + p.lucro, 0);
-                                return totalFat > 0 ? ((totalLucro / totalFat) * 100).toFixed(1) : '0.0';
-                              })()}%
-                            </td>
-                            <td className="p-2 text-right text-gray-700">
-                              €{(() => {
-                                const totalQtd = produtosFiltrados.reduce((s, p) => s + p.quantidade, 0);
-                                const totalFat = produtosFiltrados.reduce((s, p) => s + p.faturacao, 0);
-                                return totalQtd > 0 ? (totalFat / totalQtd).toFixed(2) : '0.00';
-                              })()}
-                            </td>
-                          </tr>
-                        </tfoot>
-                      </table>
-                    </div>
-                  );
-                })()}
-                </div>
-              )}
-              </div>
-
-              {/* ============================================ */}
-              {/* SECTION: MÉTRICAS POR CATEGORIA */}
-              {/* ============================================ */}
-              <div className="bg-white rounded-lg shadow p-4 mb-3">
-                <h2 className="text-xl font-bold mb-3 flex items-center gap-2">
-                  <Tooltip text="Agrupa as vendas por tipo de produto (Cafés, Lanches, Sobremesas, etc). Útil para identificar quais categorias geram mais receita e têm melhores margens." position="right">
-                    <span className="flex items-center gap-2">
-                      📊 Métricas por Categoria de Produto
-                      <span className="text-gray-400 text-lg">ⓘ</span>
-                    </span>
-                  </Tooltip>
-                </h2>
-                <p className="text-xs text-gray-600 mb-3">Vendas agrupadas por categoria (Cafés, Bebidas, Pratos, Sobremesas...)</p>
-                
-                {(() => {
-                  // Agrupar vendas por categoria de produto
-                  const vendasPorCategoria = {};
-                  
-                  filteredVendas.forEach(v => {
-                    // Encontrar o produto para pegar a categoria
-                    const produto = produtos.find(p => p.nome === v.produto);
-                    const categoria = produto?.categoria || 'outros';
-                    
-                    if (!vendasPorCategoria[categoria]) {
-                      vendasPorCategoria[categoria] = {
-                        quantidade: 0,
-                        faturacao: 0,
-                        lucro: 0
-                      };
-                    }
-                    
-                    // Arredondar TUDO para evitar erros de ponto flutuante
-                    vendasPorCategoria[categoria].quantidade = Math.round((vendasPorCategoria[categoria].quantidade + v.quantidade) * 100) / 100;
-                    vendasPorCategoria[categoria].faturacao = Math.round((vendasPorCategoria[categoria].faturacao + v.valor) * 100) / 100;
-                    vendasPorCategoria[categoria].lucro = Math.round((vendasPorCategoria[categoria].lucro + calcLucroVenda(v).lucro) * 100) / 100;
-                  });
-                  
-                  const categorias = {
-                    'cafes': { nome: '☕ Cafés', cor: 'brown' },
-                    'bebidas': { nome: '🥤 Bebidas', cor: 'blue' },
-                    'pratos': { nome: '🍽️ Pratos', cor: 'orange' },
-                    'sobremesas': { nome: '🍰 Sobremesas', cor: 'pink' },
-                    'lanches': { nome: '🥪 Lanches', cor: 'yellow' },
-                    'outros': { nome: '📦 Outros', cor: 'gray' }
-                  };
-                  
-                  const categoriasComDados = Object.entries(vendasPorCategoria)
-                    .filter(([_, dados]) => dados.quantidade > 0)
-                    .sort((a, b) => b[1].faturacao - a[1].faturacao);
-                  
-                  if (categoriasComDados.length === 0) {
-                    return (
-                      <div className="text-center py-8 bg-gray-50 rounded-lg">
-                        <p className="text-gray-600">📦 Sem vendas no período selecionado</p>
-                        <p className="text-xs text-gray-500 mt-2">Adicione produtos com categorias para ver métricas</p>
-                      </div>
-                    );
-                  }
-                  
-                  return (
-                    <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
-                      {categoriasComDados.map(([cat, dados]) => {
-                        const info = categorias[cat] || { nome: cat, cor: 'gray' };
-                        const margemPerc = dados.faturacao > 0 ? (dados.lucro / dados.faturacao) * 100 : 0;
+                    {(() => {
+                      // Calcular vendas por produto
+                      const vendasPorProduto = {};
+                      
+                      filteredVendas.forEach(v => {
+                        if (!vendasPorProduto[v.produto]) {
+                          vendasPorProduto[v.produto] = {
+                            nome: v.produto,
+                            quantidade: 0,
+                            faturacao: 0,
+                            lucro: 0
+                          };
+                        }
                         
+                        vendasPorProduto[v.produto].quantidade = Math.round((vendasPorProduto[v.produto].quantidade + v.quantidade) * 100) / 100;
+                        vendasPorProduto[v.produto].faturacao = Math.round((vendasPorProduto[v.produto].faturacao + v.valor) * 100) / 100;
+                        vendasPorProduto[v.produto].lucro = Math.round((vendasPorProduto[v.produto].lucro + calcLucroVenda(v).lucro) * 100) / 100;
+                      });
+                      
+                      let produtosArray = Object.values(vendasPorProduto);
+                      
+                      // Aplicar filtro de categoria
+                      if (categoriaFiltroDesempenho !== 'todos') {
+                        produtosArray = produtosArray.filter(pVenda => {
+                          const produto = produtos.find(p => p.nome === pVenda.nome);
+                          return produto && produto.categoria === categoriaFiltroDesempenho;
+                        });
+                      }
+                      
+                      // Aplicar filtro de busca
+                      if (buscaProdutoIndividual.trim()) {
+                        produtosArray = produtosArray.filter(pVenda =>
+                          normalizeText(pVenda.nome).includes(normalizeText(buscaProdutoIndividual))
+                        );
+                      }
+                      
+                      // Ordenar
+                      if (ordenarPor === 'faturacao') {
+                        produtosArray.sort((a, b) => b.faturacao - a.faturacao);
+                      } else if (ordenarPor === 'quantidade') {
+                        produtosArray.sort((a, b) => b.quantidade - a.quantidade);
+                      } else if (ordenarPor === 'lucro') {
+                        produtosArray.sort((a, b) => b.lucro - a.lucro);
+                      } else if (ordenarPor === 'margem') {
+                        produtosArray.sort((a, b) => {
+                          const margemA = a.faturacao > 0 ? (a.lucro / a.faturacao) * 100 : 0;
+                          const margemB = b.faturacao > 0 ? (b.lucro / b.faturacao) * 100 : 0;
+                          return margemB - margemA;
+                        });
+                      }
+                      
+                      if (produtosArray.length === 0) {
                         return (
-                          <div key={cat} className={`bg-${info.cor}-50 border-2 border-${info.cor}-300 rounded-lg p-3`}>
-                            <p className="text-xs font-bold mb-1">{info.nome}</p>
-                            <p className="text-2xl font-bold text-gray-900 mb-1">
-                              {Math.round(dados.quantidade)}
+                          <div className="text-center py-8 bg-gray-50 rounded-lg">
+                            <p className="text-gray-600">
+                              📦 Sem vendas de produtos{categoriaFiltroDesempenho !== 'todos' ? ` da categoria "${CATEGORIAS_PRODUTOS[categoriaFiltroDesempenho]?.nome}"` : ''} no período selecionado
                             </p>
-                            <p className="text-xs text-gray-600 mb-2">unidades vendidas</p>
-                            
-                            <div className="bg-white rounded p-2 text-xs space-y-1">
-                              <div className="flex justify-between">
-                                <span className="text-gray-600">Faturação:</span>
-                                <span className="font-bold text-green-700">€{dados.faturacao.toFixed(0)}</span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span className="text-gray-600">Lucro:</span>
-                                <span className="font-bold text-blue-700">€{dados.lucro.toFixed(0)}</span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span className="text-gray-600">Margem:</span>
-                                <span className={`font-bold ${
-                                  margemPerc > 60 ? 'text-green-600' :
-                                  margemPerc > 40 ? 'text-blue-600' : 'text-orange-600'
-                                }`}>
-                                  {margemPerc.toFixed(1)}%
-                                </span>
-                              </div>
-                            </div>
                           </div>
                         );
-                      })}
-                    </div>
-                  );
-                })()}
+                      }
+                      
+                      return (
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="bg-gradient-to-r from-blue-100 to-indigo-100 border-b-2 border-blue-300">
+                                <th className="text-left p-2 font-bold text-blue-900">#</th>
+                                <th className="text-left p-2 font-bold text-blue-900">Produto</th>
+                                <th 
+                                  className="text-right p-2 font-bold text-blue-900 cursor-pointer hover:bg-blue-200 transition"
+                                  onClick={() => setOrdenarPor('quantidade')}
+                                  title="Clique para ordenar"
+                                >
+                                  📦 Qtd {ordenarPor === 'quantidade' && '▼'}
+                                </th>
+                                <th 
+                                  className="text-right p-2 font-bold text-blue-900 cursor-pointer hover:bg-blue-200 transition"
+                                  onClick={() => setOrdenarPor('faturacao')}
+                                  title="Clique para ordenar"
+                                >
+                                  💰 Faturação {ordenarPor === 'faturacao' && '▼'}
+                                </th>
+                                <th 
+                                  className="text-right p-2 font-bold text-blue-900 cursor-pointer hover:bg-blue-200 transition"
+                                  onClick={() => setOrdenarPor('lucro')}
+                                  title="Clique para ordenar"
+                                >
+                                  💎 Lucro {ordenarPor === 'lucro' && '▼'}
+                                </th>
+                                <th 
+                                  className="text-right p-2 font-bold text-blue-900 cursor-pointer hover:bg-blue-200 transition"
+                                  onClick={() => setOrdenarPor('margem')}
+                                  title="Clique para ordenar"
+                                >
+                                  📊 Margem % {ordenarPor === 'margem' && '▼'}
+                                </th>
+                                <th className="text-right p-2 font-bold text-blue-900">Ticket Médio</th>
+                                <th className="text-center p-2 font-bold text-blue-900">Detalhes</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {produtosArray.map((p, idx) => {
+                                const margemPerc = p.faturacao > 0 ? (p.lucro / p.faturacao) * 100 : 0;
+                                const ticketMedio = p.quantidade > 0 ? p.faturacao / p.quantidade : 0;
+                                const produto = produtos.find(pr => pr.nome === p.nome);
+                                const temReceita = produto && produto.receita && produto.receita.length > 0;
+                                const isExpanded = produtoDetalheExpandido === p.nome;
+                                
+                                return (
+                                  <React.Fragment key={p.nome}>
+                                    <tr className={`border-b hover:bg-blue-50 transition ${!temReceita ? 'bg-yellow-50' : ''} ${idx % 2 === 0 ? 'bg-gray-50' : 'bg-white'}`}>
+                                      <td className="p-2 font-semibold text-gray-700">#{idx + 1}</td>
+                                      <td className="p-2 text-gray-900 font-medium">{p.nome}</td>
+                                      <td className="p-2 text-right text-gray-700">{p.quantidade.toFixed(1)}</td>
+                                      <td className="p-2 text-right font-semibold text-green-700">€{p.faturacao.toFixed(2)}</td>
+                                      <td className="p-2 text-right font-semibold text-blue-700">€{p.lucro.toFixed(2)}</td>
+                                      <td className={`p-2 text-right font-bold ${
+                                        !temReceita ? 'text-yellow-600' :
+                                        margemPerc > 60 ? 'text-green-600' :
+                                        margemPerc > 40 ? 'text-blue-600' :
+                                        margemPerc > 20 ? 'text-orange-600' : 'text-red-600'
+                                      }`}>
+                                        {!temReceita ? '⚠️ N/A' : `${margemPerc.toFixed(1)}%`}
+                                      </td>
+                                      <td className="p-2 text-right text-gray-700">€{ticketMedio.toFixed(2)}</td>
+                                      <td className="p-2 text-center">
+                                        <button
+                                          onClick={() => setProdutoDetalheExpandido(isExpanded ? null : p.nome)}
+                                          className="text-blue-600 hover:text-blue-800 font-bold text-lg"
+                                        >
+                                          {isExpanded ? '−' : '+'}
+                                        </button>
+                                      </td>
+                                    </tr>
+                                    
+                                    {/* Linha expandida com detalhes */}
+                                    {isExpanded && (
+                                      <tr className="bg-blue-50 border-b border-blue-200">
+                                        <td colSpan="8" className="p-4">
+                                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                            {/* Vendas */}
+                                            <div className="bg-white rounded-lg p-3 border border-blue-200">
+                                              <h4 className="text-sm font-bold text-blue-900 mb-2">📊 Vendas</h4>
+                                              <div className="space-y-1 text-xs">
+                                                <div className="flex justify-between">
+                                                  <span className="text-gray-600">Total:</span>
+                                                  <span className="font-semibold">{p.quantidade.toFixed(1)} unidades</span>
+                                                </div>
+                                                <div className="flex justify-between">
+                                                  <span className="text-gray-600">Média/dia:</span>
+                                                  <span className="font-semibold">{(p.quantidade / Math.max(dias, 1)).toFixed(1)} vendas</span>
+                                                </div>
+                                                <div className="flex justify-between">
+                                                  <span className="text-gray-600">Dias ativos:</span>
+                                                  <span className="font-semibold">
+                                                    {(() => {
+                                                      const diasComVenda = new Set(filteredVendas.filter(v => v.produto === p.nome).map(v => v.data)).size;
+                                                      return `${diasComVenda}/${dias} (${((diasComVenda / Math.max(dias, 1)) * 100).toFixed(0)}%)`;
+                                                    })()}
+                                                  </span>
+                                                </div>
+                                              </div>
+                                            </div>
+                                            
+                                            {/* Financeiro */}
+                                            <div className="bg-white rounded-lg p-3 border border-green-200">
+                                              <h4 className="text-sm font-bold text-green-900 mb-2">💰 Financeiro</h4>
+                                              <div className="space-y-1 text-xs">
+                                                <div className="flex justify-between">
+                                                  <span className="text-gray-600">Faturação:</span>
+                                                  <span className="font-semibold text-green-700">€{p.faturacao.toFixed(2)}</span>
+                                                </div>
+                                                <div className="flex justify-between">
+                                                  <span className="text-gray-600">Lucro:</span>
+                                                  <span className="font-semibold text-blue-700">€{p.lucro.toFixed(2)}</span>
+                                                </div>
+                                                <div className="flex justify-between">
+                                                  <span className="text-gray-600">Margem/un:</span>
+                                                  <span className="font-semibold">€{(p.lucro / p.quantidade).toFixed(2)}</span>
+                                                </div>
+                                                <div className="flex justify-between">
+                                                  <span className="text-gray-600">% Lucro total:</span>
+                                                  <span className="font-semibold">{((p.lucro / Math.max(lucroReal, 1)) * 100).toFixed(1)}%</span>
+                                                </div>
+                                              </div>
+                                            </div>
+                                            
+                                            {/* Padrões */}
+                                            <div className="bg-white rounded-lg p-3 border border-purple-200">
+                                              <h4 className="text-sm font-bold text-purple-900 mb-2">📈 Padrões</h4>
+                                              <div className="space-y-1 text-xs">
+                                                {(() => {
+                                                  const vendasProduto = filteredVendas.filter(v => v.produto === p.nome);
+                                                  const porDiaSemana = {};
+                                                  vendasProduto.forEach(v => {
+                                                    const dia = new Date(v.data).getDay();
+                                                    porDiaSemana[dia] = (porDiaSemana[dia] || 0) + v.quantidade;
+                                                  });
+                                                  
+                                                  const dias = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+                                                  let melhorDia = null;
+                                                  let piorDia = null;
+                                                  let maxVendas = -1;
+                                                  let minVendas = Infinity;
+                                                  
+                                                  Object.entries(porDiaSemana).forEach(([dia, vendas]) => {
+                                                    if (vendas > maxVendas) {
+                                                      maxVendas = vendas;
+                                                      melhorDia = parseInt(dia);
+                                                    }
+                                                    if (vendas < minVendas) {
+                                                      minVendas = vendas;
+                                                      piorDia = parseInt(dia);
+                                                    }
+                                                  });
+                                                  
+                                                  return (
+                                                    <>
+                                                      {melhorDia !== null && (
+                                                        <div className="flex justify-between">
+                                                          <span className="text-gray-600">Melhor dia:</span>
+                                                          <span className="font-semibold text-green-600">{dias[melhorDia]} ({maxVendas}x)</span>
+                                                        </div>
+                                                      )}
+                                                      {piorDia !== null && (
+                                                        <div className="flex justify-between">
+                                                          <span className="text-gray-600">Pior dia:</span>
+                                                          <span className="font-semibold text-red-600">{dias[piorDia]} ({minVendas}x)</span>
+                                                        </div>
+                                                      )}
+                                                      <div className="flex justify-between">
+                                                        <span className="text-gray-600">Consistência:</span>
+                                                        <span className="font-semibold">
+                                                          {(() => {
+                                                            const diasComVenda = new Set(vendasProduto.map(v => v.data)).size;
+                                                            const consistencia = (diasComVenda / Math.max(dias, 1)) * 100;
+                                                            return consistencia > 70 ? '🟢 Alta' : consistencia > 40 ? '🟡 Média' : '🔴 Baixa';
+                                                          })()}
+                                                        </span>
+                                                      </div>
+                                                    </>
+                                                  );
+                                                })()}
+                                              </div>
+                                            </div>
+                                          </div>
+                                        </td>
+                                      </tr>
+                                    )}
+                                  </React.Fragment>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
               </div>
 
               {/* ============================================ */}
