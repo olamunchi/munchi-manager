@@ -4985,14 +4985,14 @@ const RestauranteGestor = () => {
   };
   const [novaFatura, setNovaFatura] = useState({
     numero: '',
-    tipoDocumento: 'fatura', // NOVO: 'fatura' ou 'recibo'
+    tipoDocumento: 'FT', // FT, FR, FS, etc.
     data: new Date().toISOString().split('T')[0],
     fornecedorId: '',
     itens: [],
     notas: '',
-    categoria: 'compras', // Nova: compras, renda, eletricidade, agua, gas, internet, salarios, marketing, consumiveis, manutencao, outros
-    recorrente: false, // Nova: se repete mensalmente
-    diaRecorrencia: 1, // Nova: dia do mês para repetir (1-31)
+    categoria: 'compras', // compras, renda, eletricidade, agua, gas, internet, salarios, marketing, consumiveis, manutencao, outros
+    recorrente: false, // se repete mensalmente
+    diaRecorrencia: 1, // dia do mês para repetir (1-31)
     documentoPDF: null, // PDF da fatura em base64
     nomeDocumento: '' // Nome original do ficheiro PDF
   });
@@ -5932,7 +5932,7 @@ const RestauranteGestor = () => {
       criadoEm: new Date().toISOString(), // 🆕 Timestamp de criação
       numero: metadata?.numero || metadata?.numeroFatura || '',
       tipo: metadata?.tipo || metadata?.tipoFatura || 'FT',
-      tipoDocumento: 'fatura',
+      tipoDocumento: 'FT',
       data: metadata?.data || metadata?.dataFatura || new Date().toISOString().split('T')[0],
       fornecedorId: fornecedor?.id || '',
       fornecedorNome: fornecedor?.nome || '',
@@ -5989,7 +5989,7 @@ const RestauranteGestor = () => {
     setNovaFatura({
       numero: '',
       tipo: 'FT',
-      tipoDocumento: 'fatura',
+      tipoDocumento: 'FT',
       data: new Date().toISOString().split('T')[0],
       fornecedorId: '',
       itens: [],
@@ -6099,7 +6099,7 @@ const RestauranteGestor = () => {
       id: Date.now(),
       numero: dadosConfirmados.numero || metadataOCR?.numeroFatura || '',
       tipo: dadosConfirmados.tipo || metadataOCR?.tipoFatura || 'FT',
-      tipoDocumento: 'fatura',
+      tipoDocumento: 'FT',
       data: dadosConfirmados.data || metadataOCR?.dataFatura || new Date().toISOString().split('T')[0],
       fornecedorId: fornecedorId,
       fornecedorNome: fornecedorNome,
@@ -6138,7 +6138,7 @@ const RestauranteGestor = () => {
     setNovaFatura({
       numero: '',
       tipo: 'FT',
-      tipoDocumento: 'fatura',
+      tipoDocumento: 'FT',
       data: new Date().toISOString().split('T')[0],
       fornecedorId: '',
       itens: [],
@@ -11291,7 +11291,7 @@ void 0;
     // Resetar formulário
     setNovaFatura({
       numero: '',
-      tipoDocumento: 'fatura', // NOVO
+      tipoDocumento: 'FT', // NOVO
       data: new Date().toISOString().split('T')[0],
       fornecedorId: '',
       itens: [],
@@ -11606,25 +11606,25 @@ void 0;
   
   const editarFatura = (fatura) => {
     setNovaFatura({
-      id: fatura.id, // ✅ ADICIONAR ID para poder atualizar
+      id: fatura.id,
       numero: fatura.numero,
       data: fatura.data,
       fornecedorId: fatura.fornecedorId,
-      fornecedorNome: fatura.fornecedorNome, // ✅ ADICIONAR NOME FORNECEDOR
-      fornecedorNif: fatura.fornecedorNif, // ✅ ADICIONAR NIF FORNECEDOR
+      fornecedorNome: fatura.fornecedorNome,
+      fornecedorNif: fatura.fornecedorNif,
       itens: fatura.itens,
       notas: fatura.notas,
-      categoria: fatura.categoria || 'compras', // ✅ PRESERVAR CATEGORIA
-      tipoDocumento: fatura.tipoDocumento || 'fatura', // ✅ PRESERVAR TIPO DOCUMENTO
-      tipo: fatura.tipo || 'FT', // ✅ PRESERVAR TIPO (FT/FR/FS)
-      recorrente: fatura.recorrente || false, // ✅ PRESERVAR RECORRÊNCIA
-      diaRecorrencia: fatura.diaRecorrencia || 1, // ✅ PRESERVAR DIA RECORRÊNCIA
-      documentoPDF: fatura.documentoPDF || null, // ✅ PRESERVAR PDF
-      nomeDocumento: fatura.nomeDocumento || '', // ✅ PRESERVAR NOME
-      totais: fatura.totais || null, // ✅ PRESERVAR TOTAIS ESTRUTURADOS
-      total: fatura.total || 0, // ✅ PRESERVAR TOTAL
-      subtotal: fatura.subtotal || 0, // ✅ PRESERVAR SUBTOTAL
-      totalIva: fatura.totalIva || 0 // ✅ PRESERVAR TOTAL IVA
+      categoria: fatura.categoria || 'compras',
+      tipoDocumento: fatura.tipo || 'FT', // ✅ USAR fatura.tipo (FT/FR/FS)
+      tipo: fatura.tipo || 'FT',
+      recorrente: fatura.recorrente || false,
+      diaRecorrencia: fatura.diaRecorrencia || 1,
+      documentoPDF: fatura.documentoPDF || null,
+      nomeDocumento: fatura.nomeDocumento || '',
+      totais: fatura.totais || null,
+      total: fatura.total || 0,
+      subtotal: fatura.subtotal || 0,
+      totalIva: fatura.totalIva || 0
     });
     setEditandoFatura(true);
     setFaturaEditando(fatura.id);
@@ -12640,7 +12640,7 @@ void 0;
   const filteredFaturas = getFilteredData(faturas);
   
   // ✅ APLICAR FILTROS DE CONFIGURAÇÃO (além dos filtros de data)
-  // Aplicar filtros por tipo de fatura (FT/FR/FS) - APENAS para cálculos de compras
+  // Aplicar filtros por tipo de fatura (FT/FR/FS) - para cálculos de métricas
   const filteredFaturasComConfig = filteredFaturas.filter(f => {
     const tipo = f.tipo;
     if (tipo === 'FT') return configuracoes.metricas?.incluirFT !== false;
@@ -12650,20 +12650,20 @@ void 0;
   });
   
   // ✅ CRIAR ARRAY UNIFICADO: despesas manuais + faturas (convertidas para formato de despesa)
-  // ⚠️ FILTRAR: Só faturas que vão para contabilista (FT e FR, não FS)
-  // ✅ USAR faturas COM filtros de configuração aplicados
-  const faturasParaContabilista = filteredFaturasComConfig.filter(f => f.paraContabilista !== false);
-  const faturasComoDespesas = faturasParaContabilista.map(f => ({
+  // 🆕 USAR TODAS as faturas filtradas (não só as para contabilista)
+  // O filtro paraContabilista é usado APENAS para exportação, não para métricas
+  const faturasComoDespesas = filteredFaturasComConfig.map(f => ({
     id: f.id,
     data: f.data,
     descricao: `Fatura ${f.numero || f.id}`,
     valor: f.totais?.total || f.total || 0,
     iva: f.totalIva || 0,
-    ivaPercentagem: f.itens?.[0]?.iva || 23, // Taxa de IVA percentual para cálculos
-    categoria: f.categoria || 'outros', // ✅ Se não tem categoria, marca como 'outros' (não 'compras')
-    tipo: f.tipo || 'FT', // FT/FR (FS excluído)
+    ivaPercentagem: f.itens?.[0]?.iva || 23,
+    categoria: f.categoria || 'outros',
+    tipo: f.tipo || 'FT',
     fornecedor: f.fornecedorNome || '',
-    origem: 'fatura' // Flag para identificar
+    origem: 'fatura',
+    paraContabilista: f.paraContabilista // ✅ Preservar para usar depois na exportação
   }));
   
   void 0;
@@ -12924,7 +12924,21 @@ void 0;
   void 0;
   void 0;
 
-  const dFixas = todasDespesas.filter(d => ['renda', 'eletricidade', 'agua', 'gas', 'internet', 'salarios'].includes(d.categoria)).reduce((s, d) => s + d.valor, 0);
+  // Calcular despesas fixas com o MESMO filtro aplicado ao totD
+  const dFixas = todasDespesas
+    .filter(d => ['renda', 'eletricidade', 'agua', 'gas', 'internet', 'salarios'].includes(d.categoria))
+    .filter(d => {
+      // Aplicar filtro por tipo apenas para faturas
+      if (d.origem === 'fatura') {
+        const tipo = d.tipo;
+        if (tipo === 'FT') return configuracoes.metricas?.incluirFT !== false;
+        if (tipo === 'FR') return configuracoes.metricas?.incluirFR !== false;
+        if (tipo === 'FS') return configuracoes.metricas?.incluirFS !== false;
+        return true;
+      }
+      return true; // Despesas manuais sempre incluir
+    })
+    .reduce((s, d) => s + d.valor, 0);
   const dFixDia = dFixas / 30;
   
   // Calculate total salaries considering payment frequency (normalize to monthly)
@@ -15073,7 +15087,7 @@ void 0;
       setNovaFatura({
         numero: '',
         tipo: 'FT',
-        tipoDocumento: 'fatura',
+        tipoDocumento: 'FT',
         data: new Date().toISOString().split('T')[0],
         fornecedorId: '',
         fornecedorNome: '',
@@ -18864,7 +18878,7 @@ void 0;
                             if (confirm('Cancelar edição? As alterações serão perdidas.')) {
                               setNovaFatura({
                                 numero: '',
-                                tipoDocumento: 'fatura',
+                                tipoDocumento: 'FT',
                                 data: new Date().toISOString().split('T')[0],
                                 fornecedorId: '',
                                 itens: [],
@@ -18904,7 +18918,26 @@ void 0;
                           return;
                         }
                         
-                        const total = (novaFatura.itens || []).reduce((sum, item) => sum + parseFloat(item.precoTotal || 0), 0);
+                        // O valor introduzido pelo utilizador JÁ INCLUI IVA
+                        // Precisamos calcular o subtotal (sem IVA) e o IVA separadamente
+                        const totalComIva = (novaFatura.itens || []).reduce((sum, item) => 
+                          sum + parseFloat(item.subtotal || item.precoTotal || 0), 0);
+                        
+                        let subtotalSemIva = 0;
+                        let totalIva = 0;
+                        
+                        (novaFatura.itens || []).forEach(item => {
+                          const valorComIva = parseFloat(item.subtotal || item.precoTotal || 0);
+                          const taxaIva = parseFloat(item.iva || 0);
+                          
+                          // Calcular o valor sem IVA: valorComIva / (1 + taxaIva/100)
+                          const valorSemIva = valorComIva / (1 + taxaIva / 100);
+                          const valorIva = valorComIva - valorSemIva;
+                          
+                          subtotalSemIva += valorSemIva;
+                          totalIva += valorIva;
+                        });
+                        
                         const fornecedor = fornecedores.find(f => (f.id || f) === novaFatura.fornecedorId);
                         
                         const novaFaturaCompleta = {
@@ -18927,11 +18960,14 @@ void 0;
                             subtotal: parseFloat(item.subtotal || item.precoTotal || 0),
                             iva: parseFloat(item.iva || 13)
                           })),
+                          subtotal: subtotalSemIva,
+                          totalIva: totalIva,
                           totais: {
-                            subtotal: total,
-                            total: total
+                            subtotal: subtotalSemIva,
+                            totalIva: totalIva,
+                            total: totalComIva
                           },
-                          total: total,
+                          total: totalComIva,
                           notas: novaFatura.notas || '',
                           documentoPDF: novaFatura.documentoPDF || null,
                           nomeDocumento: novaFatura.nomeDocumento || '',
@@ -18953,7 +18989,7 @@ void 0;
                         // Limpar formulário
                         setNovaFatura({
                           numero: '',
-                          tipoDocumento: 'fatura',
+                          tipoDocumento: 'FT',
                           data: new Date().toISOString().split('T')[0],
                           fornecedorId: '',
                           itens: [],
@@ -18975,7 +19011,7 @@ void 0;
                         });
                         setFaturaEditando(null);
                         setEditandoFatura(false);
-                        triggerSync();
+                        // Sync automático via useEffect quando faturas muda
                       }}
                       className={`px-6 py-3 text-white rounded-lg hover:shadow-lg transition font-semibold flex items-center gap-2 ${
                         faturaEditando 
@@ -19120,53 +19156,113 @@ void 0;
                                       value={itemEditTemp.descricao || ''}
                                       onChange={(e) => setItemEditTemp({...itemEditTemp, descricao: e.target.value})}
                                       className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
-                                      placeholder="Descrição"
+                                      placeholder={novaFatura.categoria === 'compras' ? 'Descrição do ingrediente' : 'Descrição'}
                                     />
-                                    <div className="grid grid-cols-2 gap-2">
-                                      <input 
-                                        type="number"
-                                        value={itemEditTemp.quantidade || ''}
-                                        onChange={(e) => setItemEditTemp({...itemEditTemp, quantidade: e.target.value})}
-                                        className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
-                                        placeholder="Qtd"
-                                      />
-                                      <input 
-                                        type="text"
-                                        value={itemEditTemp.unidade || ''}
-                                        onChange={(e) => setItemEditTemp({...itemEditTemp, unidade: e.target.value})}
-                                        className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
-                                        placeholder="Unidade"
-                                      />
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-2">
-                                      <input 
-                                        type="number"
-                                        step="0.01"
-                                        value={itemEditTemp.precoUnitario || ''}
-                                        onChange={(e) => setItemEditTemp({...itemEditTemp, precoUnitario: e.target.value})}
-                                        className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
-                                        placeholder="Preço Unit."
-                                      />
+                                    
+                                    {/* Mostrar quantidade e unidade APENAS para compras */}
+                                    {novaFatura.categoria === 'compras' && (
+                                      <div className="grid grid-cols-2 gap-2">
+                                        <input 
+                                          type="number"
+                                          step="0.01"
+                                          value={itemEditTemp.quantidade || ''}
+                                          onChange={(e) => {
+                                            const qtd = parseFloat(e.target.value) || 0;
+                                            const precoUnit = parseFloat(itemEditTemp.precoUnitario) || 0;
+                                            setItemEditTemp({
+                                              ...itemEditTemp, 
+                                              quantidade: e.target.value,
+                                              precoTotal: (qtd * precoUnit).toFixed(2)
+                                            });
+                                          }}
+                                          className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                                          placeholder="Quantidade"
+                                        />
+                                        <select
+                                          value={itemEditTemp.unidade || 'kg'}
+                                          onChange={(e) => setItemEditTemp({...itemEditTemp, unidade: e.target.value})}
+                                          className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                                        >
+                                          <option value="kg">kg</option>
+                                          <option value="g">g</option>
+                                          <option value="L">L</option>
+                                          <option value="ml">ml</option>
+                                          <option value="un">un</option>
+                                          <option value="cx">cx</option>
+                                          <option value="pc">pc</option>
+                                        </select>
+                                      </div>
+                                    )}
+                                    
+                                    {/* Mostrar preço unitário e total para compras, só total para outras categorias */}
+                                    {novaFatura.categoria === 'compras' ? (
+                                      <div className="grid grid-cols-2 gap-2">
+                                        <input 
+                                          type="number"
+                                          step="0.01"
+                                          value={itemEditTemp.precoUnitario || ''}
+                                          onChange={(e) => {
+                                            const precoUnit = parseFloat(e.target.value) || 0;
+                                            const qtd = parseFloat(itemEditTemp.quantidade) || 0;
+                                            setItemEditTemp({
+                                              ...itemEditTemp, 
+                                              precoUnitario: e.target.value,
+                                              precoTotal: (qtd * precoUnit).toFixed(2)
+                                            });
+                                          }}
+                                          className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                                          placeholder="Preço Unitário €"
+                                        />
+                                        <input 
+                                          type="number"
+                                          step="0.01"
+                                          value={itemEditTemp.precoTotal || ''}
+                                          onChange={(e) => {
+                                            const precoTotal = parseFloat(e.target.value) || 0;
+                                            const qtd = parseFloat(itemEditTemp.quantidade) || 1;
+                                            setItemEditTemp({
+                                              ...itemEditTemp, 
+                                              precoTotal: e.target.value,
+                                              precoUnitario: qtd > 0 ? (precoTotal / qtd).toFixed(2) : '0'
+                                            });
+                                          }}
+                                          className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                                          placeholder="Preço Total €"
+                                        />
+                                      </div>
+                                    ) : (
                                       <input 
                                         type="number"
                                         step="0.01"
                                         value={itemEditTemp.precoTotal || ''}
                                         onChange={(e) => setItemEditTemp({...itemEditTemp, precoTotal: e.target.value})}
                                         className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
-                                        placeholder="Preço Total"
+                                        placeholder="Valor Total (com IVA) €"
                                       />
-                                    </div>
-                                    <input 
-                                      type="number"
+                                    )}
+                                    
+                                    <select
                                       value={itemEditTemp.iva || '13'}
                                       onChange={(e) => setItemEditTemp({...itemEditTemp, iva: e.target.value})}
                                       className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
-                                      placeholder="IVA %"
-                                    />
+                                    >
+                                      <option value="6">IVA 6%</option>
+                                      <option value="13">IVA 13%</option>
+                                      <option value="23">IVA 23%</option>
+                                    </select>
+                                    
                                     <div className="flex gap-2">
                                       <button
                                         onClick={() => {
-                                          // Guardar alterações
+                                          // Guardar alterações com cálculos corretos
+                                          const quantidade = novaFatura.categoria === 'compras' ? (parseFloat(itemEditTemp.quantidade) || 0) : 1;
+                                          const precoUnitario = novaFatura.categoria === 'compras' ? (parseFloat(itemEditTemp.precoUnitario) || 0) : 0;
+                                          const precoTotal = parseFloat(itemEditTemp.precoTotal) || 0;
+                                          const iva = parseFloat(itemEditTemp.iva) || 13;
+                                          
+                                          // Calcular subtotal (preço sem IVA)
+                                          const subtotal = precoTotal;
+                                          
                                           setNovaFatura({
                                             ...novaFatura,
                                             itens: novaFatura.itens.map(i => 
@@ -19174,12 +19270,12 @@ void 0;
                                                 ...i,
                                                 descricao: itemEditTemp.descricao,
                                                 ingredienteNome: itemEditTemp.descricao,
-                                                quantidade: parseFloat(itemEditTemp.quantidade || 0),
-                                                unidade: itemEditTemp.unidade,
-                                                precoUnitario: parseFloat(itemEditTemp.precoUnitario || 0),
-                                                precoTotal: parseFloat(itemEditTemp.precoTotal || 0),
-                                                subtotal: parseFloat(itemEditTemp.subtotal || itemEditTemp.precoTotal || 0),
-                                                iva: parseFloat(itemEditTemp.iva || 13)
+                                                quantidade: quantidade,
+                                                unidade: novaFatura.categoria === 'compras' ? itemEditTemp.unidade : '',
+                                                precoUnitario: precoUnitario,
+                                                precoTotal: precoTotal,
+                                                subtotal: subtotal,
+                                                iva: iva
                                               } : i
                                             )
                                           });
@@ -19665,7 +19761,7 @@ void 0;
                                         if (confirm('❌ Tem a certeza que deseja eliminar esta fatura?')) {
                                           setFaturas(faturas.filter(f => f.id !== fatura.id));
                                           showNotification('🗑️ Fatura eliminada', 'success');
-                                          triggerSync();
+                                          // Sync automático via useEffect quando faturas muda
                                         }
                                       }}
                                       className="text-red-600 hover:text-red-800 hover:bg-red-50 p-2 rounded transition"
