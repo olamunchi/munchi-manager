@@ -841,6 +841,7 @@ const ComprasAnalysis = ({ despesas, faturas = [], ingredientes, fornecedores })
   const [searchCompra, setSearchCompra] = React.useState('');
   const [expandedIngrediente, setExpandedIngrediente] = React.useState(null); // Ingrediente expandido na análise
   const [categoriaCompra, setCategoriaCompra] = React.useState('all');
+  const [hoveredPoints, setHoveredPoints] = React.useState({}); // Para controlar hover nos gráficos {ingredienteId: pointIndex}
   
   // Combinar despesas antigas com faturas novas
   const todasCompras = React.useMemo(() => {
@@ -1151,6 +1152,10 @@ const ComprasAnalysis = ({ despesas, faturas = [], ingredientes, fornecedores })
                           const minPreco = Math.min(...precos);
                           const maxPreco = Math.max(...precos);
                           const range = maxPreco - minPreco || 1;
+                          const hoveredPoint = hoveredPoints[ing.id];
+                          const setHoveredPoint = (pointIndex) => {
+                            setHoveredPoints(prev => ({...prev, [ing.id]: pointIndex}));
+                          };
                           
                           return (
                             <>
@@ -1175,7 +1180,7 @@ const ComprasAnalysis = ({ despesas, faturas = [], ingredientes, fornecedores })
                                 <polyline
                                   points={sortedCompras.map((c, i) => {
                                     const x = (i / (sortedCompras.length - 1)) * 100;
-                                    const y = 100 - ((c.precoUnitario - minPreco) / range) * 80;
+                                    const y = 90 - ((c.precoUnitario - minPreco) / range) * 80;
                                     return `${x},${y}`;
                                   }).join(' ')}
                                   fill="none"
@@ -1183,61 +1188,97 @@ const ComprasAnalysis = ({ despesas, faturas = [], ingredientes, fornecedores })
                                   strokeWidth="0.8"
                                   vectorEffect="non-scaling-stroke"
                                 />
-                                {/* Points */}
+                                {/* Points with hover */}
                                 {sortedCompras.map((c, i) => {
                                   const x = (i / (sortedCompras.length - 1)) * 100;
-                                  const y = 100 - ((c.precoUnitario - minPreco) / range) * 80;
+                                  const y = 90 - ((c.precoUnitario - minPreco) / range) * 80;
                                   const isMelhor = c.precoUnitario === minPreco;
-                                  
-                                  // Determine color based on price change
-                                  let priceColor = '#6b7280'; // gray for first point
-                                  if (i > 0) {
-                                    const prevPrice = sortedCompras[i - 1].precoUnitario;
-                                    if (c.precoUnitario < prevPrice) {
-                                      priceColor = '#10b981'; // GREEN (desceu)
-                                    } else if (c.precoUnitario > prevPrice) {
-                                      priceColor = '#ef4444'; // RED (subiu)
-                                    } else {
-                                      priceColor = '#6b7280'; // GRAY (igual)
-                                    }
-                                  }
+                                  const isHovered = hoveredPoint === i;
                                   
                                   return (
                                     <g key={i}>
+                                      {/* Invisible larger circle for easier hover */}
                                       <circle
                                         cx={x}
                                         cy={y}
-                                        r="2"
+                                        r="5"
+                                        fill="transparent"
+                                        style={{cursor: 'pointer'}}
+                                        onMouseEnter={() => setHoveredPoint(i)}
+                                        onMouseLeave={() => setHoveredPoint(null)}
+                                      />
+                                      {/* Visible point */}
+                                      <circle
+                                        cx={x}
+                                        cy={y}
+                                        r={isHovered ? "3" : "2"}
                                         fill={isMelhor ? '#10b981' : '#3b82f6'}
                                         stroke="white"
-                                        strokeWidth="0.3"
+                                        strokeWidth={isHovered ? "0.5" : "0.3"}
+                                        style={{pointerEvents: 'none', transition: 'all 0.2s'}}
                                       />
-                                      {/* Price label */}
-                                      <text
-                                        x={x}
-                                        y={y + 6}
-                                        fontSize="6"
-                                        fontWeight="800"
-                                        fill={priceColor}
-                                        stroke="white"
-                                        strokeWidth="0.4"
-                                        textAnchor="middle"
-                                        className="pointer-events-none"
-                                      >
-                                        €{c.precoUnitario.toFixed(2)}
-                                      </text>
-                                      {/* Date label */}
-                                      <text
-                                        x={x}
-                                        y={y + 13}
-                                        fontSize="4"
-                                        fontWeight="700"
-                                        fill="#6b7280"
-                                        textAnchor="middle"
-                                        className="pointer-events-none"
-                                      >
-                                        {new Date(c.data).toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit' })}
-                                      </text>
+                                      {/* Tooltip on hover */}
+                                      {isHovered && (
+                                        <g style={{pointerEvents: 'none'}}>
+                                          {(() => {
+                                            // Se o ponto está no topo (y < 30), mostra tooltip abaixo
+                                            // Senão, mostra acima
+                                            const showBelow = y < 30;
+                                            const tooltipHeight = c.fornecedor ? 32 : 24;
+                                            const tooltipY = showBelow ? y + 4 : y - tooltipHeight - 2;
+                                            const textY1 = showBelow ? y + 14 : y - tooltipHeight + 10;
+                                            const textY2 = showBelow ? y + 24 : y - tooltipHeight + 20;
+                                            const textY3 = showBelow ? y + 32 : y - tooltipHeight + 28;
+                                            
+                                            return (
+                                              <>
+                                                <rect
+                                                  x={x > 50 ? x - 45 : x + 3}
+                                                  y={tooltipY}
+                                                  width="42"
+                                                  height={tooltipHeight}
+                                                  fill="rgba(0, 0, 0, 0.95)"
+                                                  rx="2"
+                                                  stroke="#3b82f6"
+                                                  strokeWidth="0.5"
+                                                />
+                                                <text
+                                                  x={x > 50 ? x - 24 : x + 24}
+                                                  y={textY1}
+                                                  fontSize="8"
+                                                  fontWeight="700"
+                                                  fill="white"
+                                                  textAnchor="middle"
+                                                >
+                                                  €{c.precoUnitario.toFixed(2)}
+                                                </text>
+                                                <text
+                                                  x={x > 50 ? x - 24 : x + 24}
+                                                  y={textY2}
+                                                  fontSize="6.5"
+                                                  fontWeight="600"
+                                                  fill="#93c5fd"
+                                                  textAnchor="middle"
+                                                >
+                                                  {new Date(c.data).toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit', year: '2-digit' })}
+                                                </text>
+                                                {c.fornecedor && (
+                                                  <text
+                                                    x={x > 50 ? x - 24 : x + 24}
+                                                    y={textY3}
+                                                    fontSize="6"
+                                                    fontWeight="600"
+                                                    fill="#fbbf24"
+                                                    textAnchor="middle"
+                                                  >
+                                                    {c.fornecedor.substring(0, 12)}
+                                                  </text>
+                                                )}
+                                              </>
+                                            );
+                                          })()}
+                                        </g>
+                                      )}
                                     </g>
                                   );
                                 })}
