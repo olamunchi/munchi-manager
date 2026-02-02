@@ -4697,60 +4697,123 @@ const RestauranteGestor = () => {
         const vendasImportadas = [];
         let statsDicionario = 0, statsFuzzy = 0, statsExato = 0, statsSemMatch = 0;
         
+        // Procurar linha com cabeçalho "Data";"Artigo";"Tipo de Documento"...
         let startLine = 0;
         for (let i = 0; i < linhas.length; i++) {
-          if (linhas[i].includes('"Data"') && linhas[i].includes('"Artigo"')) {
+          if (linhas[i].includes('"Data"') && linhas[i].includes('"Artigo"') && linhas[i].includes('"Tipo de Documento"')) {
             startLine = i + 1;
+            console.log('✅ CSV Detalhado encontrado na linha', i);
             break;
           }
         }
         
+        if (startLine === 0) {
+          alert('❌ CSV não reconhecido!\n\nUsa: Moloni → Análise por Artigo → Marca "Mostrar detalhes" → Exporta CSV');
+          return;
+        }
+        
+        // Processar cada linha de venda
         for (let i = startLine; i < linhas.length; i++) {
           const linha = linhas[i].trim();
           if (!linha) continue;
           
+          // Ignorar linhas de resumo que possam aparecer
+          if (linha.includes('"Resumo Artigo"') || linha.includes('"Detalhes"') || linha.includes('"Qtd. Docs."')) {
+            continue;
+          }
+          
           const campos = linha.split(';').map(c => c.replace(/"/g, '').trim());
-          if (campos.length < 8) continue;
+          if (campos.length < 12) continue; // Precisa ter pelo menos 12 campos
           
           const data = campos[0];
           const nomeProduto = campos[1];
-          const valorStr = campos[7].replace(',', '.');
-          const valor = parseFloat(valorStr);
           
-          if (!data || !nomeProduto || isNaN(valor)) continue;
+          // Ignorar se não for uma linha de venda válida
+          if (!data || !nomeProduto || !data.match(/\d{2}-\d{2}-\d{4}/)) continue;
           
-          let produto = null, confianca = 0, metodoMatch = 'nenhum';
-          
-          const nomeCorrigido = mapearNomeProduto(nomeProduto);
-          if (nomeCorrigido !== nomeProduto) {
-            produto = produtos.find(p => p.nome === nomeCorrigido);
-            if (produto) { confianca = 100; metodoMatch = 'dicionario'; statsDicionario++; }
+          // LER QUANTIDADE (campo 10, ex: "1,00Uni." ou "2,00Uni.")
+          let quantidadeStr = campos[10] || '';
+          let quantidade = 1;
+          if (quantidadeStr) {
+            quantidadeStr = quantidadeStr.replace(/Uni\.|kg|l|ml/gi, '').replace(',', '.').trim();
+            const qtd = parseFloat(quantidadeStr);
+            if (!isNaN(qtd) && qtd > 0) {
+              quantidade = qtd;
+            }
           }
           
+          // LER VALOR TOTAL (campo 11, ex: "8,00€")
+          const valorStr = (campos[11] || '').replace(',', '.').replace('€', '').replace('\\x80', '').trim();
+          const valor = parseFloat(valorStr);
+          
+          if (isNaN(valor) || valor <= 0) continue;
+          
+          // EMPARELHAMENTO DO PRODUTO
+          let produto = null, confianca = 0, metodoMatch = 'nenhum';
+          
+          // DEBUG: Log dos primeiros 5 produtos
+          if (vendasImportadas.length < 5) {
+            console.log(`🔍 Produto #${vendasImportadas.length + 1}:`, nomeProduto);
+          }
+          
+          // 1. Tentar dicionário primeiro
+          const nomeCorrigido = mapearNomeProduto(nomeProduto);
+          if (nomeCorrigido !== nomeProduto) {
+            if (vendasImportadas.length < 5) {
+              console.log(`  📖 Dicionário: "${nomeProduto}" → "${nomeCorrigido}"`);
+            }
+            produto = produtos.find(p => p.nome === nomeCorrigido);
+            if (produto) {
+              confianca = 100;
+              metodoMatch = 'dicionario';
+              statsDicionario++;
+              if (vendasImportadas.length < 5) {
+                console.log(`  ✅ Match encontrado: ${produto.nome}`);
+              }
+            } else {
+              if (vendasImportadas.length < 5) {
+                console.log(`  ❌ Produto "${nomeCorrigido}" não existe na lista`);
+              }
+            }
+          }
+          
+          // 2. Se não encontrou no dicionário, tentar match exato/fuzzy
           if (!produto) {
             const match = findBestMatchProduto(nomeProduto, produtos);
             if (match) {
               produto = produtos.find(p => p.id === match.id);
               confianca = match.confianca;
               metodoMatch = match.metodo;
-              if (match.metodo === 'exato') statsExato++; else statsFuzzy++;
+              if (match.metodo === 'exato') {
+                statsExato++;
+              } else {
+                statsFuzzy++;
+              }
+              if (vendasImportadas.length < 5) {
+                console.log(`  🔍 ${match.metodo}: ${match.nome} (${match.confianca}%)`);
+              }
             } else {
               statsSemMatch++;
+              if (vendasImportadas.length < 5) {
+                console.log(`  ⚠️ Sem match para "${nomeProduto}"`);
+              }
             }
           }
           
+          // Formatar data (DD-MM-YYYY → YYYY-MM-DD)
           let dataFormatada = data;
           if (data.match(/\d{2}-\d{2}-\d{4}/)) {
             const parts = data.split('-');
             dataFormatada = parts[2] + '-' + parts[1] + '-' + parts[0];
           }
           
+          // Adicionar venda
           vendasImportadas.push({
             id: Date.now() + Math.random(),
             data: dataFormatada,
             produto: produto?.nome || nomeProduto,
             produtoId: produto?.id || null,
-            quantidade: 1,
+            quantidade: quantidade,
             valor: valor,
             iva: produto?.iva || 6,
             origem: fonteImportacao,
@@ -4761,7 +4824,7 @@ const RestauranteGestor = () => {
         }
         
         if (vendasImportadas.length > 0) {
-          // 🆕 Encontrar a data mais recente das vendas importadas
+          // Encontrar a data mais recente
           const datasMaisRecentes = vendasImportadas
             .map(v => v.data)
             .filter(d => d)
@@ -4775,26 +4838,35 @@ const RestauranteGestor = () => {
           setMostrarImportacao(false);
           
           const total = statsDicionario + statsExato + statsFuzzy;
-          const pct = Math.round(total/vendasImportadas.length*100);
+          const pct = total > 0 ? Math.round(total/vendasImportadas.length*100) : 0;
           
           showNotification(
-            '✅ ' + vendasImportadas.length + ' vendas!\n' +
+            '✅ ' + vendasImportadas.length + ' vendas importadas!\n' +
             '✓ ' + total + ' emparelhadas (' + pct + '%)\n' +
             '  • ' + statsDicionario + ' dicionário\n' +
             '  • ' + statsExato + ' exato\n' +
             '  • ' + statsFuzzy + ' fuzzy\n' +
-            (statsSemMatch > 0 ? '⚠ ' + statsSemMatch + ' sem match' : ''),
+            (statsSemMatch > 0 ? '⚠️ ' + statsSemMatch + ' sem match' : ''),
             total === vendasImportadas.length ? 'success' : 'warning'
           );
           
-          console.log('MOLONI:', {total: vendasImportadas.length, dicionario: statsDicionario, exato: statsExato, fuzzy: statsFuzzy, semMatch: statsSemMatch});
-          if (statsSemMatch > 0) console.log('Sem match:', vendasImportadas.filter(v => !v.produtoId).map(v => v.nomeOriginalCSV));
+          console.log('📊 MOLONI:', {
+            total: vendasImportadas.length,
+            dicionario: statsDicionario,
+            exato: statsExato,
+            fuzzy: statsFuzzy,
+            semMatch: statsSemMatch
+          });
+          
+          if (statsSemMatch > 0) {
+            console.log('⚠️ Sem match:', vendasImportadas.filter(v => !v.produtoId).map(v => v.nomeOriginalCSV));
+          }
         } else {
-          alert('❌ Nenhuma venda válida');
+          alert('❌ Nenhuma venda válida encontrada no CSV');
         }
       } catch (error) {
-        console.error(error);
-        alert('❌ Erro: ' + error.message);
+        console.error('❌ Erro ao importar:', error);
+        alert('❌ Erro ao importar: ' + error.message);
       }
     };
     reader.readAsText(file, 'ISO-8859-1');
@@ -12379,7 +12451,7 @@ void 0;
     }
     
     const custo = calcCusto(p);
-    const precoSemIva = v.valor / (1 + (v.iva / 100));
+    const precoSemIva = v.valor / (1 + (v.iva / 100)); // v.valor já é total (preço × quantidade)
     const custoTotal = custo * v.quantidade;
     const lucro = precoSemIva - custoTotal;
     return { lucro: lucro, temCusto: true };
@@ -16979,12 +17051,12 @@ void 0;
                                                   <span className="text-gray-600">Lucro:</span>
                                                   <span className="font-semibold text-blue-700">€{p.lucro.toFixed(2)}</span>
                                                 </div>
-                                                <div className="flex justify-between">
-                                                  <span className="text-gray-600">Margem/un:</span>
+                                                <div className="flex justify-between" title="Lucro que ganhas por cada unidade vendida">
+                                                  <span className="text-gray-600 cursor-help">Lucro/unidade: ⓘ</span>
                                                   <span className="font-semibold">€{(p.lucro / p.quantidade).toFixed(2)}</span>
                                                 </div>
-                                                <div className="flex justify-between">
-                                                  <span className="text-gray-600">% Lucro total:</span>
+                                                <div className="flex justify-between" title={`Este produto representa ${((p.lucro / Math.max(lucroReal, 1)) * 100).toFixed(1)}% do lucro total do restaurante`}>
+                                                  <span className="text-gray-600 cursor-help">Contribuição: ⓘ</span>
                                                   <span className="font-semibold">{((p.lucro / Math.max(lucroReal, 1)) * 100).toFixed(1)}%</span>
                                                 </div>
                                               </div>
@@ -17033,8 +17105,8 @@ void 0;
                                                           <span className="font-semibold text-red-600">{dias[piorDia]} ({minVendas}x)</span>
                                                         </div>
                                                       )}
-                                                      <div className="flex justify-between">
-                                                        <span className="text-gray-600">Consistência:</span>
+                                                      <div className="flex justify-between" title="Frequência de vendas: Alta (>70% dos dias), Média (40-70%), Baixa (<40%)">
+                                                        <span className="text-gray-600 cursor-help">Consistência: ⓘ</span>
                                                         <span className="font-semibold">
                                                           {(() => {
                                                             const diasComVenda = new Set(vendasProduto.map(v => v.data)).size;
