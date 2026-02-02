@@ -4487,6 +4487,77 @@ const RestauranteGestor = () => {
   };
   
   // 🗑️ REMOVER MOVIMENTAÇÃO MANUAL (apenas ajustes)
+  
+  // 💰 RECALCULAR CUSTOS DOS PRODUTOS (baseado nos ingredientes)
+  const recalcularCustosProdutos = () => {
+    console.log('💰 Recalculando custos de todos os produtos...\n');
+    
+    if (!window.confirm('💰 Recalcular custos dos produtos?\n\n✅ Isso vai:\n- Recalcular o custo de receita de todos os produtos\n- Atualizar as margens de lucro\n- Baseado nos custos ATUAIS dos ingredientes\n\nDeseja continuar?')) {
+      console.log('❌ Recálculo cancelado pelo usuário');
+      return;
+    }
+    
+    let atualizados = 0;
+    let semReceita = 0;
+    
+    const novoProdutos = produtos.map(produto => {
+      if (!produto.receita || produto.receita.length === 0) {
+        semReceita++;
+        return produto;
+      }
+      
+      // Calcular custo do zero
+      const custoTotal = produto.receita.reduce((total, item) => {
+        const ing = ingredientes.find(i => i.id === item.ingredienteId);
+        if (!ing) return total;
+        
+        let quantidade = parseFloat(item.quantidade) || 0;
+        const precoUnit = parseFloat(ing.custoUnitario) || 0;
+        
+        // Conversão de unidades
+        const unidadeReceita = item.unidade || ing.unidade;
+        if (ing.unidade === 'kg' && unidadeReceita === 'g') quantidade = quantidade / 1000;
+        if (ing.unidade === 'L' && unidadeReceita === 'ml') quantidade = quantidade / 1000;
+        if (ing.unidade === 'g' && unidadeReceita === 'kg') quantidade = quantidade * 1000;
+        if (ing.unidade === 'ml' && unidadeReceita === 'L') quantidade = quantidade * 1000;
+        
+        return total + (quantidade * precoUnit);
+      }, 0);
+      
+      // Dividir por porções
+      const custoFinal = (produto.porcoes && produto.porcoes > 1) 
+        ? custoTotal / produto.porcoes 
+        : custoTotal;
+      
+      const custoAntigo = produto.custoReceita || 0;
+      
+      if (Math.abs(custoFinal - custoAntigo) > 0.01) {
+        console.log(`✅ ${produto.nome}: €${custoAntigo.toFixed(2)} → €${custoFinal.toFixed(2)}`);
+        atualizados++;
+      }
+      
+      return {
+        ...produto,
+        custoReceita: custoFinal,
+        margemLucro: produto.precoVenda > 0 ? ((produto.precoVenda - custoFinal) / produto.precoVenda) * 100 : 0
+      };
+    });
+    
+    console.log('\n📊 RESUMO:');
+    console.log(`✅ ${atualizados} produtos atualizados`);
+    console.log(`⏭️ ${semReceita} produtos sem receita`);
+    console.log(`📦 ${produtos.length} produtos totais`);
+    
+    setProdutos(novoProdutos);
+    
+    showNotification(
+      `✅ Custos recalculados!\n\n${atualizados} produtos atualizados\n${semReceita} produtos sem receita`,
+      'success'
+    );
+    
+    console.log('\n✅ RECÁLCULO COMPLETO!');
+  };
+  
   const removerMovimentacao = (movimentacaoId) => {
     const mov = movimentacoesStock.find(m => m.id === movimentacaoId);
     if (!mov) return;
@@ -21463,7 +21534,15 @@ void 0;
                   title="Recalcular todo o histórico baseado nas compras e vendas atuais"
                 >
                   <RefreshCw className="w-4 h-4" />
-                  Recalcular
+                  Recalcular Stock
+                </button>
+                <button 
+                  onClick={recalcularCustosProdutos} 
+                  className="text-white hover:bg-white/20 rounded-lg px-3 py-2 transition flex items-center gap-2 text-sm font-semibold bg-white/10"
+                  title="Recalcular custos dos produtos baseado nos ingredientes"
+                >
+                  <Calculator className="w-4 h-4" />
+                  Recalcular Custos
                 </button>
                 <button onClick={() => setMostrarModalMovimentacoes(false)} className="text-white hover:bg-white/20 rounded-full p-2 transition">
                   <X className="w-5 h-5" />
