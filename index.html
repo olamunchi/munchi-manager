@@ -837,12 +837,50 @@ const CloudSyncPanel = ({
   );
 };
 
-const ComprasAnalysis = ({ despesas, faturas = [], ingredientes, fornecedores }) => {
+const ComprasAnalysis = ({ despesas, faturas = [], ingredientes, fornecedores, setActiveTab, setExpandedFatura, setGestaoSubTab }) => {
   const [searchCompra, setSearchCompra] = React.useState('');
   const [expandedIngrediente, setExpandedIngrediente] = React.useState(null); // Ingrediente expandido na análise
   const [categoriaCompra, setCategoriaCompra] = React.useState('all');
   const [hoveredPoints, setHoveredPoints] = React.useState({}); // Para controlar hover nos gráficos {ingredienteId: pointIndex}
   
+  // 🆕 FUNÇÃO DE NORMALIZAÇÃO DE UNIDADES
+  // Converte preço e quantidade para a unidade base do ingrediente
+  const normalizarUnidade = (quantidade, unidadeOrigem, unidadeDestino) => {
+    if (!quantidade || !unidadeOrigem || !unidadeDestino) return quantidade;
+    
+    // Normalizar strings para minúsculas e remover espaços
+    const origem = unidadeOrigem.toLowerCase().trim();
+    const destino = unidadeDestino.toLowerCase().trim();
+    
+    // Se unidades são iguais, retornar quantidade original
+    if (origem === destino) return quantidade;
+    
+    // Tabela de conversão
+    const conversoes = {
+      // Volume: L <-> ml
+      'ml': { 'l': 0.001, 'ml': 1 },
+      'l': { 'ml': 1000, 'l': 1 },
+      
+      // Peso: kg <-> g
+      'g': { 'kg': 0.001, 'g': 1 },
+      'kg': { 'g': 1000, 'kg': 1 },
+      
+      // Unidades: un/und
+      'un': { 'un': 1, 'und': 1, 'unidade': 1 },
+      'und': { 'un': 1, 'und': 1, 'unidade': 1 },
+      'unidade': { 'un': 1, 'und': 1, 'unidade': 1 }
+    };
+    
+    // Verificar se existe conversão
+    if (conversoes[origem] && conversoes[origem][destino]) {
+      return quantidade * conversoes[origem][destino];
+    }
+    
+    // Se não houver conversão conhecida, retornar quantidade original
+    console.warn(`⚠️ Conversão não disponível: ${origem} -> ${destino}`);
+    return quantidade;
+  };
+
   // Combinar despesas antigas com faturas novas
   const todasCompras = React.useMemo(() => {
     const compras = [];
@@ -850,11 +888,18 @@ const ComprasAnalysis = ({ despesas, faturas = [], ingredientes, fornecedores })
     // Adicionar despesas antigas (se existirem)
     despesas.forEach(d => {
       if (d.ingredienteId && d.quantidade && d.quantidade > 0) {
+        const ing = ingredientes.find(i => i.id == d.ingredienteId);
+        const unidadeBase = ing?.unidade || 'un';
+        
+        // Normalizar quantidade para unidade base do ingrediente
+        const quantidadeNormalizada = normalizarUnidade(d.quantidade, d.unidade || unidadeBase, unidadeBase);
+        
         compras.push({
           ingredienteId: d.ingredienteId,
-          quantidade: d.quantidade,
+          quantidade: quantidadeNormalizada,
+          unidadeOriginal: d.unidade,
           fornecedor: d.fornecedor,
-          precoUnitario: d.valor / d.quantidade,
+          precoUnitario: d.valor / quantidadeNormalizada, // Preço já normalizado
           data: d.data
         });
       }
@@ -863,20 +908,29 @@ const ComprasAnalysis = ({ despesas, faturas = [], ingredientes, fornecedores })
     // Adicionar items de faturas novas
     faturas.forEach(f => {
       if (f.itens && Array.isArray(f.itens)) {
-        f.itens.forEach(item => {
+        f.itens.forEach((item, itemIndex) => {
+          const ing = ingredientes.find(i => i.id == (item.ingredienteId || item.ingrediente));
+          const unidadeBase = ing?.unidade || 'un';
+          
+          // Normalizar quantidade para unidade base do ingrediente
+          const quantidadeNormalizada = normalizarUnidade(item.quantidade, item.unidade || unidadeBase, unidadeBase);
+          
           compras.push({
             ingredienteId: item.ingredienteId || item.ingrediente,
-            quantidade: item.quantidade,
+            quantidade: quantidadeNormalizada,
+            unidadeOriginal: item.unidade,
             fornecedor: f.fornecedor || f.fornecedorNome,
-            precoUnitario: item.precoUnitario,
-            data: f.data
+            precoUnitario: item.precoUnitario ? (item.precoTotal || (item.precoUnitario * item.quantidade)) / quantidadeNormalizada : 0,
+            data: f.data,
+            faturaId: f.id, // 🔧 Para navegação direta
+            itemIndex: itemIndex // 🔧 Índice do item na fatura
           });
         });
       }
     });
     
     return compras;
-  }, [despesas, faturas]);
+  }, [despesas, faturas, ingredientes]);
   
   
   // Categorize ingredients
@@ -916,7 +970,9 @@ const ComprasAnalysis = ({ despesas, faturas = [], ingredientes, fornecedores })
         fornecedor: compra.fornecedor,
         precoUnitario: compra.precoUnitario,
         data: compra.data,
-        quantidade: compra.quantidade
+        quantidade: compra.quantidade,
+        faturaId: compra.faturaId, // 🔧 Para navegação
+        itemIndex: compra.itemIndex // 🔧 Índice do item
       });
     });
     return result;
@@ -1206,6 +1262,29 @@ const ComprasAnalysis = ({ despesas, faturas = [], ingredientes, fornecedores })
                                         style={{cursor: 'pointer'}}
                                         onMouseEnter={() => setHoveredPoint(i)}
                                         onMouseLeave={() => setHoveredPoint(null)}
+                                        onClick={() => {
+                                          // 🔧 NAVEGAÇÃO DIRETA PARA FATURA
+                                          if (c.faturaId && setActiveTab && setExpandedFatura && setGestaoSubTab) {
+                                            // Mudar para aba Gestão
+                                            setActiveTab('gestao');
+                                            // Mudar para sub-aba Faturas
+                                            setGestaoSubTab('faturas');
+                                            // Expandir a fatura específica
+                                            setTimeout(() => {
+                                              setExpandedFatura(c.faturaId);
+                                              // Scroll até a fatura
+                                              const faturaElement = document.getElementById(`fatura-${c.faturaId}`);
+                                              if (faturaElement) {
+                                                faturaElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                                // Highlight temporário
+                                                faturaElement.style.boxShadow = '0 0 20px 5px rgba(59, 130, 246, 0.5)';
+                                                setTimeout(() => {
+                                                  faturaElement.style.boxShadow = '';
+                                                }, 2000);
+                                              }
+                                            }, 100);
+                                          }
+                                        }}
                                       />
                                       {/* Visible point */}
                                       <circle
@@ -1224,11 +1303,12 @@ const ComprasAnalysis = ({ despesas, faturas = [], ingredientes, fornecedores })
                                             // Se o ponto está no topo (y < 30), mostra tooltip abaixo
                                             // Senão, mostra acima
                                             const showBelow = y < 30;
-                                            const tooltipHeight = c.fornecedor ? 32 : 24;
+                                            const tooltipHeight = c.fornecedor ? 38 : 30; // Aumentado para incluir ícone
                                             const tooltipY = showBelow ? y + 4 : y - tooltipHeight - 2;
                                             const textY1 = showBelow ? y + 14 : y - tooltipHeight + 10;
                                             const textY2 = showBelow ? y + 24 : y - tooltipHeight + 20;
                                             const textY3 = showBelow ? y + 32 : y - tooltipHeight + 28;
+                                            const textY4 = showBelow ? y + 40 : y - tooltipHeight + 36;
                                             
                                             return (
                                               <>
@@ -1272,6 +1352,19 @@ const ComprasAnalysis = ({ despesas, faturas = [], ingredientes, fornecedores })
                                                     textAnchor="middle"
                                                   >
                                                     {c.fornecedor.substring(0, 12)}
+                                                  </text>
+                                                )}
+                                                {/* 🔧 Ícone de clique se tem faturaId */}
+                                                {c.faturaId && setActiveTab && setExpandedFatura && setGestaoSubTab && (
+                                                  <text
+                                                    x={x > 50 ? x - 24 : x + 24}
+                                                    y={textY4}
+                                                    fontSize="7"
+                                                    fontWeight="600"
+                                                    fill="#10b981"
+                                                    textAnchor="middle"
+                                                  >
+                                                    🔧 Clique p/ editar
                                                   </text>
                                                 )}
                                               </>
@@ -17468,6 +17561,9 @@ void 0;
                 faturas={faturas}
                 ingredientes={ingredientes}
                 fornecedores={fornecedores}
+                setActiveTab={setActiveTab}
+                setExpandedFatura={setExpandedFatura}
+                setGestaoSubTab={setGestaoSubTab}
               />
             )}
             {dashboardSubTab === 'delivery' && deliveryApps.some(app => app.ativo) && (
@@ -19681,7 +19777,12 @@ void 0;
                         })
                         .map(fatura => {
                           return (
-                            <div key={fatura.id} className="border rounded-lg hover:shadow-md transition relative group">
+                            <div 
+                              key={fatura.id} 
+                              id={`fatura-${fatura.id}`}
+                              className="border rounded-lg hover:shadow-md transition relative group"
+                              style={{scrollMarginTop: '80px'}}
+                            >
                               {/* Cabeçalho da Fatura (sempre visível) */}
                               <div 
                                 onClick={() => setExpandedFatura(expandedFatura === fatura.id ? null : fatura.id)}
