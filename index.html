@@ -19264,11 +19264,11 @@ void 0;
                                           value={itemEditTemp.quantidade || ''}
                                           onChange={(e) => {
                                             const qtd = parseFloat(e.target.value) || 0;
-                                            const precoUnit = parseFloat(itemEditTemp.precoUnitario) || 0;
+                                            const precoTotal = parseFloat(itemEditTemp.precoTotal) || 0;
                                             setItemEditTemp({
                                               ...itemEditTemp, 
                                               quantidade: e.target.value,
-                                              precoTotal: (qtd * precoUnit).toFixed(2)
+                                              precoUnitario: qtd > 0 ? (precoTotal / qtd).toFixed(4) : '0' // Recalcular preço unitário
                                             });
                                           }}
                                           className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
@@ -19290,42 +19290,24 @@ void 0;
                                       </div>
                                     )}
                                     
-                                    {/* Mostrar preço unitário e total para compras, só total para outras categorias */}
+                                    {/* Mostrar apenas preço total para compras (preço unitário calculado automaticamente em background) */}
                                     {novaFatura.categoria === 'compras' ? (
-                                      <div className="grid grid-cols-2 gap-2">
-                                        <input 
-                                          type="number"
-                                          step="0.01"
-                                          value={itemEditTemp.precoUnitario || ''}
-                                          onChange={(e) => {
-                                            const precoUnit = parseFloat(e.target.value) || 0;
-                                            const qtd = parseFloat(itemEditTemp.quantidade) || 0;
-                                            setItemEditTemp({
-                                              ...itemEditTemp, 
-                                              precoUnitario: e.target.value,
-                                              precoTotal: (qtd * precoUnit).toFixed(2)
-                                            });
-                                          }}
-                                          className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
-                                          placeholder="Preço Unitário €"
-                                        />
-                                        <input 
-                                          type="number"
-                                          step="0.01"
-                                          value={itemEditTemp.precoTotal || ''}
-                                          onChange={(e) => {
-                                            const precoTotal = parseFloat(e.target.value) || 0;
-                                            const qtd = parseFloat(itemEditTemp.quantidade) || 1;
-                                            setItemEditTemp({
-                                              ...itemEditTemp, 
-                                              precoTotal: e.target.value,
-                                              precoUnitario: qtd > 0 ? (precoTotal / qtd).toFixed(2) : '0'
-                                            });
-                                          }}
-                                          className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
-                                          placeholder="Preço Total €"
-                                        />
-                                      </div>
+                                      <input 
+                                        type="number"
+                                        step="0.01"
+                                        value={itemEditTemp.precoTotal || ''}
+                                        onChange={(e) => {
+                                          const precoTotal = parseFloat(e.target.value) || 0;
+                                          const qtd = parseFloat(itemEditTemp.quantidade) || 1;
+                                          setItemEditTemp({
+                                            ...itemEditTemp, 
+                                            precoTotal: e.target.value,
+                                            precoUnitario: qtd > 0 ? (precoTotal / qtd).toFixed(4) : '0' // Calculado em background
+                                          });
+                                        }}
+                                        className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                                        placeholder="Preço Total (com IVA) €"
+                                      />
                                     ) : (
                                       <input 
                                         type="number"
@@ -19356,8 +19338,9 @@ void 0;
                                           const precoTotal = parseFloat(itemEditTemp.precoTotal) || 0;
                                           const iva = parseFloat(itemEditTemp.iva) || 13;
                                           
-                                          // Calcular subtotal (preço sem IVA)
-                                          const subtotal = precoTotal;
+                                          // 🔧 CALCULAR AUTOMATICAMENTE subtotal (preço SEM IVA)
+                                          // Fórmula: precoSemIVA = precoComIVA / (1 + taxaIVA/100)
+                                          const subtotal = precoTotal / (1 + iva / 100);
                                           
                                           setNovaFatura({
                                             ...novaFatura,
@@ -19370,7 +19353,7 @@ void 0;
                                                 unidade: novaFatura.categoria === 'compras' ? itemEditTemp.unidade : '',
                                                 precoUnitario: precoUnitario,
                                                 precoTotal: precoTotal,
-                                                subtotal: subtotal,
+                                                subtotal: subtotal, // ✅ Calculado automaticamente
                                                 iva: iva
                                               } : i
                                             )
