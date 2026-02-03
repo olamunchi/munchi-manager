@@ -4362,6 +4362,7 @@ const RestauranteGestor = () => {
   const [faturaEditando, setFaturaEditando] = useState(null);
   const [searchIngredienteCompra, setSearchIngredienteCompra] = useState('');
   const [showDropdownIngredienteCompra, setShowDropdownIngredienteCompra] = useState(false);
+  const [showDropdownEditItem, setShowDropdownEditItem] = useState(false); // Para dropdown ao editar item
   
   // ============================================
   // 🆕 FUNÇÕES DE GESTÃO INTELIGENTE DE STOCK
@@ -12709,6 +12710,15 @@ void 0;
           const monthAgo = new Date(today);
           monthAgo.setMonth(monthAgo.getMonth() - 1);
           return itemDate >= monthAgo;
+        case 'year':
+          // Ano corrente: 1 de Janeiro até hoje
+          const yearStart = new Date(now.getFullYear(), 0, 1);
+          return itemDate >= yearStart;
+        case 'lastYear':
+          // Ano passado completo: 1 de Janeiro a 31 de Dezembro do ano anterior
+          const lastYearStart = new Date(now.getFullYear() - 1, 0, 1);
+          const lastYearEnd = new Date(now.getFullYear() - 1, 11, 31, 23, 59, 59);
+          return itemDate >= lastYearStart && itemDate <= lastYearEnd;
         case 'custom':
           if (customStartDate && customEndDate) {
             const start = new Date(customStartDate);
@@ -15566,73 +15576,136 @@ void 0;
 
             {dashboardSubTab === 'resumo' && (
               <>
-            {/* Date Filter */}
-            <div className="backdrop-blur-lg bg-white/70 border-2 border-white/50 rounded-2xl shadow-xl p-4">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs font-semibold text-gray-700">Período:</span>
-                <button
-                  onClick={() => setDateFilter('all')}
-                  className={`px-3 py-1 rounded text-xs font-medium transition ${
-                    dateFilter === 'all' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  Tudo
-                </button>
-                <button
-                  onClick={() => setDateFilter('today')}
-                  className={`px-3 py-1 rounded text-xs font-medium transition ${
-                    dateFilter === 'today' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  Hoje
-                </button>
-                <button
-                  onClick={() => setDateFilter('week')}
-                  className={`px-3 py-1 rounded text-xs font-medium transition ${
-                    dateFilter === 'week' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  Última Semana
-                </button>
-                <button
-                  onClick={() => setDateFilter('month')}
-                  className={`px-3 py-1 rounded text-xs font-medium transition ${
-                    dateFilter === 'month' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  Último Mês
-                </button>
-                <button
-                  onClick={() => setDateFilter('custom')}
-                  className={`px-3 py-1 rounded text-xs font-medium transition ${
-                    dateFilter === 'custom' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  Personalizado
-                </button>
-                
+            {/* Date Filter - VERSÃO MELHORADA */}
+            <div className="backdrop-blur-lg bg-white/80 border border-white/60 rounded-2xl shadow-xl p-5">
+              <div className="flex flex-col gap-4">
+                {/* Botões de período */}
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => setDateFilter('all')}
+                    className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
+                      dateFilter === 'all' 
+                        ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg shadow-purple-500/50 scale-105' 
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:scale-105'
+                    }`}
+                  >
+                    📊 Tudo
+                  </button>
+
+                  <button
+                    onClick={() => setDateFilter('week')}
+                    className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
+                      dateFilter === 'week' 
+                        ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg shadow-purple-500/50 scale-105' 
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:scale-105'
+                    }`}
+                  >
+                    📅 Semana
+                  </button>
+
+                  <button
+                    onClick={() => setDateFilter('month')}
+                    className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
+                      dateFilter === 'month' 
+                        ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg shadow-purple-500/50 scale-105' 
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:scale-105'
+                    }`}
+                  >
+                    🗓️ Mês
+                  </button>
+
+                  <button
+                    onClick={() => setDateFilter('year')}
+                    className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
+                      dateFilter === 'year' 
+                        ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg shadow-purple-500/50 scale-105' 
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:scale-105'
+                    }`}
+                  >
+                    📆 Ano
+                  </button>
+
+                  <button
+                    onClick={() => setDateFilter('lastYear')}
+                    className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
+                      dateFilter === 'lastYear' 
+                        ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg shadow-purple-500/50 scale-105' 
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:scale-105'
+                    }`}
+                  >
+                    🕐 Último Ano
+                  </button>
+
+                  <button
+                    onClick={() => setDateFilter('custom')}
+                    className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
+                      dateFilter === 'custom' 
+                        ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg shadow-purple-500/50 scale-105' 
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:scale-105'
+                    }`}
+                  >
+                    ⚙️ Personalizado
+                  </button>
+                </div>
+
+                {/* Seleção de datas personalizadas */}
                 {dateFilter === 'custom' && (
-                  <div className="flex items-center gap-2 ml-2">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl border border-purple-200">
+                    <div className="flex items-center gap-2">
+                      <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      <span className="text-sm font-semibold text-gray-700">De:</span>
+                    </div>
                     <input
                       type="date"
                       value={customStartDate}
                       onChange={(e) => setCustomStartDate(e.target.value)}
-                      className="border rounded px-2 py-1 text-xs"
+                      className="flex-1 border-2 border-purple-300 rounded-lg px-3 py-2 text-sm font-medium focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition"
                     />
-                    <span className="text-xs text-gray-500">até</span>
+                    
+                    <svg className="w-5 h-5 text-gray-400 hidden sm:block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                    </svg>
+
+                    <div className="flex items-center gap-2">
+                      <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      <span className="text-sm font-semibold text-gray-700">Até:</span>
+                    </div>
                     <input
                       type="date"
                       value={customEndDate}
                       onChange={(e) => setCustomEndDate(e.target.value)}
-                      className="border rounded px-2 py-1 text-xs"
+                      className="flex-1 border-2 border-purple-300 rounded-lg px-3 py-2 text-sm font-medium focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition"
                     />
                   </div>
                 )}
-                
+
+                {/* Info sobre o período selecionado */}
                 {dateFilter !== 'all' && (
-                  <span className="text-xs text-gray-500 ml-2">
-                    📊 {filteredVendas.length} vendas • {todasDespesas.length} despesas
-                  </span>
+                  <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200">
+                    <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+                      <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                      </svg>
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-bold text-gray-900">
+                        {filteredVendas.length} vendas • {todasDespesas.length} despesas
+                      </p>
+                      <p className="text-xs text-gray-600">
+                        {dateFilter === 'week' && 'Últimos 7 dias'}
+                        {dateFilter === 'month' && 'Últimos 30 dias'}
+                        {dateFilter === 'year' && `De 1 de Janeiro de ${new Date().getFullYear()} até hoje`}
+                        {dateFilter === 'lastYear' && `Ano ${new Date().getFullYear() - 1} completo (1 Jan - 31 Dez)`}
+                        {dateFilter === 'custom' && customStartDate && customEndDate && 
+                          `De ${new Date(customStartDate).toLocaleDateString('pt-PT')} até ${new Date(customEndDate).toLocaleDateString('pt-PT')}`
+                        }
+                      </p>
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
@@ -19322,13 +19395,63 @@ void 0;
                                 {editandoItemId === item.id ? (
                                   // MODO EDIÇÃO
                                   <div className="space-y-2">
-                                    <input 
-                                      type="text"
-                                      value={itemEditTemp.descricao || ''}
-                                      onChange={(e) => setItemEditTemp({...itemEditTemp, descricao: e.target.value})}
-                                      className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
-                                      placeholder={novaFatura.categoria === 'compras' ? 'Descrição do ingrediente' : 'Descrição'}
-                                    />
+                                    {/* Searchbox para ingrediente com dropdown - APENAS PARA COMPRAS */}
+                                    <div className="relative">
+                                      <input 
+                                        type="text"
+                                        value={itemEditTemp.descricao || ''}
+                                        onChange={(e) => {
+                                          setItemEditTemp({...itemEditTemp, descricao: e.target.value});
+                                          if (novaFatura.categoria === 'compras') {
+                                            setShowDropdownEditItem(true);
+                                          }
+                                        }}
+                                        onFocus={() => {
+                                          if (novaFatura.categoria === 'compras') {
+                                            setShowDropdownEditItem(true);
+                                          }
+                                        }}
+                                        onBlur={() => {
+                                          // Delay para permitir que o onClick do item funcione antes de fechar
+                                          setTimeout(() => setShowDropdownEditItem(false), 200);
+                                        }}
+                                        className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                                        placeholder={novaFatura.categoria === 'compras' ? '🔍 Procurar ingrediente...' : 'Descrição'}
+                                      />
+                                      
+                                      {/* Dropdown Ingredientes para edição - SÓ APARECE PARA COMPRAS */}
+                                      {novaFatura.categoria === 'compras' && showDropdownEditItem && itemEditTemp.descricao && (
+                                        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                                          {ingredientes
+                                            .filter(ing => normalizeText(ing.nome).includes(normalizeText(itemEditTemp.descricao)))
+                                            .map(ing => (
+                                              <div
+                                                key={ing.id}
+                                                onClick={() => {
+                                                  setItemEditTemp({
+                                                    ...itemEditTemp, 
+                                                    descricao: ing.nome,
+                                                    ingredienteId: ing.id
+                                                  });
+                                                  setShowDropdownEditItem(false);
+                                                }}
+                                                className="px-3 py-2 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                                              >
+                                                <div className="font-medium text-sm">{ing.nome}</div>
+                                                <div className="text-xs text-gray-600">
+                                                  €{(ing.custoUnitario || 0).toFixed(2)}/{ing.unidade}
+                                                </div>
+                                              </div>
+                                            ))}
+                                          
+                                          {ingredientes.filter(ing => normalizeText(ing.nome).includes(normalizeText(itemEditTemp.descricao))).length === 0 && (
+                                            <div className="px-3 py-4 text-center text-gray-500 text-sm">
+                                              Nenhum ingrediente encontrado
+                                            </div>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
                                     
                                     {/* Mostrar quantidade e unidade APENAS para compras */}
                                     {novaFatura.categoria === 'compras' && (
@@ -19435,6 +19558,7 @@ void 0;
                                           });
                                           setEditandoItemId(null);
                                           setItemEditTemp(null);
+                                          setShowDropdownEditItem(false); // Fechar dropdown
                                         }}
                                         className="flex-1 bg-green-500 hover:bg-green-600 text-white py-1 rounded text-xs font-semibold"
                                       >
@@ -19444,6 +19568,7 @@ void 0;
                                         onClick={() => {
                                           setEditandoItemId(null);
                                           setItemEditTemp(null);
+                                          setShowDropdownEditItem(false); // Fechar dropdown
                                         }}
                                         className="flex-1 bg-gray-500 hover:bg-gray-600 text-white py-1 rounded text-xs font-semibold"
                                       >
