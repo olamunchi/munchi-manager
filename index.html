@@ -1015,7 +1015,19 @@ const ComprasAnalysis = ({ despesas, faturas = [], ingredientes, fornecedores, s
         <div className="bg-blue-50 rounded p-3 border border-blue-200">
           <p className="text-xs text-blue-700 mb-1">Total Compras</p>
           <p className="text-xl font-bold text-blue-900">
-            €{todasCompras.reduce((sum, c) => sum + (c.precoUnitario * c.quantidade), 0).toFixed(2)}
+            €{(() => {
+              // Somar faturas com categoria 'compras'
+              const totalFaturas = faturas
+                .filter(f => f.categoria === 'compras')
+                .reduce((sum, f) => sum + (f.totais?.total || f.total || 0), 0);
+              
+              // Somar despesas antigas (se tiverem ingredienteId, são compras)
+              const totalDespesas = despesas
+                .filter(d => d.ingredienteId)
+                .reduce((sum, d) => sum + (d.valor || 0), 0);
+              
+              return (totalFaturas + totalDespesas).toFixed(2);
+            })()}
           </p>
         </div>
         <div className="bg-green-50 rounded p-3 border border-green-200">
@@ -1081,7 +1093,7 @@ const ComprasAnalysis = ({ despesas, faturas = [], ingredientes, fornecedores, s
             </p>
           </div>
         ) : (
-          <div className="space-y-2 max-h-96 overflow-y-auto">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-96 overflow-y-auto">
             {ingredientesFiltrados.map(ing => {
               const precoMedio = ing.compras.reduce((s, c) => s + c.precoUnitario, 0) / ing.compras.length;
               const precoMin = Math.min(...ing.compras.map(c => c.precoUnitario));
@@ -1093,7 +1105,7 @@ const ComprasAnalysis = ({ despesas, faturas = [], ingredientes, fornecedores, s
               const isExpanded = expandedIngrediente === ing.nome;
               
               return (
-                <div key={ing.nome} className="bg-white rounded border hover:shadow-md transition-shadow">
+                <div key={ing.nome} className={`bg-white rounded border hover:shadow-md transition-shadow ${isExpanded ? 'md:col-span-2 lg:col-span-3' : ''}`}>
                   {/* HEADER - Sempre visível e clicável */}
                   <div 
                     onClick={() => setExpandedIngrediente(isExpanded ? null : ing.nome)}
@@ -12794,7 +12806,10 @@ void 0;
   // ✅ TOTAL DESPESAS com filtro de configurações aplicado
   let totD = 0;
   
-  void 0;
+  console.log('🔍 [DEBUG DESPESAS] Iniciando cálculo de totD. Total todasDespesas:', todasDespesas.length);
+  
+  // 🔍 DEBUG: Contar faturas excluídas
+  let faturasExcluidas = [];
   
   todasDespesas.forEach((despesa, idx) => {
     const valor = despesa.valor || 0;
@@ -12809,16 +12824,28 @@ void 0;
       if (tipo === 'FR' && configuracoes.metricas?.incluirFR !== false) incluir = true;
       if (tipo === 'FS' && configuracoes.metricas?.incluirFS !== false) incluir = true;
       
+      // 🆕 FALLBACK: Se tipo não está definido ou é desconhecido, incluir por padrão
+      if (!tipo || (tipo !== 'FT' && tipo !== 'FR' && tipo !== 'FS')) {
+        incluir = true;
+      }
+      
       if (incluir) {
         totD += valor;
-        void 0;
+        if (idx < 3) console.log(`✅ Fatura ${idx} incluída: ${despesa.descricao}, tipo: ${tipo}, valor: €${valor}`);
       } else {
-        void 0;
+        faturasExcluidas.push({
+          id: despesa.id,
+          descricao: despesa.descricao,
+          valor: valor,
+          tipo: tipo || 'SEM_TIPO',
+          categoria: despesa.categoria
+        });
+        console.log(`❌ Fatura ${idx} EXCLUÍDA: ${despesa.descricao}, tipo: ${tipo}, valor: €${valor}`);
       }
     } else {
       // Despesas manuais: sempre incluir
       totD += valor;
-      if (idx < 3) void 0;
+      if (idx < 3) console.log(`✅ Despesa manual ${idx} incluída: ${despesa.descricao}, valor: €${valor}`);
     }
   });
   
@@ -12827,7 +12854,22 @@ void 0;
   if (configuracoes.metricas?.incluirFR !== false) tagsDespesasAtivas.push('FR');
   if (configuracoes.metricas?.incluirFS !== false) tagsDespesasAtivas.push('FS');
   
-  void 0;
+  console.log('📊 [DEBUG DESPESAS] Tags ativas:', tagsDespesasAtivas);
+  
+  // 🔍 DEBUG: Mostrar faturas excluídas
+  if (faturasExcluidas.length > 0) {
+    console.warn('⚠️ FATURAS EXCLUÍDAS:', faturasExcluidas.length);
+    console.table(faturasExcluidas);
+    const totalExcluido = faturasExcluidas.reduce((s, f) => s + f.valor, 0);
+    console.log(`💰 Total excluído: €${totalExcluido.toFixed(2)}`);
+  }
+  
+  const totalTodasDespesas = todasDespesas.reduce((s, d) => s + d.valor, 0);
+  console.log('📊 [DEBUG DESPESAS] Resultado final:', {
+    'Total todasDespesas': `€${totalTodasDespesas.toFixed(2)}`,
+    'Total totD (com filtros)': `€${totD.toFixed(2)}`,
+    'Diferença': `€${(totalTodasDespesas - totD).toFixed(2)}`
+  });
   
   // 🆕 CALCULAR ÍNDICE DE DESPERDÍCIO
   // ✅ FILTRO RESTRITO: Apenas faturas EXPLICITAMENTE marcadas como 'compras'
@@ -13099,15 +13141,24 @@ void 0;
   const margemBruta = faturacaoSemIva - custoRealVendas;
   const margemBrutaPercentage = totV > 0 ? (margemBruta / totV) * 100 : 0;
   
-  // 3. Lucro Líquido = Margem Bruta - Despesas Operacionais
-  const lucroLiquido = margemBruta - totD;
+  // 3. Despesas SEM IVA (IVA dedutível)
+  const ivaTotalDespesas = ivaFaturasPeriodo + ivaDespesasPeriodo;
+  const despesasSemIva = totD - ivaTotalDespesas;
+  
+  // 4. Lucro Líquido = Margem Bruta - Despesas Operacionais (SEM IVA)
+  const lucroLiquido = margemBruta - despesasSemIva;
   const margemLiquida = totV > 0 ? (lucroLiquido / totV) * 100 : 0;
   
-  void 0;
-  void 0;
-  void 0;
-  void 0;
-  void 0;
+  console.log('💰 [LUCRO LÍQUIDO] Cálculo atualizado:');
+  console.log('  1. Faturação com IVA:', `€${totV.toFixed(2)}`);
+  console.log('  2. IVA vendas:', `-€${ivaVendasPeriodo.toFixed(2)}`);
+  console.log('  3. Faturação sem IVA:', `€${faturacaoSemIva.toFixed(2)}`);
+  console.log('  4. Food Cost:', `-€${custoRealVendas.toFixed(2)}`);
+  console.log('  5. Margem Bruta:', `€${margemBruta.toFixed(2)}`);
+  console.log('  6. Despesas com IVA:', `€${totD.toFixed(2)}`);
+  console.log('  7. IVA despesas dedutível:', `-€${ivaTotalDespesas.toFixed(2)}`);
+  console.log('  8. Despesas sem IVA:', `€${despesasSemIva.toFixed(2)}`);
+  console.log('  9. LUCRO LÍQUIDO:', `€${lucroLiquido.toFixed(2)} (${margemLiquida.toFixed(1)}%)`);
   
   // 🔍 DEBUG AUTOMÁTICO - Alertas no console se métricas estiverem erradas
   if (foodCostPercentage > 100 || foodCostPercentage < 0) {
@@ -15604,7 +15655,7 @@ void 0;
                 <div className="flex items-center justify-between mb-1">
                   <Tooltip text="Total de todas as despesas: fixas (renda, salários) + variáveis (ingredientes, utilities). Quanto mais baixas, maior o lucro." position="bottom">
                     <p className="text-red-100 text-xs mb-0 flex items-center gap-1">
-                      Despesas
+                      Despesas (com IVA)
                       <span className="text-red-300 text-sm">ⓘ</span>
                     </p>
                   </Tooltip>
@@ -15630,7 +15681,7 @@ void 0;
                   </div>
                 </div>
                 <p className="text-xl font-bold">€{totD.toFixed(2)}</p>
-                <p className="text-red-100 text-xs">Fixas: €{dFixas.toFixed(2)}</p>
+                <p className="text-red-100 text-xs">Sem IVA: €{despesasSemIva.toFixed(2)}</p>
               </div>
 
               {/* 🆕 CARD EXPANSÍVEL DO LUCRO LÍQUIDO */}
@@ -15766,8 +15817,15 @@ void 0;
                   <div className="flex items-start gap-2 mt-3">
                     <span className="text-red-600 font-bold mt-0.5">4.</span>
                     <div>
-                      <span className="font-semibold text-gray-700">Deduzir Despesas Operacionais:</span>
-                      <span className="text-gray-600"> -€{totD.toFixed(2)}</span>
+                      <span className="font-semibold text-gray-700">Deduzir Despesas Operacionais (sem IVA):</span>
+                      <span className="text-gray-600"> -€{despesasSemIva.toFixed(2)}</span>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-start gap-2 pl-4 ml-5 text-xs text-gray-500 italic">
+                    <span>↳</span>
+                    <div>
+                      <span>Total despesas: €{totD.toFixed(2)} - IVA dedutível: €{ivaTotalDespesas.toFixed(2)}</span>
                     </div>
                   </div>
                   
@@ -15922,10 +15980,26 @@ void 0;
                 </h3>
                 
                 {(() => {
-                  // Agrupar despesas por categoria
+                  // Agrupar despesas por categoria COM OS MESMOS FILTROS DO totD
                   const despesasPorCategoria = {};
                   
                   todasDespesas.forEach(d => {
+                    // Aplicar o mesmo filtro que totD usa
+                    if (d.origem === 'fatura') {
+                      const tipo = d.tipo;
+                      let incluir = false;
+                      if (tipo === 'FT' && configuracoes.metricas?.incluirFT !== false) incluir = true;
+                      if (tipo === 'FR' && configuracoes.metricas?.incluirFR !== false) incluir = true;
+                      if (tipo === 'FS' && configuracoes.metricas?.incluirFS !== false) incluir = true;
+                      
+                      // 🆕 FALLBACK: Se tipo não está definido ou é desconhecido, incluir por padrão
+                      if (!tipo || (tipo !== 'FT' && tipo !== 'FR' && tipo !== 'FS')) {
+                        incluir = true;
+                      }
+                      
+                      if (!incluir) return; // Pular esta despesa
+                    }
+                    
                     const cat = d.categoria || 'outros';
                     if (!despesasPorCategoria[cat]) {
                       despesasPorCategoria[cat] = {
@@ -15941,7 +16015,8 @@ void 0;
                   const categoriasOrdenadas = Object.entries(despesasPorCategoria)
                     .sort(([, a], [, b]) => b.total - a.total);
                   
-                  const totalGeral = todasDespesas.reduce((s, d) => s + d.valor, 0);
+                  // Total geral COM OS MESMOS FILTROS (deve bater com totD)
+                  const totalGeral = totD;
                   
                   // Labels em português
                   const labelsCategorias = {
