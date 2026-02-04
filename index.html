@@ -12266,8 +12266,10 @@ void 0;
         // Processar apenas items
         if (row[6] !== 'Item' || !row[7] || !row[8]) continue;
         
-        const match = String(row[7]).match(/(.+?)\s*\(\d+(?:\.\d+)?\s*X\s*[\d.]+\)/);
+        const match = String(row[7]).match(/(.+?)\s*\((\d+(?:\.\d+)?)\s*X\s*([\d.]+)\)/);
         const nomeProduto = match ? match[1].trim() : String(row[7]).trim();
+        const quantidade = match ? parseFloat(match[2]) : 1;
+        const precoUnitario = match ? parseFloat(match[3]) : parseFloat(row[8]) || 0;
         const valor = parseFloat(row[8]) || 0;
         
         if (!nomeProduto || valor === 0) continue;
@@ -12312,7 +12314,7 @@ void 0;
           data: dataFormatada,
           produto: produto?.nome || nomeProduto,
           produtoId: produto?.id || null,
-          quantidade: 1,
+          quantidade: quantidade,
           valor: valor,
           iva: produto?.iva || 6,
           origem: 'zobaze',
