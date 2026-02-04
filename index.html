@@ -4916,7 +4916,7 @@ const RestauranteGestor = () => {
           tipo: 'stock_critico',
           ingredienteId: ingrediente.id,
           ingredienteNome: ingrediente.nome,
-          mensagem: `⚠️ Stock crítico: ${ingrediente.nome} (${stockAtual.toFixed(1)} ${ingrediente.unidade})`,
+          mensagem: `⚠️ Stock crítico: ${ingrediente.nome} (${stockAtual.toFixed(2)} ${ingrediente.unidade})`,
           stockAtual: stockAtual,
           stockMinimo: stockMinimo,
           unidade: ingrediente.unidade
@@ -18728,7 +18728,7 @@ void 0;
                                   <div className="flex items-center gap-1">
                                     <span className="text-base">{status.icone}</span>
                                     <div className="flex-1">
-                                      <p className="text-xs font-semibold">{ing.stockAtual || 0} {ing.unidade}</p>
+                                      <p className="text-xs font-semibold">{(ing.stockAtual || 0).toFixed(2)} {ing.unidade}</p>
                                       {editandoEste ? (
                                         <div className="flex items-center gap-1 mt-0.5">
                                           <input
@@ -22378,7 +22378,7 @@ void 0;
                 <span className="font-semibold">Modo:</span> {ingredienteContagem.modoWaste === 'manual' ? '👤 Manual' : '🤖 Automático'}
               </p>
               <p className="text-sm text-gray-700">
-                <span className="font-semibold">Stock Atual:</span> {ingredienteContagem.stockAtual || 0} {ingredienteContagem.unidade}
+                <span className="font-semibold">Stock Atual:</span> {(ingredienteContagem.stockAtual || 0).toFixed(2)} {ingredienteContagem.unidade}
               </p>
               <p className="text-sm text-gray-700">
                 <span className="font-semibold">Stock Mínimo:</span> {ingredienteContagem.stockMinimo || 0} {ingredienteContagem.unidade}
