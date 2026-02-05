@@ -12903,48 +12903,69 @@ void 0;
       const ingredienteId = item.ingredienteId || item.ingrediente;
       const ing = ingredientes.find(i => i.id === ingredienteId);
       
+      // IMPORTANTE: A quantidade na receita pode estar em g/ml
+      // mas o custo do ingrediente está sempre em kg/L
+      const quantidadeReceita = item.quantidade; // em g ou ml (da receita)
+      const unidadeReceita = item.unidade || 'g'; // unidade da receita
+      const quantidade = quantidadeReceita * escala; // quantidade escalada (ainda em g/ml)
+      
+      // Unidade e custo do ingrediente (geralmente kg/L)
+      const unidadeIngrediente = ing ? ing.unidade : 'kg';
+      const custoUnitario = ing ? (ing.custoUnitario || ing.precoPorUnidade || 0) : 0;
+      
       console.log('💰 Processando ingrediente:', {
         id: ingredienteId,
         encontrado: !!ing,
         nome: ing?.nome,
-        custoUnitario: ing?.custoUnitario,
-        quantidadeReceita: item.quantidade,
-        quantidadeEscalada: (item.quantidade * escala).toFixed(2)
+        quantidadeReceita: quantidadeReceita,
+        unidadeReceita: unidadeReceita,
+        quantidadeEscalada: quantidade.toFixed(2),
+        unidadeIngrediente: unidadeIngrediente,
+        custoUnitario: custoUnitario
       });
-      
-      // CORREÇÃO: Não multiplicar por servingsBase!
-      // A quantidade na receita JÁ é para o bolo todo
-      const quantidade = item.quantidade * escala; // Escalado diretamente
-      const custoUnitario = ing ? (ing.custoUnitario || ing.precoPorUnidade || 0) : 0;
       
       return {
         ingrediente: ing ? ing.nome : ingredienteId,
         ingredienteId: ingredienteId,
-        quantidade: quantidade,
-        unidade: ing ? ing.unidade : 'g',
+        quantidade: quantidade, // quantidade escalada (em g/ml da receita)
+        unidadeReceita: unidadeReceita, // unidade da receita (g/ml)
+        unidadeIngrediente: unidadeIngrediente, // unidade do custo (kg/L)
         precoPorUnidade: custoUnitario
       };
     });
     
     // Calcular custo total
     const custoTotal = ingredientesEscalados.reduce((sum, item) => {
-      // CORREÇÃO CRÍTICA: Converter quantidade para mesma unidade do custo
+      // Quantidade vem da receita em g/ml/un
+      // Custo está sempre em €/kg ou €/L ou €/un
       let quantidadeFinal = item.quantidade;
+      let unidadeFinal = item.unidadeIngrediente;
       
-      // Se quantidade está em gramas (g) mas custo em kg, converter
-      if (item.unidade === 'g' && quantidadeFinal > 10) {
-        // Assumir que custoUnitario está em €/kg
-        quantidadeFinal = quantidadeFinal / 1000; // converter g para kg
-        console.log('💰 Conversão:', item.ingrediente, ':', item.quantidade, 'g →', quantidadeFinal.toFixed(3), 'kg');
-      }
-      // Se quantidade está em ml mas custo em L, converter  
-      else if (item.unidade === 'ml' && quantidadeFinal > 10) {
-        quantidadeFinal = quantidadeFinal / 1000; // converter ml para L
-        console.log('💰 Conversão:', item.ingrediente, ':', item.quantidade, 'ml →', quantidadeFinal.toFixed(3), 'L');
+      // CONVERSÃO CRÍTICA: 
+      // Se receita está em g mas custo em kg → dividir por 1000
+      // Se receita está em ml mas custo em L → dividir por 1000
+      if (item.unidadeReceita === 'g' && item.unidadeIngrediente === 'kg') {
+        quantidadeFinal = quantidadeFinal / 1000; // g → kg
+        console.log('💰 Conversão:', item.ingrediente, ':', item.quantidade.toFixed(2), 'g →', quantidadeFinal.toFixed(3), 'kg');
+      } else if (item.unidadeReceita === 'ml' && item.unidadeIngrediente === 'L') {
+        quantidadeFinal = quantidadeFinal / 1000; // ml → L
+        console.log('💰 Conversão:', item.ingrediente, ':', item.quantidade.toFixed(2), 'ml →', quantidadeFinal.toFixed(3), 'L');
+      } else if (item.unidadeReceita === 'kg' && item.unidadeIngrediente === 'kg') {
+        // Já está correto
+        console.log('💰 Sem conversão:', item.ingrediente, ':', quantidadeFinal.toFixed(3), 'kg');
+      } else if (item.unidadeReceita === 'L' && item.unidadeIngrediente === 'L') {
+        // Já está correto
+        console.log('💰 Sem conversão:', item.ingrediente, ':', quantidadeFinal.toFixed(3), 'L');
+      } else if (item.unidadeReceita === 'un' && item.unidadeIngrediente === 'un') {
+        // Já está correto
+        console.log('💰 Sem conversão:', item.ingrediente, ':', quantidadeFinal.toFixed(2), 'un');
+      } else {
+        // Casos não previstos - mostrar aviso
+        console.warn('⚠️ Unidades incompatíveis:', item.ingrediente, '-', item.unidadeReceita, 'vs', item.unidadeIngrediente);
       }
       
       const custoItem = quantidadeFinal * (item.precoPorUnidade || 0);
-      console.log('💰 Custo item:', item.ingrediente, '=', quantidadeFinal.toFixed(3), item.unidade === 'g' ? 'kg' : (item.unidade === 'ml' ? 'L' : item.unidade), 'x €', (item.precoPorUnidade || 0).toFixed(2), '= €', custoItem.toFixed(2));
+      console.log('💰 Custo item:', item.ingrediente, '=', quantidadeFinal.toFixed(3), unidadeFinal, 'x €', (item.precoPorUnidade || 0).toFixed(2), '= €', custoItem.toFixed(2));
       return sum + custoItem;
     }, 0);
     
