@@ -136,6 +136,16 @@ db.version(3).stores({
   });
 });
 
+// 🆕 VERSÃO 4: Adicionar tabela de bolos externos (Google Calendar)
+db.version(4).stores({
+  movimentacoesStock: '++id, data, tipo, ingredienteId, produtoId',
+  vocabulario: 'id, fornecedorNIF, textoNormalizado, ingredienteId',
+  ingredientes: 'id, nome, categoria',
+  fornecedores: 'id, nif, nome',
+  templates: 'nifFornecedor, linhaInicio, linhaFim',
+  bolosExternos: '++id, data, eventoCalendarId, produtoBase, timestamp'
+});
+
 // Helper functions para IndexedDB
 const IndexedDBStorage = {
   // 🛡️ Verificar se tabela existe antes de usar
@@ -4231,6 +4241,7 @@ const RestauranteGestor = () => {
   const [showBreakEvenDetails, setShowBreakEvenDetails] = useState(false); // Estado para dropdown do break-even
   const [showIVADetails, setShowIVADetails] = useState(false); // Estado para dropdown do IVA
   const [showDespesasDetails, setShowDespesasDetails] = useState(false); // Estado para dropdown de despesas
+  const [mostrarBolosExternos, setMostrarBolosExternos] = useState(false); // Estado para dropdown dos bolos externos
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
   const [gestaoSubTab, setGestaoSubTab] = useState('ingredientes');
@@ -4255,6 +4266,21 @@ const RestauranteGestor = () => {
   const [contagens, setContagens] = useState([]);
   const [vocabularioFornecedor, setVocabularioFornecedor] = useState([]); // 🧠 Sistema de aprendizagem
   const [templatesOCR, setTemplatesOCR] = useState([]); // 📋 Templates por fornecedor
+  
+  // 🎂 Estados para Bolos Externos (Google Calendar)
+  const [bolosExternos, setBolosExternos] = useState([]);
+  const [bolosAgendados, setBolosAgendados] = useState([]);
+  const [mostrarNotificacaoBolo, setMostrarNotificacaoBolo] = useState(false);
+  const [boloAtualNotificacao, setBoloAtualNotificacao] = useState(null);
+  const [calendarConfig, setCalendarConfig] = useState({
+    calendarId: 'primary',
+    autoCheck: true,
+    intervalo: 30, // minutos entre verificações
+    diasPassados: 14, // quantos dias atrás buscar (2 semanas)
+    diasFuturos: 7,  // quantos dias à frente buscar (1 semana)
+    ultimaVerificacao: null
+  });
+  
   const [novoProduto, setNovoProduto] = useState({ nome: '', precoVenda: '', iva: '6', categoria: 'cafes', receita: [], embalagens: [], porcoes: 1 });
   const [editandoProduto, setEditandoProduto] = useState(false);
   const [produtoEditandoId, setProdutoEditandoId] = useState(null);
@@ -5412,6 +5438,22 @@ const RestauranteGestor = () => {
     }
   }, []);
   
+  // 🎂 useEffect para verificar bolos agendados automaticamente
+  useEffect(() => {
+    if (driveAccessToken && calendarConfig.autoCheck) {
+      // Verificar imediatamente ao fazer login
+      buscarBolosAgendados();
+      
+      // Configurar verificação periódica
+      const intervaloMs = calendarConfig.intervalo * 60 * 1000;
+      const intervalId = setInterval(() => {
+        buscarBolosAgendados();
+      }, intervaloMs);
+      
+      return () => clearInterval(intervalId);
+    }
+  }, [driveAccessToken, calendarConfig.autoCheck, calendarConfig.intervalo]);
+  
   // 🔍 DEBUG: Expor variáveis globalmente para Console
   useEffect(() => {
     window.DEBUG_MUNCHI = {
@@ -5421,6 +5463,9 @@ const RestauranteGestor = () => {
       despesas,
       fornecedores,
       faturas,
+      bolosExternos, // 🎂 Adicionar bolos externos
+      bolosAgendados, // 🎂 Bolos do calendar
+      buscarBolosAgendados, // 🎂 Função para verificar
       diagnosticarPDFs: () => {
         console.log('🔍 DIAGNÓSTICO DE PDFs NAS FATURAS');
         console.log('═'.repeat(60));
@@ -9048,7 +9093,7 @@ void 0;
   const GOOGLE_DRIVE_CONFIG = {
     CLIENT_ID: '344967437318-oe9hr1t5m9bcs7qvdm0t5dr9f0delaom.apps.googleusercontent.com',
     API_KEY: window.GOOGLE_API_KEY || '', // Carregada do config.js
-    SCOPES: 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/documents.readonly',
+    SCOPES: 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/documents.readonly https://www.googleapis.com/auth/calendar.readonly',
     FILE_NAME: 'munchi-data.json',
     BACKUP_PREFIX: 'munchi-backup-', // 🆕 Prefixo para backups versionados
     MAX_BACKUPS: 10 // 🆕 Manter últimos 10 backups
@@ -12815,6 +12860,197 @@ void 0;
     const custoTotal = custo * v.quantidade;
     const lucro = precoSemIva - custoTotal;
     return { lucro: lucro, temCusto: true };
+  };
+
+  // ============================================
+  // 🎂 FUNÇÕES PARA BOLOS EXTERNOS
+  // ============================================
+  
+  // Calcular bolo externo baseado em receita existente
+  const calcularBoloExterno = (produtoBase, peso) => {
+    if (!produtoBase || !produtoBase.receita || !peso) {
+      return null;
+    }
+    
+    const receitaBase = produtoBase.receita;
+    const servingsBase = produtoBase.servings || 12; // 12 fatias = 1 bolo = 1kg
+    
+    // Calcular escala (peso / 1kg base)
+    const escala = peso / 1.0;
+    
+    // Escalar ingredientes
+    const ingredientesEscalados = receitaBase.map(item => {
+      const ing = ingredientes.find(i => i.id === item.ingrediente);
+      const quantidadeBase = item.quantidade * servingsBase; // quanto usa num bolo de 1kg
+      
+      return {
+        ingrediente: ing ? ing.nome : item.ingrediente,
+        ingredienteId: item.ingrediente,
+        quantidadeBase: quantidadeBase,
+        quantidade: quantidadeBase * escala, // escalado
+        unidade: ing ? ing.unidade : 'g',
+        precoPorUnidade: ing ? ing.precoPorUnidade : 0
+      };
+    });
+    
+    // Calcular custo total
+    const custoTotal = ingredientesEscalados.reduce((sum, item) => {
+      const custoItem = item.quantidade * (item.precoPorUnidade || 0);
+      return sum + custoItem;
+    }, 0);
+    
+    return {
+      escala: escala,
+      ingredientes: ingredientesEscalados,
+      custoTotal: custoTotal
+    };
+  };
+
+  // ============================================
+  // 📅 FUNÇÕES DO GOOGLE CALENDAR
+  // ============================================
+  
+  // Ler eventos do Google Calendar
+  const lerEventosCalendar = async (calendarId = 'primary') => {
+    if (!driveAccessToken) {
+      console.log('❌ Token do Google Drive não disponível');
+      return [];
+    }
+    
+    try {
+      const now = new Date();
+      const diasAtras = calendarConfig.diasPassados || 7;
+      const diasFuturo = calendarConfig.diasFuturos || 2;
+      
+      const dataInicio = new Date(now.getTime() - diasAtras * 24 * 60 * 60 * 1000);
+      const dataFim = new Date(now.getTime() + diasFuturo * 24 * 60 * 60 * 1000);
+      
+      console.log(`📅 Buscando eventos: ${diasAtras} dias atrás até ${diasFuturo} dias à frente`);
+      
+      // Buscar eventos do período configurado
+      const response = await fetch(
+        `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?` +
+        `timeMin=${dataInicio.toISOString()}&` +
+        `timeMax=${dataFim.toISOString()}&` +
+        `singleEvents=true&` +
+        `orderBy=startTime`,
+        {
+          headers: {
+            'Authorization': `Bearer ${driveAccessToken}`
+          }
+        }
+      );
+      
+      if (!response.ok) {
+        throw new Error(`Erro ao ler calendar: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      return data.items || [];
+    } catch (error) {
+      console.error('❌ Erro ao ler calendar:', error);
+      return [];
+    }
+  };
+
+  // Parser de eventos de bolos
+  const parseEventoBolo = (evento) => {
+    const titulo = evento.summary || '';
+    const descricao = evento.description || '';
+    const textoCompleto = `${titulo} ${descricao}`.toLowerCase();
+    
+    // 1. Identificar tipo de bolo
+    const bolosDisponiveis = produtos.filter(p => 
+      p.categoria === 'sobremesas' && 
+      p.receita && 
+      p.receita.length > 0 &&
+      p.servings
+    );
+    
+    let tipoBolo = null;
+    for (const bolo of bolosDisponiveis) {
+      const nomeBolo = bolo.nome.toLowerCase();
+      // Procurar palavras-chave do nome
+      const palavrasChave = nomeBolo.split(' ').filter(p => p.length > 3); // palavras com mais de 3 letras
+      const match = palavrasChave.some(palavra => 
+        textoCompleto.includes(palavra.toLowerCase())
+      );
+      if (match) {
+        tipoBolo = bolo;
+        break;
+      }
+    }
+    
+    // 2. Extrair peso (kg)
+    const regexPeso = /(\d+\.?\d*)\s*k(?:g)?/i;
+    const matchPeso = textoCompleto.match(regexPeso);
+    const peso = matchPeso ? parseFloat(matchPeso[1]) : null;
+    
+    // 3. Extrair preço (€)
+    const regexPreco = /€?\s*(\d+(?:\.\d{1,2})?)\s*€?/;
+    const matchPreco = textoCompleto.match(regexPreco);
+    const preco = matchPreco ? parseFloat(matchPreco[1]) : null;
+    
+    // 4. Extrair cliente (tudo após "-" ou "para")
+    const regexCliente = /(?:-|para)\s*([A-Za-zÀ-ÿ\s]+?)(?:\s*€|\s*\d+kg|$)/i;
+    const matchCliente = titulo.match(regexCliente);
+    const cliente = matchCliente ? matchCliente[1].trim() : '';
+    
+    // 5. Data/hora
+    const dataEntrega = evento.start?.dateTime || evento.start?.date || '';
+    
+    return {
+      eventoId: evento.id,
+      tipoBolo: tipoBolo,
+      peso: peso,
+      preco: preco,
+      cliente: cliente,
+      dataEntrega: dataEntrega,
+      titulo: titulo,
+      descricao: descricao,
+      parseOk: !!(tipoBolo && peso) // precisa pelo menos tipo e peso
+    };
+  };
+
+  // Buscar bolos agendados
+  const buscarBolosAgendados = async () => {
+    try {
+      const eventos = await lerEventosCalendar(calendarConfig.calendarId);
+      
+      // Carregar bolos já registados
+      const bolosRegistados = await db.bolosExternos.toArray();
+      const eventosJaRegistados = new Set(
+        bolosRegistados
+          .filter(b => b.eventoCalendarId)
+          .map(b => b.eventoCalendarId)
+      );
+      
+      const bolosParsed = eventos
+        .map(ev => parseEventoBolo(ev))
+        .filter(b => b.tipoBolo) // apenas eventos que parecem bolos
+        .filter(b => !eventosJaRegistados.has(b.eventoId)) // excluir já registados
+        .map(b => ({
+          ...b,
+          processado: eventosJaRegistados.has(b.eventoId)
+        }));
+      
+      setBolosAgendados(bolosParsed);
+      setCalendarConfig({...calendarConfig, ultimaVerificacao: new Date()});
+      
+      // Se tem bolos NÃO processados e não está mostrando notificação, mostrar o primeiro
+      if (bolosParsed.length > 0 && !mostrarNotificacaoBolo) {
+        const pendente = bolosParsed.find(b => !b.processado);
+        if (pendente) {
+          setBoloAtualNotificacao(pendente);
+          setMostrarNotificacaoBolo(true);
+        }
+      }
+      
+      return bolosParsed;
+    } catch (error) {
+      console.error('❌ Erro ao buscar bolos:', error);
+      return [];
+    }
   };
 
 
@@ -17913,6 +18149,163 @@ void 0;
                 </div>
               </div>
               
+              {/* ============================================ */}
+              {/* BOLOS EXTERNOS (ENCOMENDAS GOOGLE CALENDAR) */}
+              {/* ============================================ */}
+              <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg border-2 border-purple-200 shadow-sm">
+                <button
+                  onClick={() => setMostrarBolosExternos(!mostrarBolosExternos)}
+                  className="w-full p-4 flex items-center justify-between hover:bg-purple-100/50 transition rounded-lg"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl">🎂</span>
+                    <div className="text-left">
+                      <h3 className="font-bold text-purple-900 flex items-center gap-2">
+                        Bolos Externos (Encomendas)
+                        {bolosExternos.length > 0 && (
+                          <span className="text-sm bg-purple-600 text-white px-2 py-0.5 rounded-full">
+                            {bolosExternos.length}
+                          </span>
+                        )}
+                      </h3>
+                      <p className="text-xs text-purple-700">
+                        📅 Do Google Calendar • Métricas separadas do Munchi
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-purple-900">
+                    {mostrarBolosExternos ? '▼' : '▶'}
+                  </div>
+                </button>
+
+                {mostrarBolosExternos && (() => {
+                  // Calcular estatísticas
+                  const totalBolos = bolosExternos.length;
+                  const pesoTotal = bolosExternos.reduce((sum, b) => sum + (b.peso || 0), 0);
+                  const faturacaoTotal = bolosExternos.reduce((sum, b) => sum + (b.preco || 0), 0);
+                  const lucroTotal = bolosExternos.reduce((sum, b) => sum + (b.lucro || 0), 0);
+                  const margemMedia = faturacaoTotal > 0 ? (lucroTotal / faturacaoTotal) * 100 : 0;
+
+                  // Agrupar por tipo
+                  const porTipo = {};
+                  bolosExternos.forEach(b => {
+                    const nome = b.nomeBolo || 'Desconhecido';
+                    if (!porTipo[nome]) {
+                      porTipo[nome] = { quantidade: 0, faturacao: 0, lucro: 0 };
+                    }
+                    porTipo[nome].quantidade++;
+                    porTipo[nome].faturacao += b.preco || 0;
+                    porTipo[nome].lucro += b.lucro || 0;
+                  });
+
+                  return (
+                    <div className="p-4 space-y-3 bg-white/50">
+                      {bolosExternos.length === 0 ? (
+                        <div className="text-center py-6">
+                          <span className="text-4xl mb-2 block">🎂</span>
+                          <p className="text-sm text-gray-600">Nenhum bolo externo registado ainda</p>
+                          <button
+                            onClick={() => buscarBolosAgendados()}
+                            className="mt-3 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-semibold"
+                          >
+                            🔍 Verificar Calendar
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          {/* Cards Resumo Compactos */}
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                            <div className="bg-white p-3 rounded border border-blue-200">
+                              <div className="text-xs text-gray-600">Bolos</div>
+                              <div className="text-xl font-bold text-blue-900">{totalBolos}</div>
+                            </div>
+                            <div className="bg-white p-3 rounded border border-purple-200">
+                              <div className="text-xs text-gray-600">Peso</div>
+                              <div className="text-xl font-bold text-purple-900">{pesoTotal.toFixed(1)}kg</div>
+                            </div>
+                            <div className="bg-white p-3 rounded border border-green-200">
+                              <div className="text-xs text-gray-600">Faturação</div>
+                              <div className="text-xl font-bold text-green-900">€{faturacaoTotal.toFixed(0)}</div>
+                            </div>
+                            <div className="bg-white p-3 rounded border border-yellow-200">
+                              <div className="text-xs text-gray-600">Lucro</div>
+                              <div className="text-xl font-bold text-yellow-900">
+                                €{lucroTotal.toFixed(0)}
+                                <span className="text-xs ml-1">({margemMedia.toFixed(0)}%)</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Ranking Compacto */}
+                          <div className="bg-white rounded border border-gray-200 p-3">
+                            <h4 className="font-bold text-sm mb-2 text-gray-900">🏆 Por Tipo</h4>
+                            <div className="space-y-1">
+                              {Object.entries(porTipo)
+                                .sort((a, b) => b[1].faturacao - a[1].faturacao)
+                                .slice(0, 5)
+                                .map(([nome, stats]) => {
+                                  const margem = stats.faturacao > 0 ? (stats.lucro / stats.faturacao) * 100 : 0;
+                                  return (
+                                    <div key={nome} className="flex justify-between items-center text-xs py-1 border-b last:border-0">
+                                      <span className="font-semibold text-gray-800">{nome}</span>
+                                      <div className="flex gap-3 text-gray-600">
+                                        <span>{stats.quantidade}x</span>
+                                        <span className="text-green-700 font-semibold">€{stats.faturacao.toFixed(0)}</span>
+                                        <span className="text-purple-700">({margem.toFixed(0)}%)</span>
+                                      </div>
+                                    </div>
+                                  );
+                                })
+                              }
+                            </div>
+                          </div>
+
+                          {/* Últimos 5 Bolos */}
+                          <div className="bg-white rounded border border-gray-200 p-3">
+                            <h4 className="font-bold text-sm mb-2 text-gray-900">📋 Últimos Registados</h4>
+                            <div className="space-y-1">
+                              {bolosExternos
+                                .sort((a, b) => new Date(b.data) - new Date(a.data))
+                                .slice(0, 5)
+                                .map((bolo, idx) => {
+                                  const margem = bolo.preco > 0 ? (bolo.lucro / bolo.preco) * 100 : 0;
+                                  return (
+                                    <div key={idx} className="flex justify-between items-center text-xs py-1 border-b last:border-0">
+                                      <div className="flex-1">
+                                        <div className="font-semibold text-gray-800">{bolo.nomeBolo}</div>
+                                        <div className="text-gray-500">
+                                          {new Date(bolo.data).toLocaleDateString('pt-PT', { day: '2-digit', month: 'short' })}
+                                          {bolo.cliente && ` • ${bolo.cliente}`}
+                                        </div>
+                                      </div>
+                                      <div className="flex gap-2 text-gray-600">
+                                        <span className="text-green-700 font-semibold">€{(bolo.preco || 0).toFixed(0)}</span>
+                                        <span className="text-purple-700">+€{(bolo.lucro || 0).toFixed(0)}</span>
+                                      </div>
+                                    </div>
+                                  );
+                                })
+                              }
+                            </div>
+                          </div>
+
+                          {/* Link para ver mais detalhes */}
+                          <button
+                            onClick={() => {
+                              setActiveTab('dashboard');
+                              setDashboardSubTab('bolos');
+                            }}
+                            className="w-full text-center text-xs text-purple-700 hover:text-purple-900 font-semibold py-2 hover:bg-purple-100 rounded transition"
+                          >
+                            Ver Detalhes Completos →
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
+              
             </>
             )}
             {dashboardSubTab === 'compras' && (
@@ -18510,6 +18903,215 @@ void 0;
                 </div>
 
               </>
+            )}
+
+            {/* SUB-TAB: BOLOS EXTERNOS */}
+            {dashboardSubTab === 'bolos' && (
+              <div className="space-y-4">
+                {/* Header */}
+                <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-6 border-2 border-purple-200">
+                  <div className="flex items-center gap-3 mb-2">
+                    <span className="text-4xl">🎂</span>
+                    <div>
+                      <h2 className="text-2xl font-bold text-purple-900">
+                        Bolos Externos
+                      </h2>
+                      <p className="text-sm text-purple-700">
+                        📅 Encomendas do Google Calendar • Métricas separadas do Munchi
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {(() => {
+                  // Calcular estatísticas
+                  const totalBolos = bolosExternos.length;
+                  const pesoTotal = bolosExternos.reduce((sum, b) => sum + (b.peso || 0), 0);
+                  const faturacaoTotal = bolosExternos.reduce((sum, b) => sum + (b.preco || 0), 0);
+                  const lucroTotal = bolosExternos.reduce((sum, b) => sum + (b.lucro || 0), 0);
+                  const margemMedia = faturacaoTotal > 0 ? (lucroTotal / faturacaoTotal) * 100 : 0;
+
+                  // Agrupar por tipo
+                  const porTipo = {};
+                  bolosExternos.forEach(b => {
+                    const nome = b.nomeBolo || 'Desconhecido';
+                    if (!porTipo[nome]) {
+                      porTipo[nome] = { quantidade: 0, peso: 0, faturacao: 0, lucro: 0 };
+                    }
+                    porTipo[nome].quantidade++;
+                    porTipo[nome].peso += b.peso || 0;
+                    porTipo[nome].faturacao += b.preco || 0;
+                    porTipo[nome].lucro += b.lucro || 0;
+                  });
+
+                  // Agrupar por mês
+                  const porMes = {};
+                  bolosExternos.forEach(b => {
+                    const data = new Date(b.data);
+                    const mesAno = `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, '0')}`;
+                    if (!porMes[mesAno]) {
+                      porMes[mesAno] = { quantidade: 0, faturacao: 0, lucro: 0 };
+                    }
+                    porMes[mesAno].quantidade++;
+                    porMes[mesAno].faturacao += b.preco || 0;
+                    porMes[mesAno].lucro += b.lucro || 0;
+                  });
+
+                  return (
+                    <>
+                      {/* Cards de Resumo */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <div className="bg-white p-5 rounded-lg border-2 border-blue-200 shadow-sm">
+                          <div className="text-sm text-gray-600 mb-1">Bolos Vendidos</div>
+                          <div className="text-3xl font-bold text-blue-900">{totalBolos}</div>
+                        </div>
+                        <div className="bg-white p-5 rounded-lg border-2 border-purple-200 shadow-sm">
+                          <div className="text-sm text-gray-600 mb-1">Peso Total</div>
+                          <div className="text-3xl font-bold text-purple-900">{pesoTotal.toFixed(1)}kg</div>
+                        </div>
+                        <div className="bg-white p-5 rounded-lg border-2 border-green-200 shadow-sm">
+                          <div className="text-sm text-gray-600 mb-1">Faturação</div>
+                          <div className="text-3xl font-bold text-green-900">€{faturacaoTotal.toFixed(2)}</div>
+                        </div>
+                        <div className="bg-white p-5 rounded-lg border-2 border-yellow-200 shadow-sm">
+                          <div className="text-sm text-gray-600 mb-1">Lucro</div>
+                          <div className="text-3xl font-bold text-yellow-900">
+                            €{lucroTotal.toFixed(2)}
+                            <span className="text-sm ml-2">({margemMedia.toFixed(0)}%)</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {bolosExternos.length === 0 ? (
+                        <div className="bg-white rounded-lg shadow p-12 text-center">
+                          <span className="text-6xl mb-4 block">🎂</span>
+                          <h3 className="text-xl font-bold text-gray-900 mb-2">
+                            Nenhum Bolo Externo Registado
+                          </h3>
+                          <p className="text-gray-600 mb-4">
+                            Os bolos agendados no Google Calendar aparecerão aqui quando forem registados.
+                          </p>
+                          <button
+                            onClick={() => buscarBolosAgendados()}
+                            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold"
+                          >
+                            🔍 Verificar Calendar Agora
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                          {/* Ranking por Tipo */}
+                          <div className="bg-white p-6 rounded-lg shadow">
+                            <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+                              🏆 Ranking por Tipo
+                            </h3>
+                            <div className="space-y-2">
+                              {Object.entries(porTipo)
+                                .sort((a, b) => b[1].faturacao - a[1].faturacao)
+                                .slice(0, 5)
+                                .map(([nome, stats]) => {
+                                  const margem = stats.faturacao > 0 ? (stats.lucro / stats.faturacao) * 100 : 0;
+                                  return (
+                                    <div key={nome} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                                      <div className="flex-1">
+                                        <div className="font-semibold text-gray-900">{nome}</div>
+                                        <div className="text-xs text-gray-600">{stats.quantidade}x • {stats.peso.toFixed(1)}kg</div>
+                                      </div>
+                                      <div className="text-right">
+                                        <div className="text-green-700 font-semibold">€{stats.faturacao.toFixed(0)}</div>
+                                        <div className="text-xs text-purple-600">{margem.toFixed(0)}%</div>
+                                      </div>
+                                    </div>
+                                  );
+                                })
+                              }
+                            </div>
+                          </div>
+
+                          {/* Evolução Mensal */}
+                          <div className="bg-white p-6 rounded-lg shadow">
+                            <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+                              📊 Evolução Mensal
+                            </h3>
+                            <div className="space-y-2">
+                              {Object.entries(porMes)
+                                .sort((a, b) => b[0].localeCompare(a[0]))
+                                .slice(0, 6)
+                                .map(([mesAno, stats]) => {
+                                  const [ano, mes] = mesAno.split('-');
+                                  const nomeMes = new Date(ano, parseInt(mes) - 1).toLocaleDateString('pt-PT', { month: 'short', year: 'numeric' });
+                                  const margem = stats.faturacao > 0 ? (stats.lucro / stats.faturacao) * 100 : 0;
+                                  return (
+                                    <div key={mesAno} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                                      <div className="flex-1">
+                                        <div className="font-semibold text-gray-900 capitalize">{nomeMes}</div>
+                                        <div className="text-xs text-gray-600">{stats.quantidade} bolos</div>
+                                      </div>
+                                      <div className="text-right">
+                                        <div className="text-green-700 font-semibold">€{stats.faturacao.toFixed(0)}</div>
+                                        <div className="text-xs text-purple-600">{margem.toFixed(0)}%</div>
+                                      </div>
+                                    </div>
+                                  );
+                                })
+                              }
+                            </div>
+                          </div>
+
+                          {/* Histórico Completo */}
+                          <div className="bg-white p-6 rounded-lg shadow lg:col-span-2">
+                            <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+                              📋 Histórico Completo
+                            </h3>
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-sm">
+                                <thead className="bg-gray-100">
+                                  <tr>
+                                    <th className="p-2 text-left font-semibold text-gray-700">Data</th>
+                                    <th className="p-2 text-left font-semibold text-gray-700">Tipo</th>
+                                    <th className="p-2 text-left font-semibold text-gray-700">Cliente</th>
+                                    <th className="p-2 text-center font-semibold text-gray-700">Peso</th>
+                                    <th className="p-2 text-right font-semibold text-gray-700">Preço</th>
+                                    <th className="p-2 text-right font-semibold text-gray-700">Lucro</th>
+                                    <th className="p-2 text-right font-semibold text-gray-700">Margem</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {bolosExternos
+                                    .sort((a, b) => new Date(b.data) - new Date(a.data))
+                                    .map((bolo, idx) => {
+                                      const margem = bolo.preco > 0 ? (bolo.lucro / bolo.preco) * 100 : 0;
+                                      return (
+                                        <tr key={idx} className="border-b hover:bg-gray-50">
+                                          <td className="p-2">
+                                            {new Date(bolo.data).toLocaleDateString('pt-PT')}
+                                          </td>
+                                          <td className="p-2 font-semibold">{bolo.nomeBolo}</td>
+                                          <td className="p-2 text-gray-600">{bolo.cliente || '---'}</td>
+                                          <td className="p-2 text-center">{bolo.peso}kg</td>
+                                          <td className="p-2 text-right text-green-700 font-semibold">
+                                            €{(bolo.preco || 0).toFixed(2)}
+                                          </td>
+                                          <td className="p-2 text-right text-blue-700 font-semibold">
+                                            €{(bolo.lucro || 0).toFixed(2)}
+                                          </td>
+                                          <td className="p-2 text-right text-purple-700 font-semibold">
+                                            {margem.toFixed(0)}%
+                                          </td>
+                                        </tr>
+                                      );
+                                    })
+                                  }
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
             )}
           </div>
         )}
@@ -21207,6 +21809,8 @@ void 0;
           </div>
         )}
 
+        {/* TAB BOLOS EXTERNOS */}
+
         {/* TAB DEFINIÇÕES */}
         {activeTab === 'definicoes' && (
           <div className="space-y-3">
@@ -22774,6 +23378,194 @@ void 0;
                 Fechar
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      
+      {/* 🎂 NOTIFICAÇÃO DE BOLOS AGENDADOS */}
+      {bolosAgendados.filter(b => !b.processado).length > 0 && (
+        <div className="fixed bottom-4 right-4 max-w-lg bg-white rounded-lg shadow-2xl border-2 border-blue-500 p-5 z-50 max-h-[80vh] overflow-y-auto">
+          <div className="flex justify-between items-start mb-3 sticky top-0 bg-white pb-3 border-b">
+            <div className="flex items-center gap-2">
+              <span className="text-3xl">🎂</span>
+              <div>
+                <h3 className="font-bold text-lg text-gray-900">
+                  {bolosAgendados.filter(b => !b.processado).length} Bolo(s) Pendente(s)
+                </h3>
+                <p className="text-xs text-gray-600">Do Google Calendar</p>
+              </div>
+            </div>
+            <button 
+              onClick={() => {
+                setBolosAgendados([]);
+              }}
+              className="text-gray-400 hover:text-gray-600"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          
+          <div className="space-y-3">
+            {bolosAgendados
+              .filter(b => !b.processado)
+              .sort((a, b) => new Date(a.dataEntrega) - new Date(b.dataEntrega))
+              .map((bolo, idx) => {
+                const preview = bolo.tipoBolo && bolo.peso ? 
+                  calcularBoloExterno(bolo.tipoBolo, bolo.peso) : null;
+                
+                const dataEntrega = new Date(bolo.dataEntrega);
+                const hoje = new Date();
+                const diasDif = Math.floor((dataEntrega - hoje) / (1000 * 60 * 60 * 24));
+                
+                let labelData = '';
+                if (diasDif === 0) labelData = '📅 Hoje';
+                else if (diasDif === -1) labelData = '📅 Ontem';
+                else if (diasDif === -2) labelData = '📅 Anteontem';
+                else if (diasDif > 0) labelData = `📅 Daqui a ${diasDif} dias`;
+                else labelData = `📅 Há ${Math.abs(diasDif)} dias`;
+                
+                return (
+                  <div key={bolo.eventoId} className="border-2 border-gray-200 rounded-lg p-4 bg-gray-50 hover:bg-blue-50 transition">
+                    <div className="flex justify-between items-start mb-2">
+                      <div className="flex-1">
+                        <div className="font-semibold text-sm text-gray-600 mb-1">{labelData}</div>
+                        <div className="font-bold text-gray-900">{bolo.titulo}</div>
+                      </div>
+                      {!bolo.parseOk && (
+                        <span className="text-yellow-600 text-xl">⚠️</span>
+                      )}
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-2 text-xs mb-3">
+                      {bolo.tipoBolo && (
+                        <div>
+                          <span className="text-gray-600">Tipo:</span>
+                          <span className="ml-1 font-semibold">{bolo.tipoBolo.nome}</span>
+                        </div>
+                      )}
+                      {bolo.peso && (
+                        <div>
+                          <span className="text-gray-600">Peso:</span>
+                          <span className="ml-1 font-semibold">{bolo.peso}kg</span>
+                        </div>
+                      )}
+                      {bolo.preco && (
+                        <div>
+                          <span className="text-gray-600">Preço:</span>
+                          <span className="ml-1 font-semibold">€{bolo.preco}</span>
+                        </div>
+                      )}
+                      {bolo.cliente && (
+                        <div>
+                          <span className="text-gray-600">Cliente:</span>
+                          <span className="ml-1 font-semibold">{bolo.cliente}</span>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {preview && bolo.preco && (
+                      <div className="bg-green-50 border border-green-200 rounded p-2 mb-3 text-xs">
+                        <div className="flex justify-between text-green-800">
+                          <span>Custo: €{preview.custoTotal.toFixed(2)}</span>
+                          <span>Lucro: €{(parseFloat(bolo.preco) - preview.custoTotal).toFixed(2)}</span>
+                          <span className="font-bold">{(((parseFloat(bolo.preco) - preview.custoTotal) / parseFloat(bolo.preco)) * 100).toFixed(0)}%</span>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {!bolo.parseOk && (
+                      <div className="bg-yellow-50 border border-yellow-200 rounded p-2 mb-3 text-xs text-yellow-800">
+                        ⚠️ Faltam dados. Completa no Calendar ou preenche manualmente.
+                      </div>
+                    )}
+                    
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => {
+                          // Marcar como processado sem registar (ignorar)
+                          setBolosAgendados(bolosAgendados.map(b => 
+                            b.eventoId === bolo.eventoId 
+                              ? {...b, processado: true}
+                              : b
+                          ));
+                        }}
+                        className="flex-1 px-3 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 text-xs font-semibold"
+                      >
+                        Ignorar
+                      </button>
+                      <button
+                        onClick={async () => {
+                          if (!bolo.tipoBolo || !bolo.peso || !bolo.preco) {
+                            showNotification('❌ Faltam dados! Complete no Google Calendar.', 'error');
+                            return;
+                          }
+                          
+                          const pesoNum = parseFloat(bolo.peso);
+                          const precoNum = parseFloat(bolo.preco);
+                          const calculo = calcularBoloExterno(bolo.tipoBolo, pesoNum);
+                          
+                          const boloExterno = {
+                            tipo: 'bolo_externo',
+                            data: bolo.dataEntrega.split('T')[0], // usar data do evento
+                            timestamp: Date.now(),
+                            eventoCalendarId: bolo.eventoId,
+                            produtoBase: bolo.tipoBolo.id,
+                            nomeBolo: bolo.tipoBolo.nome,
+                            peso: pesoNum,
+                            preco: precoNum,
+                            ingredientesUsados: calculo.ingredientes,
+                            custoIngredientes: calculo.custoTotal,
+                            lucro: precoNum - calculo.custoTotal,
+                            margem: ((precoNum - calculo.custoTotal) / precoNum) * 100,
+                            cliente: bolo.cliente,
+                            origem: 'calendar'
+                          };
+                          
+                          await db.bolosExternos.add(boloExterno);
+                          
+                          // Atualizar stock
+                          for (const item of calculo.ingredientes) {
+                            const ingrediente = ingredientes.find(i => i.id === item.ingredienteId);
+                            if (ingrediente) {
+                              ingrediente.stockAtual = (ingrediente.stockAtual || 0) - item.quantidade;
+                            }
+                          }
+                          
+                          setIngredientes([...ingredientes]);
+                          setBolosExternos([...bolosExternos, boloExterno]);
+                          
+                          // Marcar como processado
+                          setBolosAgendados(bolosAgendados.map(b => 
+                            b.eventoId === bolo.eventoId 
+                              ? {...b, processado: true}
+                              : b
+                          ));
+                          
+                          showNotification(
+                            `✅ Bolo registado!\n${bolo.tipoBolo.nome} ${pesoNum}kg\nLucro: €${boloExterno.lucro.toFixed(2)}`,
+                            'success'
+                          );
+                          
+                          saveToDrive(false);
+                        }}
+                        disabled={!bolo.parseOk || !bolo.preco}
+                        className="flex-1 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 text-xs font-semibold"
+                      >
+                        ✅ Registar
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+          
+          <div className="mt-4 pt-3 border-t text-center">
+            <button
+              onClick={() => buscarBolosAgendados()}
+              className="text-xs text-blue-600 hover:text-blue-800 font-semibold"
+            >
+              🔄 Atualizar Lista
+            </button>
           </div>
         </div>
       )}
