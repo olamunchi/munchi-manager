@@ -12868,36 +12868,60 @@ void 0;
   
   // Calcular bolo externo baseado em receita existente
   const calcularBoloExterno = (produtoBase, peso) => {
+    console.log('💰 CALCULAR BOLO EXTERNO - Início');
+    console.log('💰 Produto:', produtoBase?.nome);
+    console.log('💰 Peso:', peso, 'kg');
+    
     if (!produtoBase || !produtoBase.receita || !peso) {
+      console.log('❌ Dados insuficientes para cálculo');
       return null;
     }
     
     const receitaBase = produtoBase.receita;
     const servingsBase = produtoBase.servings || 12; // 12 fatias = 1 bolo = 1kg
     
+    console.log('💰 Receita base:', receitaBase.length, 'ingredientes');
+    console.log('💰 Servings base:', servingsBase);
+    
     // Calcular escala (peso / 1kg base)
     const escala = peso / 1.0;
+    console.log('💰 Escala:', escala);
     
     // Escalar ingredientes
     const ingredientesEscalados = receitaBase.map(item => {
-      const ing = ingredientes.find(i => i.id === item.ingrediente);
+      // Tentar ambos os campos: ingredienteId ou ingrediente
+      const ingredienteId = item.ingredienteId || item.ingrediente;
+      const ing = ingredientes.find(i => i.id === ingredienteId);
+      
+      console.log('💰 Processando ingrediente:', {
+        id: ingredienteId,
+        encontrado: !!ing,
+        nome: ing?.nome,
+        custoUnitario: ing?.custoUnitario,
+        quantidadeReceita: item.quantidade
+      });
+      
       const quantidadeBase = item.quantidade * servingsBase; // quanto usa num bolo de 1kg
+      const custoUnitario = ing ? (ing.custoUnitario || ing.precoPorUnidade || 0) : 0;
       
       return {
-        ingrediente: ing ? ing.nome : item.ingrediente,
-        ingredienteId: item.ingrediente,
+        ingrediente: ing ? ing.nome : ingredienteId,
+        ingredienteId: ingredienteId,
         quantidadeBase: quantidadeBase,
         quantidade: quantidadeBase * escala, // escalado
         unidade: ing ? ing.unidade : 'g',
-        precoPorUnidade: ing ? ing.precoPorUnidade : 0
+        precoPorUnidade: custoUnitario
       };
     });
     
     // Calcular custo total
     const custoTotal = ingredientesEscalados.reduce((sum, item) => {
       const custoItem = item.quantidade * (item.precoPorUnidade || 0);
+      console.log('💰 Custo item:', item.ingrediente, '=', item.quantidade, 'x', item.precoPorUnidade, '=', custoItem.toFixed(2));
       return sum + custoItem;
     }, 0);
+    
+    console.log('💰 CUSTO TOTAL:', custoTotal.toFixed(2));
     
     return {
       escala: escala,
@@ -12979,23 +13003,38 @@ void 0;
     })));
     
     let tipoBolo = null;
+    let melhorScore = 0;
+    
     for (const bolo of bolosDisponiveis) {
       const nomeBolo = bolo.nome.toLowerCase();
-      // Procurar palavras-chave do nome
-      const palavrasChave = nomeBolo.split(' ').filter(p => p.length > 3); // palavras com mais de 3 letras
+      // Procurar palavras-chave do nome (palavras com mais de 3 letras)
+      const palavrasChave = nomeBolo.split(' ').filter(p => p.length > 3);
       console.log('🔍 Testando produto:', bolo.nome, '| Palavras-chave:', palavrasChave);
-      const match = palavrasChave.some(palavra => 
-        textoCompleto.includes(palavra.toLowerCase())
-      );
-      if (match) {
+      
+      // Contar quantas palavras-chave aparecem no texto
+      let score = 0;
+      const matchedWords = [];
+      for (const palavra of palavrasChave) {
+        if (textoCompleto.includes(palavra.toLowerCase())) {
+          score++;
+          matchedWords.push(palavra);
+        }
+      }
+      
+      console.log('🔍 Score:', score, '| Palavras encontradas:', matchedWords);
+      
+      // Escolher o produto com mais palavras-chave em comum
+      if (score > melhorScore) {
+        melhorScore = score;
         tipoBolo = bolo;
-        console.log('✅ Match encontrado:', bolo.nome);
-        break;
+        console.log('✅ Novo melhor match:', bolo.nome, 'com score', score);
       }
     }
     
     if (!tipoBolo) {
       console.log('❌ Nenhum tipo de bolo detectado');
+    } else {
+      console.log('✅ Produto final escolhido:', tipoBolo.nome, 'com score', melhorScore);
     }
     
     // 2. Extrair peso (kg)
@@ -18334,9 +18373,39 @@ void 0;
                                           {bolo.cliente && ` • ${bolo.cliente}`}
                                         </div>
                                       </div>
-                                      <div className="flex gap-2 text-gray-600">
+                                      <div className="flex gap-2 items-center text-gray-600">
                                         <span className="text-green-700 font-semibold">€{(bolo.preco || 0).toFixed(0)}</span>
                                         <span className="text-purple-700">+€{(bolo.lucro || 0).toFixed(0)}</span>
+                                        <button
+                                          onClick={async () => {
+                                            if (!confirm(`Eliminar "${bolo.nomeBolo}"?`)) return;
+                                            
+                                            const devolverStock = confirm('Devolver ingredientes ao stock?');
+                                            
+                                            if (devolverStock && bolo.ingredientesUsados?.length > 0) {
+                                              bolo.ingredientesUsados.forEach(item => {
+                                                const ing = ingredientes.find(i => i.id === item.ingredienteId);
+                                                if (ing) ing.stockAtual = (ing.stockAtual || 0) + item.quantidade;
+                                              });
+                                              setIngredientes([...ingredientes]);
+                                            }
+                                            
+                                            if (bolo.id) {
+                                              await db.bolosExternos.delete(bolo.id);
+                                            } else {
+                                              const bolosDB = await db.bolosExternos.toArray();
+                                              const b = bolosDB.find(x => x.timestamp === bolo.timestamp);
+                                              if (b) await db.bolosExternos.delete(b.id);
+                                            }
+                                            
+                                            setBolosExternos(bolosExternos.filter((_, i) => i !== idx));
+                                            showNotification('🗑️ Bolo eliminado!', 'success');
+                                          }}
+                                          className="text-red-600 hover:text-red-800 p-0.5"
+                                          title="Eliminar"
+                                        >
+                                          🗑️
+                                        </button>
                                       </div>
                                     </div>
                                   );
@@ -19130,6 +19199,7 @@ void 0;
                                     <th className="p-2 text-right font-semibold text-gray-700">Preço</th>
                                     <th className="p-2 text-right font-semibold text-gray-700">Lucro</th>
                                     <th className="p-2 text-right font-semibold text-gray-700">Margem</th>
+                                    <th className="p-2 text-center font-semibold text-gray-700">Ações</th>
                                   </tr>
                                 </thead>
                                 <tbody>
@@ -19153,6 +19223,62 @@ void 0;
                                           </td>
                                           <td className="p-2 text-right text-purple-700 font-semibold">
                                             {margem.toFixed(0)}%
+                                          </td>
+                                          <td className="p-2 text-center">
+                                            <button
+                                              onClick={async () => {
+                                                if (!confirm(`Eliminar bolo ${bolo.nomeBolo} (${bolo.peso}kg) de ${bolo.cliente || 'cliente'}?\n\n⚠️ Esta ação não pode ser desfeita.\n\n💡 Opcional: Devolver ingredientes ao stock?`)) {
+                                                  return;
+                                                }
+                                                
+                                                console.log('🗑️ Eliminando bolo:', bolo);
+                                                
+                                                // Perguntar se quer devolver ingredientes ao stock
+                                                const devolverStock = confirm('Devolver ingredientes ao stock?\n\nClica OK para devolver, Cancelar para apenas eliminar o registo.');
+                                                
+                                                if (devolverStock && bolo.ingredientesUsados && bolo.ingredientesUsados.length > 0) {
+                                                  console.log('📦 Devolvendo ingredientes ao stock...');
+                                                  for (const item of bolo.ingredientesUsados) {
+                                                    const ingrediente = ingredientes.find(i => i.id === item.ingredienteId);
+                                                    if (ingrediente) {
+                                                      const stockAntes = ingrediente.stockAtual || 0;
+                                                      ingrediente.stockAtual = stockAntes + item.quantidade;
+                                                      console.log('📦', ingrediente.nome, ':', stockAntes, '→', ingrediente.stockAtual);
+                                                    }
+                                                  }
+                                                  setIngredientes([...ingredientes]);
+                                                }
+                                                
+                                                // Eliminar da base de dados
+                                                if (bolo.id) {
+                                                  await db.bolosExternos.delete(bolo.id);
+                                                } else {
+                                                  // Se não tem ID, eliminar por timestamp
+                                                  const bolosDB = await db.bolosExternos.toArray();
+                                                  const boloParaEliminar = bolosDB.find(b => 
+                                                    b.timestamp === bolo.timestamp || 
+                                                    (b.eventoCalendarId && b.eventoCalendarId === bolo.eventoCalendarId)
+                                                  );
+                                                  if (boloParaEliminar) {
+                                                    await db.bolosExternos.delete(boloParaEliminar.id);
+                                                  }
+                                                }
+                                                
+                                                // Atualizar estado
+                                                setBolosExternos(bolosExternos.filter((b, i) => i !== idx));
+                                                
+                                                showNotification(
+                                                  `🗑️ Bolo eliminado!\n${bolo.nomeBolo} ${bolo.peso}kg${devolverStock ? '\n📦 Ingredientes devolvidos ao stock' : ''}`,
+                                                  'success'
+                                                );
+                                                
+                                                console.log('✅ Bolo eliminado com sucesso');
+                                              }}
+                                              className="text-red-600 hover:text-red-800 hover:bg-red-100 p-1.5 rounded transition"
+                                              title="Eliminar bolo"
+                                            >
+                                              🗑️
+                                            </button>
                                           </td>
                                         </tr>
                                       );
@@ -23551,6 +23677,9 @@ void 0;
                       </button>
                       <button
                         onClick={async () => {
+                          console.log('🎂 ===== REGISTAR BOLO - INÍCIO =====');
+                          console.log('🎂 Bolo:', bolo);
+                          
                           if (!bolo.tipoBolo || !bolo.peso || !bolo.preco) {
                             showNotification('❌ Faltam dados! Complete no Google Calendar.', 'error');
                             return;
@@ -23558,7 +23687,16 @@ void 0;
                           
                           const pesoNum = parseFloat(bolo.peso);
                           const precoNum = parseFloat(bolo.preco);
+                          
+                          console.log('🎂 Calculando custo...');
                           const calculo = calcularBoloExterno(bolo.tipoBolo, pesoNum);
+                          
+                          if (!calculo) {
+                            console.log('⚠️ Não foi possível calcular custo (sem receita)');
+                          }
+                          
+                          const custoTotal = calculo ? calculo.custoTotal : 0;
+                          const ingredientesUsados = calculo ? calculo.ingredientes : [];
                           
                           const boloExterno = {
                             tipo: 'bolo_externo',
@@ -23569,22 +23707,33 @@ void 0;
                             nomeBolo: bolo.tipoBolo.nome,
                             peso: pesoNum,
                             preco: precoNum,
-                            ingredientesUsados: calculo.ingredientes,
-                            custoIngredientes: calculo.custoTotal,
-                            lucro: precoNum - calculo.custoTotal,
-                            margem: ((precoNum - calculo.custoTotal) / precoNum) * 100,
+                            ingredientesUsados: ingredientesUsados,
+                            custoIngredientes: custoTotal,
+                            lucro: precoNum - custoTotal,
+                            margem: ((precoNum - custoTotal) / precoNum) * 100,
                             cliente: bolo.cliente,
                             origem: 'calendar'
                           };
                           
+                          console.log('🎂 Bolo a guardar:', boloExterno);
+                          
                           await db.bolosExternos.add(boloExterno);
                           
                           // Atualizar stock
-                          for (const item of calculo.ingredientes) {
-                            const ingrediente = ingredientes.find(i => i.id === item.ingredienteId);
-                            if (ingrediente) {
-                              ingrediente.stockAtual = (ingrediente.stockAtual || 0) - item.quantidade;
+                          if (ingredientesUsados.length > 0) {
+                            console.log('📦 Atualizando stock...');
+                            for (const item of ingredientesUsados) {
+                              const ingrediente = ingredientes.find(i => i.id === item.ingredienteId);
+                              if (ingrediente) {
+                                const stockAntes = ingrediente.stockAtual || 0;
+                                ingrediente.stockAtual = stockAntes - item.quantidade;
+                                console.log('📦', ingrediente.nome, ':', stockAntes, '→', ingrediente.stockAtual);
+                              } else {
+                                console.warn('⚠️ Ingrediente não encontrado:', item.ingredienteId);
+                              }
                             }
+                          } else {
+                            console.log('⚠️ Sem ingredientes para atualizar stock');
                           }
                           
                           setIngredientes([...ingredientes]);
