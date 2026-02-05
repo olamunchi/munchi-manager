@@ -12967,13 +12967,16 @@ void 0;
     
     // 1. Identificar tipo de bolo
     const bolosDisponiveis = produtos.filter(p => 
-      p.categoria === 'sobremesas' && 
-      p.receita && 
-      p.receita.length > 0 &&
-      p.servings
+      p.categoria && p.categoria.toLowerCase() === 'sobremesas'
+      // TEMPORÁRIO: Comentado validação de receita para teste
+      // && p.receita && p.receita.length > 0 && p.servings
     );
     
-    console.log('🔍 Produtos sobremesas disponíveis:', bolosDisponiveis.map(b => b.nome));
+    console.log('🔍 Produtos sobremesas disponíveis:', bolosDisponiveis.map(b => ({
+      nome: b.nome,
+      temReceita: !!(b.receita && b.receita.length > 0),
+      temServings: !!b.servings
+    })));
     
     let tipoBolo = null;
     for (const bolo of bolosDisponiveis) {
@@ -13002,9 +13005,10 @@ void 0;
     console.log('🔍 Peso detectado:', peso);
     
     // 3. Extrair preço (€)
-    const regexPreco = /€?\s*(\d+(?:\.\d{1,2})?)\s*€?/;
-    const matchPreco = textoCompleto.match(regexPreco);
-    const preco = matchPreco ? parseFloat(matchPreco[1]) : null;
+    // Primeiro tentar com símbolo do euro explícito
+    const regexPrecoComEuro = /€\s*(\d+(?:\.\d{1,2})?)|(\d+(?:\.\d{1,2})?)\s*€/;
+    const matchPrecoEuro = textoCompleto.match(regexPrecoComEuro);
+    const preco = matchPrecoEuro ? parseFloat(matchPrecoEuro[1] || matchPrecoEuro[2]) : null;
     console.log('🔍 Preço detectado:', preco);
     
     // 4. Extrair cliente (tudo após "-" ou "para")
@@ -13026,10 +13030,14 @@ void 0;
       dataEntrega: dataEntrega,
       titulo: titulo,
       descricao: descricao,
-      parseOk: !!(tipoBolo && peso) // precisa pelo menos tipo e peso
+      parseOk: !!(tipoBolo && peso), // precisa pelo menos tipo e peso
+      avisoReceita: tipoBolo && (!tipoBolo.receita || tipoBolo.receita.length === 0) ? '⚠️ Produto sem receita - não será possível calcular custo' : null
     };
     
     console.log('🔍 Resultado parsing:', resultado);
+    if (resultado.avisoReceita) {
+      console.warn(resultado.avisoReceita);
+    }
     return resultado;
   };
 
