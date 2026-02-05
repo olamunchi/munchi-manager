@@ -12928,8 +12928,23 @@ void 0;
     
     // Calcular custo total
     const custoTotal = ingredientesEscalados.reduce((sum, item) => {
-      const custoItem = item.quantidade * (item.precoPorUnidade || 0);
-      console.log('💰 Custo item:', item.ingrediente, '=', item.quantidade.toFixed(2), item.unidade, 'x €', item.precoPorUnidade.toFixed(2), '= €', custoItem.toFixed(2));
+      // CORREÇÃO CRÍTICA: Converter quantidade para mesma unidade do custo
+      let quantidadeFinal = item.quantidade;
+      
+      // Se quantidade está em gramas (g) mas custo em kg, converter
+      if (item.unidade === 'g' && quantidadeFinal > 10) {
+        // Assumir que custoUnitario está em €/kg
+        quantidadeFinal = quantidadeFinal / 1000; // converter g para kg
+        console.log('💰 Conversão:', item.ingrediente, ':', item.quantidade, 'g →', quantidadeFinal.toFixed(3), 'kg');
+      }
+      // Se quantidade está em ml mas custo em L, converter  
+      else if (item.unidade === 'ml' && quantidadeFinal > 10) {
+        quantidadeFinal = quantidadeFinal / 1000; // converter ml para L
+        console.log('💰 Conversão:', item.ingrediente, ':', item.quantidade, 'ml →', quantidadeFinal.toFixed(3), 'L');
+      }
+      
+      const custoItem = quantidadeFinal * (item.precoPorUnidade || 0);
+      console.log('💰 Custo item:', item.ingrediente, '=', quantidadeFinal.toFixed(3), item.unidade === 'g' ? 'kg' : (item.unidade === 'ml' ? 'L' : item.unidade), 'x €', (item.precoPorUnidade || 0).toFixed(2), '= €', custoItem.toFixed(2));
       return sum + custoItem;
     }, 0);
     
@@ -13058,10 +13073,11 @@ void 0;
     console.log('🔍 Peso detectado:', peso);
     
     // 3. Extrair preço (€)
-    // Primeiro tentar com símbolo do euro explícito
-    const regexPrecoComEuro = /€\s*(\d+(?:\.\d{1,2})?)|(\d+(?:\.\d{1,2})?)\s*€/;
-    const matchPrecoEuro = textoCompleto.match(regexPrecoComEuro);
-    const preco = matchPrecoEuro ? parseFloat(matchPrecoEuro[1] || matchPrecoEuro[2]) : null;
+    // Suporta: €30, 30€, 30euros, 30eur, 30 EUR
+    // IMPORTANTE: Procurar APENAS números com símbolos de moeda, não todos os números
+    const regexPreco = /(?:€|euros?|eur)\s*(\d+(?:[.,]\d{1,2})?)|(\d+(?:[.,]\d{1,2})?)\s*(?:€|euros?|eur)/i;
+    const matchPreco = textoCompleto.match(regexPreco);
+    const preco = matchPreco ? parseFloat((matchPreco[1] || matchPreco[2]).replace(',', '.')) : null;
     console.log('🔍 Preço detectado:', preco);
     
     // 4. Extrair cliente (tudo após "-" ou "para")
