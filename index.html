@@ -12946,18 +12946,24 @@ void 0;
       }
       
       const data = await response.json();
+      console.log('📅 ✅ API Response Status:', response.status);
+      console.log('📅 ✅ Total de eventos retornados pela API:', data.items?.length || 0);
+      console.log('📅 ✅ Eventos completos:', data.items);
       return data.items || [];
     } catch (error) {
-      console.error('❌ Erro ao ler calendar:', error);
+      console.error('❌ ERRO ao ler calendar:', error);
+      console.error('❌ Mensagem:', error.message);
       return [];
     }
   };
 
   // Parser de eventos de bolos
   const parseEventoBolo = (evento) => {
+    console.log('🔍 Parsing evento:', evento.summary);
     const titulo = evento.summary || '';
     const descricao = evento.description || '';
     const textoCompleto = `${titulo} ${descricao}`.toLowerCase();
+    console.log('🔍 Texto completo:', textoCompleto);
     
     // 1. Identificar tipo de bolo
     const bolosDisponiveis = produtos.filter(p => 
@@ -12967,39 +12973,51 @@ void 0;
       p.servings
     );
     
+    console.log('🔍 Produtos sobremesas disponíveis:', bolosDisponiveis.map(b => b.nome));
+    
     let tipoBolo = null;
     for (const bolo of bolosDisponiveis) {
       const nomeBolo = bolo.nome.toLowerCase();
       // Procurar palavras-chave do nome
       const palavrasChave = nomeBolo.split(' ').filter(p => p.length > 3); // palavras com mais de 3 letras
+      console.log('🔍 Testando produto:', bolo.nome, '| Palavras-chave:', palavrasChave);
       const match = palavrasChave.some(palavra => 
         textoCompleto.includes(palavra.toLowerCase())
       );
       if (match) {
         tipoBolo = bolo;
+        console.log('✅ Match encontrado:', bolo.nome);
         break;
       }
+    }
+    
+    if (!tipoBolo) {
+      console.log('❌ Nenhum tipo de bolo detectado');
     }
     
     // 2. Extrair peso (kg)
     const regexPeso = /(\d+\.?\d*)\s*k(?:g)?/i;
     const matchPeso = textoCompleto.match(regexPeso);
     const peso = matchPeso ? parseFloat(matchPeso[1]) : null;
+    console.log('🔍 Peso detectado:', peso);
     
     // 3. Extrair preço (€)
     const regexPreco = /€?\s*(\d+(?:\.\d{1,2})?)\s*€?/;
     const matchPreco = textoCompleto.match(regexPreco);
     const preco = matchPreco ? parseFloat(matchPreco[1]) : null;
+    console.log('🔍 Preço detectado:', preco);
     
     // 4. Extrair cliente (tudo após "-" ou "para")
     const regexCliente = /(?:-|para)\s*([A-Za-zÀ-ÿ\s]+?)(?:\s*€|\s*\d+kg|$)/i;
     const matchCliente = titulo.match(regexCliente);
     const cliente = matchCliente ? matchCliente[1].trim() : '';
+    console.log('🔍 Cliente detectado:', cliente);
     
     // 5. Data/hora
     const dataEntrega = evento.start?.dateTime || evento.start?.date || '';
+    console.log('🔍 Data entrega:', dataEntrega);
     
-    return {
+    const resultado = {
       eventoId: evento.id,
       tipoBolo: tipoBolo,
       peso: peso,
@@ -13010,29 +13028,57 @@ void 0;
       descricao: descricao,
       parseOk: !!(tipoBolo && peso) // precisa pelo menos tipo e peso
     };
+    
+    console.log('🔍 Resultado parsing:', resultado);
+    return resultado;
   };
 
   // Buscar bolos agendados
   const buscarBolosAgendados = async () => {
+    console.log('🎂 ========== BUSCAR BOLOS AGENDADOS - INÍCIO ==========');
     try {
       const eventos = await lerEventosCalendar(calendarConfig.calendarId);
+      console.log('🎂 Eventos recebidos:', eventos.length);
       
       // Carregar bolos já registados
       const bolosRegistados = await db.bolosExternos.toArray();
+      console.log('🎂 Bolos já registados:', bolosRegistados.length);
       const eventosJaRegistados = new Set(
         bolosRegistados
           .filter(b => b.eventoCalendarId)
           .map(b => b.eventoCalendarId)
       );
       
+      console.log('🎂 Iniciando parsing de eventos...');
       const bolosParsed = eventos
-        .map(ev => parseEventoBolo(ev))
-        .filter(b => b.tipoBolo) // apenas eventos que parecem bolos
-        .filter(b => !eventosJaRegistados.has(b.eventoId)) // excluir já registados
+        .map(ev => {
+          const parsed = parseEventoBolo(ev);
+          console.log('🎂 Evento parseado:', {
+            titulo: ev.summary,
+            tipoBolo: parsed.tipoBolo?.nome || 'não detectado',
+            peso: parsed.peso || 'não detectado',
+            preco: parsed.preco || 'não detectado',
+            parseOk: parsed.parseOk
+          });
+          return parsed;
+        })
+        .filter(b => {
+          const temBolo = !!b.tipoBolo;
+          if (!temBolo) console.log('❌ Filtrado: sem tipo de bolo');
+          return temBolo;
+        })
+        .filter(b => {
+          const jaRegistado = eventosJaRegistados.has(b.eventoId);
+          if (jaRegistado) console.log('❌ Filtrado: já registado');
+          return !jaRegistado;
+        })
         .map(b => ({
           ...b,
           processado: eventosJaRegistados.has(b.eventoId)
         }));
+      
+      console.log('🎂 Total de bolos após filtros:', bolosParsed.length);
+      console.log('🎂 Bolos finais:', bolosParsed);
       
       setBolosAgendados(bolosParsed);
       setCalendarConfig({...calendarConfig, ultimaVerificacao: new Date()});
@@ -13041,11 +13087,13 @@ void 0;
       if (bolosParsed.length > 0 && !mostrarNotificacaoBolo) {
         const pendente = bolosParsed.find(b => !b.processado);
         if (pendente) {
+          console.log('🎂 Mostrando notificação para:', pendente);
           setBoloAtualNotificacao(pendente);
           setMostrarNotificacaoBolo(true);
         }
       }
       
+      console.log('🎂 ========== BUSCAR BOLOS AGENDADOS - FIM ==========');
       return bolosParsed;
     } catch (error) {
       console.error('❌ Erro ao buscar bolos:', error);
