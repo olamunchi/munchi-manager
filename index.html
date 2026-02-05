@@ -12870,7 +12870,7 @@ void 0;
   const calcularBoloExterno = (produtoBase, peso) => {
     console.log('💰 CALCULAR BOLO EXTERNO - Início');
     console.log('💰 Produto:', produtoBase?.nome);
-    console.log('💰 Peso:', peso, 'kg');
+    console.log('💰 Peso pedido:', peso, 'kg');
     
     if (!produtoBase || !produtoBase.receita || !peso) {
       console.log('❌ Dados insuficientes para cálculo');
@@ -12878,16 +12878,26 @@ void 0;
     }
     
     const receitaBase = produtoBase.receita;
-    const servingsBase = produtoBase.servings || 12; // 12 fatias = 1 bolo = 1kg
+    const servingsBase = produtoBase.servings || 12; // 12 fatias = 1 bolo
     
     console.log('💰 Receita base:', receitaBase.length, 'ingredientes');
-    console.log('💰 Servings base:', servingsBase);
+    console.log('💰 Servings base:', servingsBase, 'fatias');
     
-    // Calcular escala (peso / 1kg base)
-    const escala = peso / 1.0;
-    console.log('💰 Escala:', escala);
+    // ⚠️ CORREÇÃO CRÍTICA:
+    // A receita é para o bolo TODO (ex: 200g farinha para 2kg de bolo)
+    // Não devemos multiplicar por servings!
+    // Assumimos: servings × 0.166kg por fatia = peso do bolo base
+    // Ex: 12 fatias × 0.166kg = ~2kg
+    const pesoBaseBolo = servingsBase * 0.166; // kg
     
-    // Escalar ingredientes
+    console.log('💰 Peso base do bolo da receita:', pesoBaseBolo.toFixed(2), 'kg');
+    
+    // Calcular escala (peso pedido / peso base)
+    const escala = peso / pesoBaseBolo;
+    console.log('💰 Escala de ajuste:', escala.toFixed(2));
+    console.log('💰 Exemplo: Se receita tem 200g farinha → usa', (200 * escala).toFixed(0), 'g');
+    
+    // Escalar ingredientes PROPORCIONALMENTE
     const ingredientesEscalados = receitaBase.map(item => {
       // Tentar ambos os campos: ingredienteId ou ingrediente
       const ingredienteId = item.ingredienteId || item.ingrediente;
@@ -12898,17 +12908,19 @@ void 0;
         encontrado: !!ing,
         nome: ing?.nome,
         custoUnitario: ing?.custoUnitario,
-        quantidadeReceita: item.quantidade
+        quantidadeReceita: item.quantidade,
+        quantidadeEscalada: (item.quantidade * escala).toFixed(2)
       });
       
-      const quantidadeBase = item.quantidade * servingsBase; // quanto usa num bolo de 1kg
+      // CORREÇÃO: Não multiplicar por servingsBase!
+      // A quantidade na receita JÁ é para o bolo todo
+      const quantidade = item.quantidade * escala; // Escalado diretamente
       const custoUnitario = ing ? (ing.custoUnitario || ing.precoPorUnidade || 0) : 0;
       
       return {
         ingrediente: ing ? ing.nome : ingredienteId,
         ingredienteId: ingredienteId,
-        quantidadeBase: quantidadeBase,
-        quantidade: quantidadeBase * escala, // escalado
+        quantidade: quantidade,
         unidade: ing ? ing.unidade : 'g',
         precoPorUnidade: custoUnitario
       };
@@ -12917,11 +12929,13 @@ void 0;
     // Calcular custo total
     const custoTotal = ingredientesEscalados.reduce((sum, item) => {
       const custoItem = item.quantidade * (item.precoPorUnidade || 0);
-      console.log('💰 Custo item:', item.ingrediente, '=', item.quantidade, 'x', item.precoPorUnidade, '=', custoItem.toFixed(2));
+      console.log('💰 Custo item:', item.ingrediente, '=', item.quantidade.toFixed(2), item.unidade, 'x €', item.precoPorUnidade.toFixed(2), '= €', custoItem.toFixed(2));
       return sum + custoItem;
     }, 0);
     
-    console.log('💰 CUSTO TOTAL:', custoTotal.toFixed(2));
+    console.log('💰 ========================================');
+    console.log('💰 CUSTO TOTAL:', '€' + custoTotal.toFixed(2));
+    console.log('💰 ========================================');
     
     return {
       escala: escala,
