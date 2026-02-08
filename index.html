@@ -4636,6 +4636,14 @@ const RestauranteGestor = () => {
   const [stockRastreamentoAtivo, setStockRastreamentoAtivo] = useState(true);
   const [alertasStock, setAlertasStock] = useState([]);
   const [mostrarModalMovimentacoes, setMostrarModalMovimentacoes] = useState(false);
+  
+  // 🆕 ESTADOS PARA INVENTÁRIO FÍSICO
+  const [inventarioAtivo, setInventarioAtivo] = useState(null); // Sessão de contagem em progresso
+  const [indiceAtualInventario, setIndiceAtualInventario] = useState(0); // Índice do ingrediente atual
+  const [contagensHistorico, setContagensHistorico] = useState([]); // Histórico de todas as contagens
+  const [mostrarModalInventario, setMostrarModalInventario] = useState(false); // Modal de contagem
+  const [mostrarHistoricoInventarios, setMostrarHistoricoInventarios] = useState(false); // Modal de histórico
+  const [inputStockReal, setInputStockReal] = useState(''); // Input temporário
 
   // Auto-save GitHub (handled by GitHubSync internally)
 
@@ -4703,6 +4711,7 @@ const RestauranteGestor = () => {
   const [produtoDetalheExpandido, setProdutoDetalheExpandido] = useState(null); // nome do produto expandido
   const [buscaProdutoIndividual, setBuscaProdutoIndividual] = useState(''); // busca no tab individual
   const [ordenarPor, setOrdenarPor] = useState('faturacao'); // 'faturacao', 'quantidade', 'lucro', 'margem'
+  const [categoriaExpandida, setCategoriaExpandida] = useState(null); // categoria expandida para ver detalhes dos produtos
   
   // 🆕 ESTADOS PARA O NOVO TAB DE COMPRAS
   const [faturaEditando, setFaturaEditando] = useState(null);
@@ -5084,6 +5093,451 @@ const RestauranteGestor = () => {
     
     setMovimentacoesStock(novasMovimentacoes);
     alert('✅ Ajuste manual removido com sucesso!');
+  };
+  
+  // ========================================
+  // 📋 FUNÇÕES DO INVENTÁRIO FÍSICO
+  // ========================================
+  
+  /**
+   * Iniciar nova sessão de inventário físico
+   * Ordena ingredientes por categoria e nome
+   * Exclui categorias operacionais (limpeza, operacionais)
+   */
+  const iniciarInventario = () => {
+    // Filtrar e ordenar ingredientes
+    const ingredientesOrdenados = [...ingredientes]
+      .filter(ing => !['limpeza', 'operacionais', 'embalagens'].includes(ing.categoria))
+      .sort((a, b) => {
+        // Ordenar por categoria, depois nome
+        if (a.categoria !== b.categoria) {
+          return a.categoria.localeCompare(b.categoria);
+        }
+        return a.nome.localeCompare(b.nome);
+      });
+    
+    if (ingredientesOrdenados.length === 0) {
+      showNotification('❌ Nenhum ingrediente disponível para inventário!', 'error');
+      return;
+    }
+    
+    // Criar nova sessão de contagem
+    const sessao = {
+      id: Date.now(),
+      dataInicio: new Date().toISOString(),
+      status: 'em_progresso',
+      utilizador: dadosEmpresa.nome || 'Luis',
+      ingredientes: ingredientesOrdenados.map(ing => {
+        // Buscar última compra e venda do histórico
+        const movimentacoes = movimentacoesStock.filter(m => m.ingredienteId === ing.id);
+        const ultimaCompra = movimentacoes
+          .filter(m => m.tipo === 'entrada')
+          .sort((a, b) => new Date(b.data) - new Date(a.data))[0];
+        const ultimaVenda = movimentacoes
+          .filter(m => m.tipo === 'saida')
+          .sort((a, b) => new Date(b.data) - new Date(a.data))[0];
+        
+        return {
+          ingredienteId: ing.id,
+          ingredienteNome: ing.nome,
+          categoria: ing.categoria,
+          unidade: ing.unidade,
+          custoUnitario: ing.custoUnitario || 0,
+          stockTeorico: ing.stockAtual || 0,
+          stockReal: null, // A preencher pelo utilizador
+          variacao: null,
+          variacaoPerc: null,
+          variacaoEuros: null,
+          timestamp: null,
+          ultimaCompra: ultimaCompra ? {
+            data: ultimaCompra.data,
+            quantidade: ultimaCompra.quantidade,
+            fornecedor: ultimaCompra.fornecedor
+          } : null,
+          ultimaVenda: ultimaVenda ? {
+            data: ultimaVenda.data,
+            quantidade: ultimaVenda.quantidade
+          } : null
+        };
+      })
+    };
+    
+    console.log('📋 Inventário iniciado:', sessao);
+    console.log(`📊 Total de ingredientes: ${sessao.ingredientes.length}`);
+    
+    setInventarioAtivo(sessao);
+    setIndiceAtualInventario(0);
+    setInputStockReal('');
+    setMostrarModalInventario(true);
+    
+    showNotification(
+      `📋 Inventário iniciado!\n\n${sessao.ingredientes.length} ingredientes para contar`,
+      'success'
+    );
+  };
+  
+  /**
+   * Registar stock real contado para o ingrediente atual
+   * Calcula variação automaticamente
+   */
+  const registarStockReal = (stockReal) => {
+    if (stockReal === null || stockReal === '') return;
+    
+    const stockRealNum = parseFloat(stockReal);
+    if (isNaN(stockRealNum) || stockRealNum < 0) {
+      showNotification('⚠️ Quantidade inválida!', 'error');
+      return;
+    }
+    
+    const ingredienteAtual = inventarioAtivo.ingredientes[indiceAtualInventario];
+    const variacao = arredondar(stockRealNum - ingredienteAtual.stockTeorico);
+    const variacaoPerc = ingredienteAtual.stockTeorico > 0 
+      ? ((variacao / ingredienteAtual.stockTeorico) * 100) 
+      : 0;
+    const variacaoEuros = variacao * ingredienteAtual.custoUnitario;
+    
+    const ingredienteAtualizado = {
+      ...ingredienteAtual,
+      stockReal: stockRealNum,
+      variacao,
+      variacaoPerc: arredondar(variacaoPerc),
+      variacaoEuros: arredondar(variacaoEuros),
+      timestamp: new Date().toISOString()
+    };
+    
+    // Atualizar sessão
+    const novaSessao = { ...inventarioAtivo };
+    novaSessao.ingredientes[indiceAtualInventario] = ingredienteAtualizado;
+    setInventarioAtivo(novaSessao);
+    
+    console.log(`✅ Stock registado:`, {
+      ingrediente: ingredienteAtual.ingredienteNome,
+      teorico: ingredienteAtual.stockTeorico,
+      real: stockRealNum,
+      variacao: variacao,
+      variacaoPerc: variacaoPerc.toFixed(1) + '%',
+      variacaoEuros: '€' + variacaoEuros.toFixed(2)
+    });
+  };
+  
+  /**
+   * Avançar para próximo ingrediente
+   * Se for o último, finaliza o inventário
+   */
+  const proximoIngredienteInventario = () => {
+    // Guardar input atual se existir
+    if (inputStockReal !== '') {
+      registarStockReal(inputStockReal);
+    }
+    
+    setInputStockReal(''); // Limpar input
+    
+    if (indiceAtualInventario < inventarioAtivo.ingredientes.length - 1) {
+      setIndiceAtualInventario(indiceAtualInventario + 1);
+    } else {
+      // Último ingrediente - finalizar
+      finalizarInventario();
+    }
+  };
+  
+  /**
+   * Voltar para ingrediente anterior
+   */
+  const ingredienteAnteriorInventario = () => {
+    if (indiceAtualInventario > 0) {
+      setIndiceAtualInventario(indiceAtualInventario - 1);
+      // Carregar valor previamente inserido se existir
+      const ingAnterior = inventarioAtivo.ingredientes[indiceAtualInventario - 1];
+      setInputStockReal(ingAnterior.stockReal !== null ? ingAnterior.stockReal.toString() : '');
+    }
+  };
+  
+  /**
+   * Pular ingrediente atual sem contar
+   */
+  const pularIngredienteInventario = () => {
+    setInputStockReal('');
+    
+    if (indiceAtualInventario < inventarioAtivo.ingredientes.length - 1) {
+      setIndiceAtualInventario(indiceAtualInventario + 1);
+    } else {
+      finalizarInventario();
+    }
+  };
+  
+  /**
+   * Finalizar inventário e aplicar ajustes de stock
+   * Cria movimentações tipo "ajuste" para cada variação
+   */
+  const finalizarInventario = () => {
+    if (!inventarioAtivo) return;
+    
+    // Sessão concluída
+    const sessaoConcluida = {
+      ...inventarioAtivo,
+      dataFim: new Date().toISOString(),
+      status: 'concluida'
+    };
+    
+    // Filtrar ingredientes que foram contados
+    const ingredientesContados = sessaoConcluida.ingredientes.filter(i => i.stockReal !== null);
+    
+    if (ingredientesContados.length === 0) {
+      if (!window.confirm('⚠️ Nenhum ingrediente foi contado.\n\nDeseja cancelar o inventário?')) {
+        return;
+      }
+      
+      setMostrarModalInventario(false);
+      setInventarioAtivo(null);
+      setIndiceAtualInventario(0);
+      setInputStockReal('');
+      showNotification('❌ Inventário cancelado', 'error');
+      return;
+    }
+    
+    // Calcular resumo
+    const resumo = {
+      totalIngredientes: sessaoConcluida.ingredientes.length,
+      ingredientesContados: ingredientesContados.length,
+      ingredientesPulados: sessaoConcluida.ingredientes.length - ingredientesContados.length,
+      variacaoTotalKg: 0,
+      variacaoTotalEuros: 0,
+      excessoKg: 0,
+      faltaKg: 0,
+      excessoEuros: 0,
+      faltaEuros: 0,
+      categorias: {}
+    };
+    
+    // Aplicar ajustes e calcular resumo
+    const novosIngredientes = [...ingredientes];
+    const novasMovimentacoes = [];
+    
+    ingredientesContados.forEach(item => {
+      // Atualizar resumo total
+      resumo.variacaoTotalKg += item.variacao;
+      resumo.variacaoTotalEuros += item.variacaoEuros;
+      
+      if (item.variacao > 0) {
+        resumo.excessoKg += item.variacao;
+        resumo.excessoEuros += item.variacaoEuros;
+      } else {
+        resumo.faltaKg += Math.abs(item.variacao);
+        resumo.faltaEuros += Math.abs(item.variacaoEuros);
+      }
+      
+      // Resumo por categoria
+      if (!resumo.categorias[item.categoria]) {
+        resumo.categorias[item.categoria] = {
+          total: 0,
+          contados: 0,
+          variacaoKg: 0,
+          variacaoEuros: 0
+        };
+      }
+      resumo.categorias[item.categoria].total++;
+      resumo.categorias[item.categoria].contados++;
+      resumo.categorias[item.categoria].variacaoKg += item.variacao;
+      resumo.categorias[item.categoria].variacaoEuros += item.variacaoEuros;
+      
+      // Atualizar stock do ingrediente
+      const index = novosIngredientes.findIndex(i => i.id === item.ingredienteId);
+      if (index !== -1) {
+        novosIngredientes[index] = {
+          ...novosIngredientes[index],
+          stockAtual: item.stockReal
+        };
+      }
+      
+      // Criar movimentação de ajuste (apenas se houver variação)
+      if (Math.abs(item.variacao) > 0.01) { // Ignorar variações < 0.01
+        const ajuste = {
+          id: Date.now() + Math.random(),
+          data: new Date().toISOString(),
+          tipo: 'ajuste',
+          ingredienteId: item.ingredienteId,
+          ingredienteNome: item.ingredienteNome,
+          quantidade: item.variacao,
+          unidade: item.unidade,
+          stockAnterior: item.stockTeorico,
+          stockNovo: item.stockReal,
+          observacao: `Inventário #${sessaoConcluida.id} - ${item.variacao > 0 ? 'Excedente' : 'Falta'}: ${Math.abs(item.variacao).toFixed(2)} ${item.unidade} (€${Math.abs(item.variacaoEuros).toFixed(2)})`
+        };
+        
+        novasMovimentacoes.push(ajuste);
+      }
+    });
+    
+    // Arredondar valores do resumo
+    resumo.variacaoTotalKg = arredondar(resumo.variacaoTotalKg);
+    resumo.variacaoTotalEuros = arredondar(resumo.variacaoTotalEuros);
+    resumo.excessoKg = arredondar(resumo.excessoKg);
+    resumo.faltaKg = arredondar(resumo.faltaKg);
+    resumo.excessoEuros = arredondar(resumo.excessoEuros);
+    resumo.faltaEuros = arredondar(resumo.faltaEuros);
+    
+    Object.keys(resumo.categorias).forEach(cat => {
+      resumo.categorias[cat].variacaoKg = arredondar(resumo.categorias[cat].variacaoKg);
+      resumo.categorias[cat].variacaoEuros = arredondar(resumo.categorias[cat].variacaoEuros);
+    });
+    
+    sessaoConcluida.resumo = resumo;
+    
+    // Atualizar estados
+    setIngredientes(novosIngredientes);
+    setMovimentacoesStock(prev => [...prev, ...novasMovimentacoes]);
+    setContagensHistorico(prev => [...prev, sessaoConcluida]);
+    
+    // Fechar modal
+    setMostrarModalInventario(false);
+    setInventarioAtivo(null);
+    setIndiceAtualInventario(0);
+    setInputStockReal('');
+    
+    console.log('✅ INVENTÁRIO CONCLUÍDO!');
+    console.log('📊 Resumo:', resumo);
+    console.log(`📝 ${novasMovimentacoes.length} ajustes criados`);
+    
+    // Notificação detalhada
+    const variacaoTexto = resumo.variacaoTotalEuros >= 0 
+      ? `+€${resumo.variacaoTotalEuros.toFixed(2)} (excedente)`
+      : `-€${Math.abs(resumo.variacaoTotalEuros).toFixed(2)} (falta)`;
+    
+    showNotification(
+      `✅ Inventário concluído!\n\n` +
+      `📊 ${ingredientesContados.length}/${resumo.totalIngredientes} ingredientes contados\n` +
+      `💰 Variação total: ${variacaoTexto}\n` +
+      `📈 Excesso: €${resumo.excessoEuros.toFixed(2)}\n` +
+      `📉 Falta: €${resumo.faltaEuros.toFixed(2)}`,
+      'success'
+    );
+  };
+  
+  /**
+   * Cancelar inventário em progresso
+   */
+  const cancelarInventario = () => {
+    if (!window.confirm(
+      '⚠️ Tem certeza que deseja cancelar o inventário?\n\n' +
+      'Todo o progresso será perdido.'
+    )) {
+      return;
+    }
+    
+    setMostrarModalInventario(false);
+    setInventarioAtivo(null);
+    setIndiceAtualInventario(0);
+    setInputStockReal('');
+    
+    showNotification('❌ Inventário cancelado', 'error');
+  };
+  
+  /**
+   * Exportar relatório de inventário para texto
+   */
+  const exportarRelatorioInventario = (contagem) => {
+    const ingredientesContados = contagem.ingredientes.filter(i => i.stockReal !== null);
+    const ingredientesComVariacao = ingredientesContados.filter(i => Math.abs(i.variacao) > 0.01);
+    const discrepanciasCriticas = ingredientesComVariacao.filter(i => Math.abs(i.variacaoPerc) > 10);
+    
+    let relatorio = '';
+    relatorio += '═'.repeat(70) + '\n';
+    relatorio += '         RELATÓRIO DE INVENTÁRIO FÍSICO\n';
+    relatorio += '═'.repeat(70) + '\n\n';
+    
+    // Informações gerais
+    relatorio += `📅 Data: ${new Date(contagem.dataInicio).toLocaleString('pt-PT')}\n`;
+    if (contagem.dataFim) {
+      const duracao = new Date(contagem.dataFim) - new Date(contagem.dataInicio);
+      const minutos = Math.floor(duracao / 60000);
+      relatorio += `⏱️ Duração: ${minutos} minutos\n`;
+    }
+    relatorio += `👤 Responsável: ${contagem.utilizador}\n`;
+    relatorio += `🆔 ID: #${contagem.id}\n\n`;
+    
+    // Resumo geral
+    relatorio += '─'.repeat(70) + '\n';
+    relatorio += 'RESUMO GERAL\n';
+    relatorio += '─'.repeat(70) + '\n';
+    relatorio += `Total de Ingredientes: ${contagem.resumo.totalIngredientes}\n`;
+    relatorio += `Ingredientes Contados: ${contagem.resumo.ingredientesContados}\n`;
+    relatorio += `Ingredientes Pulados: ${contagem.resumo.ingredientesPulados}\n`;
+    relatorio += `Variação Total: €${contagem.resumo.variacaoTotalEuros.toFixed(2)} ${contagem.resumo.variacaoTotalEuros >= 0 ? '(excedente)' : '(falta)'}\n`;
+    relatorio += `  ├─ Excesso: €${contagem.resumo.excessoEuros.toFixed(2)}\n`;
+    relatorio += `  └─ Falta: €${contagem.resumo.faltaEuros.toFixed(2)}\n\n`;
+    
+    // Variações por categoria
+    relatorio += '─'.repeat(70) + '\n';
+    relatorio += 'VARIAÇÕES POR CATEGORIA\n';
+    relatorio += '─'.repeat(70) + '\n';
+    
+    Object.entries(contagem.resumo.categorias)
+      .sort((a, b) => Math.abs(b[1].variacaoEuros) - Math.abs(a[1].variacaoEuros))
+      .forEach(([cat, dados]) => {
+        if (Math.abs(dados.variacaoEuros) > 0.01) {
+          relatorio += `\n${cat.toUpperCase()}:\n`;
+          relatorio += `  Contados: ${dados.contados}/${dados.total}\n`;
+          relatorio += `  Variação: ${dados.variacaoKg >= 0 ? '+' : ''}${dados.variacaoKg.toFixed(2)} kg\n`;
+          relatorio += `  Valor: ${dados.variacaoEuros >= 0 ? '+' : ''}€${dados.variacaoEuros.toFixed(2)}\n`;
+        }
+      });
+    
+    // Discrepâncias críticas
+    if (discrepanciasCriticas.length > 0) {
+      relatorio += '\n' + '─'.repeat(70) + '\n';
+      relatorio += 'DISCREPÂNCIAS CRÍTICAS (>10%)\n';
+      relatorio += '─'.repeat(70) + '\n';
+      relatorio += 'Ingrediente'.padEnd(25) + 'Teórico'.padEnd(12) + 'Real'.padEnd(12) + 'Variação'.padEnd(12) + 'Valor\n';
+      relatorio += '─'.repeat(70) + '\n';
+      
+      discrepanciasCriticas
+        .sort((a, b) => Math.abs(b.variacaoPerc) - Math.abs(a.variacaoPerc))
+        .forEach(item => {
+          const nome = item.ingredienteNome.length > 23 ? item.ingredienteNome.substring(0, 20) + '...' : item.ingredienteNome;
+          relatorio += nome.padEnd(25);
+          relatorio += `${item.stockTeorico.toFixed(1)} ${item.unidade}`.padEnd(12);
+          relatorio += `${item.stockReal.toFixed(1)} ${item.unidade}`.padEnd(12);
+          relatorio += `${item.variacaoPerc >= 0 ? '+' : ''}${item.variacaoPerc.toFixed(0)}%`.padEnd(12);
+          relatorio += `€${item.variacaoEuros.toFixed(2)}\n`;
+        });
+    }
+    
+    // Detalhes completos
+    if (ingredientesComVariacao.length > 0) {
+      relatorio += '\n' + '─'.repeat(70) + '\n';
+      relatorio += 'DETALHES COMPLETOS - INGREDIENTES COM VARIAÇÃO\n';
+      relatorio += '─'.repeat(70) + '\n';
+      relatorio += 'Ingrediente'.padEnd(25) + 'Teórico'.padEnd(12) + 'Real'.padEnd(12) + 'Variação'.padEnd(12) + 'Valor\n';
+      relatorio += '─'.repeat(70) + '\n';
+      
+      ingredientesComVariacao
+        .sort((a, b) => a.categoria.localeCompare(b.categoria) || a.ingredienteNome.localeCompare(b.ingredienteNome))
+        .forEach(item => {
+          const nome = item.ingredienteNome.length > 23 ? item.ingredienteNome.substring(0, 20) + '...' : item.ingredienteNome;
+          relatorio += nome.padEnd(25);
+          relatorio += `${item.stockTeorico.toFixed(2)} ${item.unidade}`.padEnd(12);
+          relatorio += `${item.stockReal.toFixed(2)} ${item.unidade}`.padEnd(12);
+          relatorio += `${item.variacao >= 0 ? '+' : ''}${item.variacao.toFixed(2)} ${item.unidade}`.padEnd(12);
+          relatorio += `€${item.variacaoEuros.toFixed(2)}\n`;
+        });
+    }
+    
+    relatorio += '\n' + '═'.repeat(70) + '\n';
+    relatorio += 'FIM DO RELATÓRIO\n';
+    relatorio += '═'.repeat(70) + '\n';
+    
+    // Download do ficheiro
+    const blob = new Blob([relatorio], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Inventario_${contagem.id}_${new Date().toISOString().split('T')[0]}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    showNotification('📄 Relatório exportado com sucesso!', 'success');
   };
   
   // Calcular desperdício real
@@ -9915,6 +10369,7 @@ void 0;
         if (data.configuracaoWaste) setConfiguracaoWaste(data.configuracaoWaste);
         if (data.contagens) setContagens(data.contagens);
         if (data.movimentacoesStock) setMovimentacoesStock(data.movimentacoesStock);
+        if (data.contagensHistorico) setContagensHistorico(data.contagensHistorico);
         if (data.ultimaFaturaInserida !== undefined) setUltimaFaturaInserida(data.ultimaFaturaInserida);
         
         showNotification('✅ Backup restaurado com sucesso!', 'success');
@@ -9995,6 +10450,7 @@ void 0;
         configuracaoWaste: configuracaoWaste || {},
         contagens: contagens || [],
         movimentacoesStock: movimentacoesStock || [],
+        contagensHistorico: contagensHistorico || [],
         ultimaFaturaInserida: ultimaFaturaInserida || null,
         lastUpdate: new Date().toISOString()
       });
@@ -17702,7 +18158,7 @@ void 0;
                 </div>
 
                 {/* KPIs PRINCIPAIS - PROPOSTA A (FLAT DESIGN) */}
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-6 px-4">
                   {/* Ticket Médio */}
                   <div className="flex flex-col gap-1">
                     <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">💶 Ticket Médio</span>
@@ -17797,7 +18253,7 @@ void 0;
                       {/* TAB 1: POR CATEGORIA */}
                       {produtosAnaliseTab === 'categorias' && (
                         <div>
-                          <p className="text-xs text-gray-600 mb-3">Vendas agrupadas por categoria (Cafés, Bebidas, Pratos, Sobremesas...)</p>
+                          <p className="text-xs text-gray-600 mb-3">📊 Clica numa categoria para ver gráficos detalhados de cada produto</p>
                           
                           {(() => {
                             // Agrupar vendas por categoria de produto
@@ -17811,13 +18267,27 @@ void 0;
                                 vendasPorCategoria[categoria] = {
                                   quantidade: 0,
                                   faturacao: 0,
-                                  lucro: 0
+                                  lucro: 0,
+                                  produtos: {}
                                 };
                               }
                               
                               vendasPorCategoria[categoria].quantidade = Math.round((vendasPorCategoria[categoria].quantidade + v.quantidade) * 100) / 100;
                               vendasPorCategoria[categoria].faturacao = Math.round((vendasPorCategoria[categoria].faturacao + v.valor) * 100) / 100;
                               vendasPorCategoria[categoria].lucro = Math.round((vendasPorCategoria[categoria].lucro + calcLucroVenda(v).lucro) * 100) / 100;
+                              
+                              // Agrupar também por produto dentro da categoria
+                              if (!vendasPorCategoria[categoria].produtos[v.produto]) {
+                                vendasPorCategoria[categoria].produtos[v.produto] = {
+                                  nome: v.produto,
+                                  quantidade: 0,
+                                  faturacao: 0,
+                                  lucro: 0
+                                };
+                              }
+                              vendasPorCategoria[categoria].produtos[v.produto].quantidade += v.quantidade;
+                              vendasPorCategoria[categoria].produtos[v.produto].faturacao += v.valor;
+                              vendasPorCategoria[categoria].produtos[v.produto].lucro += calcLucroVenda(v).lucro;
                             });
                             
                             const categoriasComDados = Object.entries(vendasPorCategoria)
@@ -17834,38 +18304,454 @@ void 0;
                             }
                             
                             return (
-                              <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+                              <div className="space-y-3">
                                 {categoriasComDados.map(([cat, dados]) => {
                                   const info = CATEGORIAS_PRODUTOS[cat] || { nome: cat, cor: 'gray', emoji: '📋' };
                                   const margemPerc = dados.faturacao > 0 ? (dados.lucro / dados.faturacao) * 100 : 0;
+                                  const isExpanded = categoriaExpandida === cat;
+                                  
+                                  // Ordenar produtos por quantidade vendida
+                                  const produtosArray = Object.values(dados.produtos).sort((a, b) => b.quantidade - a.quantidade);
+                                  const maxQuantidade = Math.max(...produtosArray.map(p => p.quantidade));
                                   
                                   return (
-                                    <div key={cat} className="bg-gray-50 border-2 border-gray-300 rounded-lg p-3">
-                                      <p className="text-xs font-bold mb-1">{info.nome}</p>
-                                      <p className="text-2xl font-bold text-gray-900 mb-1">
-                                        {Math.round(dados.quantidade)}
-                                      </p>
-                                      <p className="text-xs text-gray-600 mb-2">unidades vendidas</p>
+                                    <div key={cat} className="bg-gradient-to-br from-gray-50 to-gray-100 border-2 border-gray-300 rounded-xl overflow-hidden">
+                                      {/* HEADER - Botão da Categoria */}
+                                      <button
+                                        onClick={() => setCategoriaExpandida(isExpanded ? null : cat)}
+                                        className="w-full p-4 flex items-center justify-between hover:bg-gray-200/50 transition"
+                                      >
+                                        <div className="flex items-center gap-3">
+                                          <span className="text-2xl">{info.emoji}</span>
+                                          <div className="text-left">
+                                            <h3 className="text-lg font-bold text-gray-900">{info.nome}</h3>
+                                            <p className="text-xs text-gray-600">
+                                              {Math.round(dados.quantidade)} unidades • €{dados.faturacao.toFixed(0)} • {margemPerc.toFixed(1)}% margem
+                                            </p>
+                                          </div>
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                          <div className="text-right">
+                                            <div className="text-2xl font-bold text-gray-900">{produtosArray.length}</div>
+                                            <div className="text-xs text-gray-600">produtos</div>
+                                          </div>
+                                          <span className="text-2xl text-gray-600">{isExpanded ? '▼' : '▶'}</span>
+                                        </div>
+                                      </button>
                                       
-                                      <div className="bg-white rounded p-2 text-xs space-y-1">
-                                        <div className="flex justify-between">
-                                          <span className="text-gray-600">Faturação:</span>
-                                          <span className="font-bold text-green-700">€{dados.faturacao.toFixed(0)}</span>
+                                      {/* DETALHES EXPANDIDOS - Gráficos por Produto */}
+                                      {isExpanded && (
+                                        <div className="p-4 bg-white border-t-2 border-gray-300">
+                                          <h4 className="text-sm font-bold text-gray-800 mb-3">📊 Vendas por Produto</h4>
+                                          
+                                          <div className="space-y-3">
+                                            {produtosArray.map((prod, index) => {
+                                              const margemProd = prod.faturacao > 0 ? (prod.lucro / prod.faturacao) * 100 : 0;
+                                              
+                                              // 📊 CALCULAR EVOLUÇÃO TEMPORAL DO PRODUTO
+                                              const vendasProduto = filteredVendas.filter(v => v.produto === prod.nome);
+                                              
+                                              // Agrupar vendas por dia
+                                              const vendasPorDia = {};
+                                              vendasProduto.forEach(v => {
+                                                const dataVenda = new Date(v.data);
+                                                const dataKey = `${dataVenda.getFullYear()}-${String(dataVenda.getMonth() + 1).padStart(2, '0')}-${String(dataVenda.getDate()).padStart(2, '0')}`;
+                                                
+                                                if (!vendasPorDia[dataKey]) {
+                                                  vendasPorDia[dataKey] = 0;
+                                                }
+                                                vendasPorDia[dataKey] += v.quantidade;
+                                              });
+                                              
+                                              // Ordenar datas
+                                              const datasOrdenadas = Object.keys(vendasPorDia).sort();
+                                              const quantidades = datasOrdenadas.map(d => vendasPorDia[d]);
+                                              const maxQtd = Math.max(...quantidades, 1);
+                                              
+                                              return (
+                                                <div key={prod.nome} className="bg-gray-50 rounded-lg p-3 border border-gray-200 hover:border-blue-300 transition">
+                                                  {/* Nome e Posição */}
+                                                  <div className="flex items-start justify-between mb-2">
+                                                    <div className="flex items-center gap-2">
+                                                      <span className="text-xs font-bold bg-blue-100 text-blue-700 px-2 py-1 rounded">
+                                                        #{index + 1}
+                                                      </span>
+                                                      <span className="text-sm font-bold text-gray-900">{prod.nome}</span>
+                                                    </div>
+                                                    <span className="text-lg font-bold text-blue-600">{Math.round(prod.quantidade)}</span>
+                                                  </div>
+                                                  
+                                                  {/* GRÁFICO DE LINHA - Evolução Temporal */}
+                                                  <div className="mb-3 bg-gradient-to-br from-purple-50 to-indigo-50 rounded-lg p-3 border border-purple-200">
+                                                    <div className="flex items-center justify-between mb-2">
+                                                      <span className="text-xs font-semibold text-purple-900">📈 Evolução de Vendas</span>
+                                                      <span className="text-xs text-purple-700">{datasOrdenadas.length} dia{datasOrdenadas.length !== 1 ? 's' : ''}</span>
+                                                    </div>
+                                                    
+                                                    {datasOrdenadas.length > 0 ? (
+                                                      <div style={{position: 'relative', height: '140px', width: '100%', paddingBottom: '20px'}}>
+                                                        {/* SVG para a linha e área (com aspecto distorcido) */}
+                                                        <svg 
+                                                          width="100%" 
+                                                          height="140" 
+                                                          viewBox="0 0 100 100" 
+                                                          preserveAspectRatio="none"
+                                                          style={{display: 'block', position: 'absolute', top: 0, left: 0}}
+                                                        >
+                                                          <defs>
+                                                            {/* Gradient FORTE para a linha (azul brilhante → rosa/roxo) */}
+                                                            <linearGradient id={`line-gradient-${index}`} x1="0%" y1="0%" x2="100%" y2="0%">
+                                                              <stop offset="0%" stopColor="#3b82f6" />
+                                                              <stop offset="30%" stopColor="#6366f1" />
+                                                              <stop offset="60%" stopColor="#8b5cf6" />
+                                                              <stop offset="100%" stopColor="#d946ef" />
+                                                            </linearGradient>
+                                                            
+                                                            {/* Gradient para a área (vertical - roxo transparente) */}
+                                                            <linearGradient id={`area-gradient-${index}`} x1="0%" y1="0%" x2="0%" y2="100%">
+                                                              <stop offset="0%" stopColor="#8b5cf6" stopOpacity="0.4" />
+                                                              <stop offset="100%" stopColor="#8b5cf6" stopOpacity="0.05" />
+                                                            </linearGradient>
+                                                          </defs>
+                                                          
+                                                          {/* Grid horizontal */}
+                                                          <line x1="0" y1="85" x2="100" y2="85" stroke="rgba(139, 92, 246, 0.1)" strokeWidth="0.3" vectorEffect="non-scaling-stroke" />
+                                                          <line x1="0" y1="42.5" x2="100" y2="42.5" stroke="rgba(139, 92, 246, 0.05)" strokeWidth="0.3" strokeDasharray="1,1" vectorEffect="non-scaling-stroke" />
+                                                          
+                                                          {(() => {
+                                                            // Criar pontos normalizados (0-100 em X, 5-85 em Y)
+                                                            const pontos = quantidades.map((qtd, i) => ({
+                                                              x: (i / Math.max(quantidades.length - 1, 1)) * 100,
+                                                              y: 85 - ((qtd / maxQtd) * 80),
+                                                              qtd,
+                                                              data: datasOrdenadas[i]
+                                                            }));
+                                                            
+                                                            // Path da linha
+                                                            const linePath = pontos.map((p, i) => 
+                                                              `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`
+                                                            ).join(' ');
+                                                            
+                                                            // Path da área preenchida
+                                                            const areaPath = `${linePath} L 100 90 L 0 90 Z`;
+                                                            
+                                                            return (
+                                                              <>
+                                                                {/* Área preenchida */}
+                                                                <path
+                                                                  d={areaPath}
+                                                                  fill={`url(#area-gradient-${index})`}
+                                                                />
+                                                                
+                                                                {/* Linha principal GROSSA com gradient FORTE azul→rosa */}
+                                                                <path
+                                                                  d={linePath}
+                                                                  fill="none"
+                                                                  stroke={`url(#line-gradient-${index})`}
+                                                                  strokeWidth="2"
+                                                                  strokeLinejoin="round"
+                                                                  strokeLinecap="round"
+                                                                  vectorEffect="non-scaling-stroke"
+                                                                />
+                                                              </>
+                                                            );
+                                                          })()}
+                                                        </svg>
+                                                        
+                                                        {/* SVG separado para os pontos (SEM distorção) */}
+                                                        <svg 
+                                                          width="100%" 
+                                                          height="140"
+                                                          style={{display: 'block', position: 'absolute', top: 0, left: 0, pointerEvents: 'none'}}
+                                                        >
+                                                          {quantidades.map((qtd, i) => {
+                                                            const xPercent = (i / Math.max(quantidades.length - 1, 1)) * 100;
+                                                            const yPercent = 85 - ((qtd / maxQtd) * 80);
+                                                            
+                                                            return (
+                                                              <circle
+                                                                key={i}
+                                                                cx={`${xPercent}%`}
+                                                                cy={`${yPercent * 1.4}px`}
+                                                                r="5"
+                                                                fill="white"
+                                                                stroke="#8b5cf6"
+                                                                strokeWidth="2.5"
+                                                                style={{pointerEvents: 'all', cursor: 'pointer'}}
+                                                              >
+                                                                <title>{datasOrdenadas[i]}: {Math.round(qtd)} un</title>
+                                                              </circle>
+                                                            );
+                                                          })}
+                                                        </svg>
+                                                        
+                                                        {/* Labels das datas em baixo (estilo Chart.js) */}
+                                                        <div style={{
+                                                          position: 'absolute',
+                                                          bottom: '0px',
+                                                          left: 0,
+                                                          right: 0,
+                                                          height: '20px',
+                                                          display: 'flex',
+                                                          fontSize: '9px',
+                                                          color: '#666',
+                                                          fontWeight: '400'
+                                                        }}>
+                                                          {quantidades.map((qtd, i) => {
+                                                            const xPercent = (i / Math.max(quantidades.length - 1, 1)) * 100;
+                                                            // Mostrar apenas algumas datas para não sobrepor
+                                                            const mostrar = datasOrdenadas.length <= 15 || i % Math.ceil(datasOrdenadas.length / 10) === 0;
+                                                            
+                                                            if (!mostrar) return null;
+                                                            
+                                                            return (
+                                                              <div
+                                                                key={i}
+                                                                style={{
+                                                                  position: 'absolute',
+                                                                  left: `${xPercent}%`,
+                                                                  transform: 'translateX(-50%)',
+                                                                  whiteSpace: 'nowrap',
+                                                                  fontSize: '9px'
+                                                                }}
+                                                              >
+                                                                {datasOrdenadas[i]}
+                                                              </div>
+                                                            );
+                                                          })}
+                                                        </div>
+                                                        
+                                                        {/* Escala Y (quantidades) */}
+                                                        <div style={{
+                                                          position: 'absolute',
+                                                          left: '-35px',
+                                                          top: 0,
+                                                          bottom: '20px',
+                                                          display: 'flex',
+                                                          flexDirection: 'column',
+                                                          justifyContent: 'space-between',
+                                                          fontSize: '10px',
+                                                          color: '#666',
+                                                          textAlign: 'right'
+                                                        }}>
+                                                          <span>{Math.round(maxQtd)}</span>
+                                                          <span>{Math.round(maxQtd / 2)}</span>
+                                                          <span>0</span>
+                                                        </div>
+                                                      </div>
+                                                    ) : (
+                                                      <div className="text-center py-4 text-xs text-gray-400">
+                                                        Sem dados temporais
+                                                      </div>
+                                                    )}
+                                                  </div>
+                                                  
+                                                  {/* Métricas - 4 colunas (Faturação, Lucro, Margem, Extras) */}
+                                                  {(() => {
+                                                    // Agrupar por dia da semana
+                                                    const diasSemana = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+                                                    const vendasPorDiaSemana = {};
+                                                    
+                                                    vendasProduto.forEach(v => {
+                                                      const data = new Date(v.data);
+                                                      const diaSemana = diasSemana[data.getDay()];
+                                                      if (!vendasPorDiaSemana[diaSemana]) {
+                                                        vendasPorDiaSemana[diaSemana] = { total: 0, dias: 0 };
+                                                      }
+                                                      vendasPorDiaSemana[diaSemana].total += v.quantidade;
+                                                      vendasPorDiaSemana[diaSemana].dias += 1;
+                                                    });
+                                                    
+                                                    // Calcular médias por dia da semana (EXCLUINDO QUARTAS - dia de folga)
+                                                    const mediasPorDia = Object.entries(vendasPorDiaSemana)
+                                                      .filter(([dia]) => dia !== 'Qua') // ⚠️ EXCLUIR QUARTAS-FEIRAS
+                                                      .map(([dia, stats]) => ({
+                                                        dia,
+                                                        media: stats.total / stats.dias
+                                                      }));
+                                                    
+                                                    const melhorDiaSemana = mediasPorDia.length > 0 
+                                                      ? mediasPorDia.reduce((max, curr) => curr.media > max.media ? curr : max)
+                                                      : null;
+                                                    
+                                                    const piorDiaSemana = mediasPorDia.length > 0
+                                                      ? mediasPorDia.reduce((min, curr) => curr.media < min.media ? curr : min)
+                                                      : null;
+                                                    
+                                                    // Média diária (ajustada para 6 dias úteis por semana, excluindo quartas)
+                                                    // Total de semanas no período
+                                                    const totalDiasPeriodo = (() => {
+                                                      if (vendasProduto.length === 0) return 1;
+                                                      const primeiraVenda = new Date(vendasProduto[0].data);
+                                                      const ultimaVenda = new Date(vendasProduto[vendasProduto.length - 1].data);
+                                                      const diasCorridos = Math.max(1, Math.ceil((ultimaVenda - primeiraVenda) / (1000 * 60 * 60 * 24)) + 1);
+                                                      const semanas = diasCorridos / 7;
+                                                      // Assumir 6 dias de trabalho por semana (7 - 1 quarta)
+                                                      return Math.max(1, Math.round(semanas * 6));
+                                                    })();
+                                                    
+                                                    const mediaDiaria = prod.quantidade / totalDiasPeriodo;
+                                                    
+                                                    // Tendência (últimos 7 dias vs 7 anteriores)
+                                                    let tendencia = 'estável';
+                                                    let tendenciaIcon = '→';
+                                                    let tendenciaColor = 'text-gray-600';
+                                                    if (quantidades.length >= 7) {
+                                                      const ultimos7 = quantidades.slice(-7).reduce((a, b) => a + b, 0) / 7;
+                                                      const anteriores7 = quantidades.length >= 14
+                                                        ? quantidades.slice(-14, -7).reduce((a, b) => a + b, 0) / 7
+                                                        : ultimos7;
+                                                      
+                                                      if (ultimos7 > anteriores7 * 1.1) {
+                                                        tendencia = 'crescente';
+                                                        tendenciaIcon = '↗';
+                                                        tendenciaColor = 'text-green-600';
+                                                      } else if (ultimos7 < anteriores7 * 0.9) {
+                                                        tendencia = 'decrescente';
+                                                        tendenciaIcon = '↘';
+                                                        tendenciaColor = 'text-red-600';
+                                                      }
+                                                    }
+                                                    
+                                                    // Consistência (desvio padrão)
+                                                    const media = quantidades.reduce((a, b) => a + b, 0) / quantidades.length;
+                                                    const variancia = quantidades.reduce((sum, val) => sum + Math.pow(val - media, 2), 0) / quantidades.length;
+                                                    const desvioPadrao = Math.sqrt(variancia);
+                                                    const coeficienteVariacao = media > 0 ? (desvioPadrao / media) * 100 : 0;
+                                                    
+                                                    let consistencia = 'Alta';
+                                                    let consistenciaColor = 'text-green-600';
+                                                    if (coeficienteVariacao > 60) {
+                                                      consistencia = 'Baixa';
+                                                      consistenciaColor = 'text-red-600';
+                                                    } else if (coeficienteVariacao > 30) {
+                                                      consistencia = 'Média';
+                                                      consistenciaColor = 'text-orange-600';
+                                                    }
+                                                    
+                                                    // Taxa de dias com vendas (sobre dias úteis, excluindo quartas)
+                                                    const diasComVendas = datasOrdenadas.length;
+                                                    const taxaDias = ((diasComVendas / totalDiasPeriodo) * 100).toFixed(0);
+                                                    
+                                                    return (
+                                                      <div className="grid grid-cols-4 gap-2">
+                                                        {/* Faturação */}
+                                                        <div className="bg-white rounded p-1.5 text-center border border-green-200">
+                                                          <div className="text-[9px] text-gray-600">Faturação</div>
+                                                          <div className="text-sm font-bold text-green-700">€{prod.faturacao.toFixed(0)}</div>
+                                                        </div>
+                                                        
+                                                        {/* Lucro */}
+                                                        <div className="bg-white rounded p-1.5 text-center border border-blue-200">
+                                                          <div className="text-[9px] text-gray-600">Lucro</div>
+                                                          <div className="text-sm font-bold text-blue-700">€{prod.lucro.toFixed(0)}</div>
+                                                        </div>
+                                                        
+                                                        {/* Margem */}
+                                                        <div className="bg-white rounded p-1.5 text-center border border-purple-200">
+                                                          <div className="text-[9px] text-gray-600">Margem</div>
+                                                          <div className={`text-sm font-bold ${
+                                                            margemProd > 60 ? 'text-green-600' :
+                                                            margemProd > 40 ? 'text-blue-600' : 'text-orange-600'
+                                                          }`}>
+                                                            {margemProd.toFixed(0)}%
+                                                          </div>
+                                                        </div>
+                                                        
+                                                        {/* Métricas Extras - Grid 2x3 compacto */}
+                                                        <div className="bg-white rounded p-1 border border-gray-200">
+                                                          <div className="grid grid-cols-2 gap-x-1.5 gap-y-0.5 text-[8px]">
+                                                            {/* Melhor dia */}
+                                                            <div 
+                                                              className="flex items-center gap-0.5 cursor-help" 
+                                                              title={`Melhor dia da semana: ${melhorDiaSemana?.dia || '-'} com média de ${melhorDiaSemana?.media.toFixed(1) || 0} vendas/dia`}
+                                                            >
+                                                              <span>📅</span>
+                                                              <span className="font-bold text-green-700">{melhorDiaSemana?.dia || '-'}</span>
+                                                            </div>
+                                                            
+                                                            {/* Pior dia (excluindo quartas) */}
+                                                            <div 
+                                                              className="flex items-center gap-0.5 cursor-help" 
+                                                              title={`Pior dia da semana: ${piorDiaSemana?.dia || '-'} com média de ${piorDiaSemana?.media.toFixed(1) || 0} vendas/dia (quartas excluídas - folga)`}
+                                                            >
+                                                              <span>📆</span>
+                                                              <span className="font-bold text-red-600">{piorDiaSemana?.dia || '-'}</span>
+                                                            </div>
+                                                            
+                                                            {/* Tendência */}
+                                                            <div 
+                                                              className="flex items-center gap-0.5 cursor-help" 
+                                                              title={`Tendência de vendas: ${tendencia} (comparando últimos 7 dias com 7 dias anteriores)`}
+                                                            >
+                                                              <span className={`font-bold ${tendenciaColor}`}>{tendenciaIcon}</span>
+                                                            </div>
+                                                            
+                                                            {/* Média diária */}
+                                                            <div 
+                                                              className="flex items-center gap-0.5 cursor-help" 
+                                                              title={`Média diária: ${mediaDiaria.toFixed(1)} vendas/dia útil (6 dias/semana, excluindo quartas)`}
+                                                            >
+                                                              <span>🎯</span>
+                                                              <span className="font-bold text-blue-700">{mediaDiaria.toFixed(1)}</span>
+                                                            </div>
+                                                            
+                                                            {/* Consistência */}
+                                                            <div 
+                                                              className="flex items-center gap-0.5 cursor-help" 
+                                                              title={`Consistência das vendas: ${consistencia} (variação ${coeficienteVariacao.toFixed(0)}% - quanto menor, mais consistente)`}
+                                                            >
+                                                              <span>📊</span>
+                                                              <span className={`font-bold ${consistenciaColor}`}>{consistencia[0]}</span>
+                                                            </div>
+                                                            
+                                                            {/* Taxa dias */}
+                                                            <div 
+                                                              className="flex items-center gap-0.5 cursor-help" 
+                                                              title={`Frequência de vendas: ${taxaDias}% dos dias úteis tiveram vendas (${diasComVendas} de ${totalDiasPeriodo} dias úteis)`}
+                                                            >
+                                                              <span>🌟</span>
+                                                              <span className="font-bold text-purple-700">{taxaDias}%</span>
+                                                            </div>
+                                                          </div>
+                                                        </div>
+                                                      </div>
+                                                    );
+                                                  })()}
+                                                </div>
+                                              );
+                                            })}
+                                          </div>
+                                          
+                                          {/* Resumo da Categoria */}
+                                          <div className="mt-4 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border-2 border-blue-200">
+                                            <h5 className="text-xs font-bold text-blue-900 mb-2">📈 Resumo {info.nome}</h5>
+                                            <div className="grid grid-cols-4 gap-2 text-center">
+                                              <div>
+                                                <div className="text-xs text-gray-600">Total Vendas</div>
+                                                <div className="text-lg font-bold text-gray-900">{Math.round(dados.quantidade)}</div>
+                                              </div>
+                                              <div>
+                                                <div className="text-xs text-gray-600">Faturação</div>
+                                                <div className="text-lg font-bold text-green-700">€{dados.faturacao.toFixed(0)}</div>
+                                              </div>
+                                              <div>
+                                                <div className="text-xs text-gray-600">Lucro</div>
+                                                <div className="text-lg font-bold text-blue-700">€{dados.lucro.toFixed(0)}</div>
+                                              </div>
+                                              <div>
+                                                <div className="text-xs text-gray-600">Margem Média</div>
+                                                <div className={`text-lg font-bold ${
+                                                  margemPerc > 60 ? 'text-green-600' :
+                                                  margemPerc > 40 ? 'text-blue-600' : 'text-orange-600'
+                                                }`}>
+                                                  {margemPerc.toFixed(1)}%
+                                                </div>
+                                              </div>
+                                            </div>
+                                          </div>
                                         </div>
-                                        <div className="flex justify-between">
-                                          <span className="text-gray-600">Lucro:</span>
-                                          <span className="font-bold text-blue-700">€{dados.lucro.toFixed(0)}</span>
-                                        </div>
-                                        <div className="flex justify-between">
-                                          <span className="text-gray-600">Margem:</span>
-                                          <span className={`font-bold ${
-                                            margemPerc > 60 ? 'text-green-600' :
-                                            margemPerc > 40 ? 'text-blue-600' : 'text-orange-600'
-                                          }`}>
-                                            {margemPerc.toFixed(1)}%
-                                          </span>
-                                        </div>
-                                      </div>
+                                      )}
                                     </div>
                                   );
                                 })}
@@ -18395,12 +19281,62 @@ void 0;
                     >
                       <div className="flex items-center gap-2">
                         <span className="text-xl">🧾</span>
-                        <span className="font-bold text-orange-900">Análise Fiscal (IVA)</span>
+                        <div className="text-left">
+                          <h3 className="font-bold text-orange-900">Análise Fiscal (IVA)</h3>
+                          <p className="text-xs text-orange-700">
+                            Q{quarter}/{currentYear} • {ivaP >= 0 ? 'A Pagar' : 'A Receber'}: €{Math.abs(ivaP).toFixed(0)}
+                          </p>
+                        </div>
                       </div>
                       <span className="text-orange-900 text-xl">
                         {showIVADetails ? '▼' : '▶'}
                       </span>
                     </button>
+
+                    {/* RESUMO SEMPRE VISÍVEL */}
+                    <div className="mt-3 grid grid-cols-3 gap-2">
+                      <div className="bg-white rounded-lg p-2 border border-green-200 text-center">
+                        <div className="text-[9px] text-gray-600 mb-0.5">Vendas</div>
+                        <div className="text-sm font-bold text-green-600">€{ivaV.toFixed(0)}</div>
+                      </div>
+                      <div className="bg-white rounded-lg p-2 border border-blue-200 text-center">
+                        <div className="text-[9px] text-gray-600 mb-0.5">Dedutível</div>
+                        <div className="text-sm font-bold text-blue-600">€{ivaCompras.toFixed(0)}</div>
+                      </div>
+                      <div className={`bg-white rounded-lg p-2 border-2 ${ivaP >= 0 ? 'border-red-300' : 'border-green-300'} text-center`}>
+                        <div className="text-[9px] text-gray-600 mb-0.5">{ivaP >= 0 ? 'Pagar' : 'Receber'}</div>
+                        <div className={`text-sm font-bold ${ivaP >= 0 ? 'text-red-600' : 'text-green-600'}`}>
+                          €{Math.abs(ivaP).toFixed(0)}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Taxa Efetiva e Média */}
+                    <div className="mt-2 bg-white/60 rounded-lg p-2 border border-orange-200">
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Taxa efetiva:</span>
+                          <span className="font-bold text-orange-700">
+                            {totV > 0 ? ((ivaV / totV) * 100).toFixed(1) : '0.0'}%
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Média/dia:</span>
+                          <span className="font-bold text-purple-700">
+                            €{(() => {
+                              const diasNoTrimestre = (() => {
+                                const today = new Date();
+                                const startOfQuarter = new Date(currentYear, (quarter - 1) * 3, 1);
+                                const endOfQuarter = new Date(currentYear, quarter * 3, 0);
+                                const now = today > endOfQuarter ? endOfQuarter : today;
+                                return Math.max(1, Math.ceil((now - startOfQuarter) / (1000 * 60 * 60 * 24)));
+                              })();
+                              return (Math.abs(ivaP) / diasNoTrimestre).toFixed(2);
+                            })()}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
 
                     {showIVADetails && (
                       <div className="mt-3 backdrop-blur-lg bg-gradient-to-br from-orange-50/90 to-amber-50/90 border-2 border-orange-300/50 rounded-2xl shadow-xl p-4">
@@ -18475,6 +19411,74 @@ void 0;
                             <span className="font-semibold"> Regime Trimestral:</span> 4x/ano (volume &lt; €650k)
                           </p>
                         </div>
+
+                        {/* ANÁLISE DE TENDÊNCIA E PREVISÃO */}
+                        <div className="bg-gradient-to-br from-indigo-50 to-blue-50 border-2 border-indigo-200 rounded-xl p-3 mb-3">
+                          <h4 className="text-xs font-bold text-gray-800 mb-2 flex items-center gap-2">
+                            📈 Tendência & Previsão
+                          </h4>
+                          <div className="space-y-2">
+                            {/* Comparação com trimestre anterior */}
+                            <div className="bg-white rounded-lg p-2 border border-gray-200">
+                              <div className="flex justify-between items-center mb-1">
+                                <span className="text-xs text-gray-600">vs Q{quarter === 1 ? 4 : quarter - 1} {quarter === 1 ? anoAnterior : currentYear}:</span>
+                                {(() => {
+                                  const trimestreAnterior = quarter === 1 ? 4 : quarter - 1;
+                                  const anoAnteriorRef = quarter === 1 ? anoAnterior : currentYear;
+                                  const historicoAnterior = historicoAnoAnterior.find(h => h.trimestre === trimestreAnterior);
+                                  const ivaPagarAnterior = historicoAnterior ? historicoAnterior.ivaPagar : 0;
+                                  const diferenca = ivaP - ivaPagarAnterior;
+                                  const percentualMudanca = ivaPagarAnterior !== 0 ? (diferenca / Math.abs(ivaPagarAnterior)) * 100 : 0;
+                                  return (
+                                    <span className={`text-xs font-bold flex items-center gap-1 ${
+                                      diferenca > 0 ? 'text-red-600' : diferenca < 0 ? 'text-green-600' : 'text-gray-600'
+                                    }`}>
+                                      {diferenca > 0 ? '↑' : diferenca < 0 ? '↓' : '='} {percentualMudanca !== 0 ? `${Math.abs(percentualMudanca).toFixed(0)}%` : '0%'}
+                                    </span>
+                                  );
+                                })()}
+                              </div>
+                            </div>
+
+                            {/* Projeção fim do trimestre */}
+                            <div className="bg-white rounded-lg p-2 border border-gray-200">
+                              <div className="text-xs text-gray-600 mb-1">Projeção fim trimestre:</div>
+                              <div className="flex justify-between items-center">
+                                <span className="text-xs text-gray-500">Estimativa:</span>
+                                {(() => {
+                                  const today = new Date();
+                                  const startOfQuarter = new Date(currentYear, (quarter - 1) * 3, 1);
+                                  const endOfQuarter = new Date(currentYear, quarter * 3, 0);
+                                  const diasPassados = Math.max(1, Math.ceil((today - startOfQuarter) / (1000 * 60 * 60 * 24)));
+                                  const diasTotais = Math.ceil((endOfQuarter - startOfQuarter) / (1000 * 60 * 60 * 24));
+                                  const projecao = (ivaP / diasPassados) * diasTotais;
+                                  return (
+                                    <span className={`text-sm font-bold ${projecao >= 0 ? 'text-red-600' : 'text-green-600'}`}>
+                                      €{Math.abs(projecao).toFixed(0)}
+                                    </span>
+                                  );
+                                })()}
+                              </div>
+                            </div>
+
+                            {/* Média ano corrente */}
+                            <div className="bg-white rounded-lg p-2 border border-gray-200">
+                              <div className="flex justify-between items-center">
+                                <span className="text-xs text-gray-600">Média {currentYear}:</span>
+                                {(() => {
+                                  // Calcular média dos trimestres do ano corrente até agora
+                                  const trimestresCorrentes = quarter;
+                                  const mediaAno = ivaP / trimestresCorrentes;
+                                  return (
+                                    <span className={`text-sm font-bold ${mediaAno >= 0 ? 'text-orange-600' : 'text-teal-600'}`}>
+                                      €{Math.abs(mediaAno).toFixed(0)}/trim
+                                    </span>
+                                  );
+                                })()}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
                         
                         <div className="bg-gradient-to-br from-purple-50 to-indigo-50 border-2 border-purple-200 rounded-xl p-3">
                           <h4 className="text-xs font-bold text-gray-800 mb-2 flex items-center gap-2">
@@ -18524,12 +19528,40 @@ void 0;
                               </span>
                             )}
                           </span>
+                          <p className="text-xs text-purple-700">
+                            {bolosExternos.length > 0 
+                              ? `€${bolosExternos.reduce((sum, b) => sum + (b.preco || 0), 0).toFixed(0)} • ${bolosExternos.reduce((sum, b) => sum + (b.peso || 0), 0).toFixed(1)}kg`
+                              : 'Nenhum registo'
+                            }
+                          </p>
                         </div>
                       </div>
                       <span className="text-purple-900 text-xl">
                         {mostrarBolosExternos ? '▼' : '▶'}
                       </span>
                     </button>
+
+                    {/* RESUMO SEMPRE VISÍVEL */}
+                    {bolosExternos.length > 0 && (
+                      <div className="mt-3 grid grid-cols-2 gap-2">
+                        <div className="bg-white rounded-lg p-2 border border-purple-200 text-center">
+                          <div className="text-[9px] text-gray-600 mb-0.5">Ticket Médio</div>
+                          <div className="text-sm font-bold text-purple-600">
+                            €{(bolosExternos.reduce((sum, b) => sum + (b.preco || 0), 0) / bolosExternos.length).toFixed(0)}
+                          </div>
+                        </div>
+                        <div className="bg-white rounded-lg p-2 border border-pink-200 text-center">
+                          <div className="text-[9px] text-gray-600 mb-0.5">Margem Média</div>
+                          <div className="text-sm font-bold text-pink-600">
+                            {(() => {
+                              const total = bolosExternos.reduce((sum, b) => sum + (b.preco || 0), 0);
+                              const lucro = bolosExternos.reduce((sum, b) => sum + (b.lucro || 0), 0);
+                              return total > 0 ? ((lucro / total) * 100).toFixed(0) : '0';
+                            })()}%
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
                     {mostrarBolosExternos && (() => {
                       const totalBolos = bolosExternos.length;
@@ -18606,6 +19638,99 @@ void 0;
                                     })
                                   }
                                 </div>
+                              </div>
+
+                              {/* ANÁLISE TEMPORAL */}
+                              <div className="bg-gradient-to-br from-indigo-50 to-purple-50 border-2 border-indigo-200 rounded-xl p-2">
+                                <h4 className="font-bold text-xs mb-2 text-gray-900">📅 Análise Temporal</h4>
+                                
+                                {/* Breakdown por mês */}
+                                <div className="space-y-1.5 mb-2">
+                                  {(() => {
+                                    // Agrupar bolos por mês
+                                    const porMes = {};
+                                    bolosExternos.forEach(b => {
+                                      if (!b.dataEntrega) return;
+                                      const data = new Date(b.dataEntrega);
+                                      const mesAno = `${data.getMonth() + 1}/${data.getFullYear()}`;
+                                      if (!porMes[mesAno]) {
+                                        porMes[mesAno] = { quantidade: 0, faturacao: 0, lucro: 0, mes: data.getMonth(), ano: data.getFullYear() };
+                                      }
+                                      porMes[mesAno].quantidade++;
+                                      porMes[mesAno].faturacao += b.preco || 0;
+                                      porMes[mesAno].lucro += b.lucro || 0;
+                                    });
+
+                                    // Ordenar por data (mais recente primeiro) e pegar top 3
+                                    return Object.entries(porMes)
+                                      .sort((a, b) => {
+                                        const dateA = new Date(a[1].ano, a[1].mes);
+                                        const dateB = new Date(b[1].ano, b[1].mes);
+                                        return dateB - dateA;
+                                      })
+                                      .slice(0, 3)
+                                      .map(([mesAno, stats]) => {
+                                        const meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+                                        const mesNome = meses[stats.mes];
+                                        return (
+                                          <div key={mesAno} className="bg-white rounded-lg p-1.5 border border-gray-200">
+                                            <div className="flex justify-between items-center">
+                                              <span className="text-xs font-bold text-purple-700">{mesNome}/{stats.ano}</span>
+                                              <div className="flex gap-2 text-xs">
+                                                <span className="text-gray-600">{stats.quantidade}x</span>
+                                                <span className="font-bold text-green-700">€{stats.faturacao.toFixed(0)}</span>
+                                              </div>
+                                            </div>
+                                          </div>
+                                        );
+                                      });
+                                  })()}
+                                </div>
+
+                                {/* Média mensal */}
+                                <div className="bg-white rounded-lg p-2 border border-purple-200">
+                                  <div className="flex justify-between items-center">
+                                    <span className="text-xs text-gray-600">Média mensal:</span>
+                                    <span className="text-sm font-bold text-purple-600">
+                                      {(() => {
+                                        // Calcular número de meses únicos
+                                        const mesesUnicos = new Set(
+                                          bolosExternos
+                                            .filter(b => b.dataEntrega)
+                                            .map(b => {
+                                              const d = new Date(b.dataEntrega);
+                                              return `${d.getMonth()}-${d.getFullYear()}`;
+                                            })
+                                        ).size;
+                                        const mediaMensal = mesesUnicos > 0 ? faturacaoTotal / mesesUnicos : 0;
+                                        return `€${mediaMensal.toFixed(0)}`;
+                                      })()}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {/* Próximos bolos (nos próximos 7 dias) */}
+                                {(() => {
+                                  const hoje = new Date();
+                                  const seteDias = new Date(hoje.getTime() + 7 * 24 * 60 * 60 * 1000);
+                                  const proximosBolos = bolosExternos.filter(b => {
+                                    if (!b.dataEntrega) return false;
+                                    const dataEntrega = new Date(b.dataEntrega);
+                                    return dataEntrega >= hoje && dataEntrega <= seteDias;
+                                  }).length;
+
+                                  if (proximosBolos > 0) {
+                                    return (
+                                      <div className="bg-gradient-to-r from-yellow-100 to-orange-100 rounded-lg p-2 border-2 border-yellow-300 mt-2">
+                                        <div className="flex items-center justify-between">
+                                          <span className="text-xs font-bold text-orange-800">⏰ Próximos 7 dias:</span>
+                                          <span className="text-sm font-bold text-orange-900">{proximosBolos} bolo{proximosBolos > 1 ? 's' : ''}</span>
+                                        </div>
+                                      </div>
+                                    );
+                                  }
+                                  return null;
+                                })()}
                               </div>
 
                               <button
@@ -19590,6 +20715,50 @@ void 0;
                       </button>
                     )}
                   </div>
+                </div>
+
+                {/* 📋 Botões de Ações - Inventário Físico */}
+                <div className="flex flex-wrap items-center gap-3 mb-4">
+                  {/* 🆕 BOTÃO DE INVENTÁRIO FÍSICO */}
+                  <button
+                    onClick={iniciarInventario}
+                    className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-6 py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all hover:scale-105 active:scale-95 flex items-center gap-2"
+                  >
+                    <span className="text-xl">📋</span>
+                    Fazer Inventário Físico
+                  </button>
+                  
+                  {/* 🆕 BOTÃO DE HISTÓRICO (só aparece se houver inventários) */}
+                  {contagensHistorico.length > 0 && (
+                    <button
+                      onClick={() => setMostrarHistoricoInventarios(true)}
+                      className="bg-gray-200 text-gray-700 px-6 py-3 rounded-xl font-semibold hover:bg-gray-300 transition-all hover:scale-105 active:scale-95 flex items-center gap-2"
+                    >
+                      <span className="text-xl">📊</span>
+                      Histórico ({contagensHistorico.length})
+                    </button>
+                  )}
+                  
+                  {/* Info sobre inventário */}
+                  {contagensHistorico.length > 0 && (() => {
+                    const ultimoInventario = contagensHistorico[contagensHistorico.length - 1];
+                    const diasDesdeUltimo = Math.floor(
+                      (new Date() - new Date(ultimoInventario.dataInicio)) / (1000 * 60 * 60 * 24)
+                    );
+                    
+                    return (
+                      <div className="ml-auto flex items-center gap-2 px-4 py-2 bg-purple-50 border border-purple-200 rounded-lg">
+                        <span className="text-sm text-purple-700">
+                          ⏱️ Último inventário há {diasDesdeUltimo} {diasDesdeUltimo === 1 ? 'dia' : 'dias'}
+                        </span>
+                        {diasDesdeUltimo > 7 && (
+                          <span className="px-2 py-1 bg-yellow-100 text-yellow-700 text-xs font-semibold rounded">
+                            ⚠️ Recomendado
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 {/* Search Bar e Filtro de Categoria */}
@@ -23967,6 +25136,342 @@ void 0;
             >
               🔄 Atualizar Lista
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* 📋 MODAL DE INVENTÁRIO FÍSICO */}
+      {mostrarModalInventario && inventarioAtivo && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+            {(() => {
+              const ingrediente = inventarioAtivo.ingredientes[indiceAtualInventario];
+              const progresso = ((indiceAtualInventario + 1) / inventarioAtivo.ingredientes.length) * 100;
+              const ingredientesContados = inventarioAtivo.ingredientes.filter(i => i.stockReal !== null).length;
+              
+              let variacaoPreview = null;
+              if (inputStockReal !== '' && !isNaN(parseFloat(inputStockReal))) {
+                const stockRealTemp = parseFloat(inputStockReal);
+                const variacaoTemp = stockRealTemp - ingrediente.stockTeorico;
+                const variacaoPercTemp = ingrediente.stockTeorico > 0 
+                  ? (variacaoTemp / ingrediente.stockTeorico) * 100 
+                  : 0;
+                const variacaoEurosTemp = variacaoTemp * ingrediente.custoUnitario;
+                
+                variacaoPreview = {
+                  quantidade: arredondar(variacaoTemp),
+                  percentagem: arredondar(variacaoPercTemp),
+                  euros: arredondar(variacaoEurosTemp)
+                };
+              }
+              
+              return (
+                <>
+                  <div className="p-6 border-b bg-gradient-to-r from-purple-50 to-pink-50">
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <h2 className="text-2xl font-bold text-gray-900">📋 Inventário Físico</h2>
+                        <p className="text-sm text-gray-600 mt-1">
+                          {ingrediente.categoria.charAt(0).toUpperCase() + ingrediente.categoria.slice(1)}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-3xl font-bold text-purple-600">{indiceAtualInventario + 1}</span>
+                        <span className="text-gray-400 text-xl"> / {inventarioAtivo.ingredientes.length}</span>
+                        <p className="text-xs text-gray-500 mt-1">✅ {ingredientesContados} contados</p>
+                      </div>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                      <div 
+                        className="bg-gradient-to-r from-purple-600 via-pink-600 to-purple-600 h-3 rounded-full transition-all duration-500"
+                        style={{ width: `${progresso}%` }}
+                      />
+                    </div>
+                    <p className="text-xs text-gray-500 text-right mt-1">{progresso.toFixed(0)}% completo</p>
+                  </div>
+                  
+                  <div className="flex-1 overflow-y-auto p-8">
+                    <div className="text-center mb-8">
+                      <h3 className="text-5xl font-bold text-gray-900 mb-3">{ingrediente.ingredienteNome}</h3>
+                      <div className="flex items-center justify-center gap-3">
+                        <span className="inline-block px-4 py-1.5 bg-purple-100 text-purple-700 rounded-full text-sm font-semibold">
+                          {ingrediente.categoria}
+                        </span>
+                        <span className="inline-block px-4 py-1.5 bg-blue-100 text-blue-700 rounded-full text-sm font-semibold">
+                          {ingrediente.unidade}
+                        </span>
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+                      <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-5 text-center border-2 border-blue-200">
+                        <p className="text-xs font-semibold text-blue-600 mb-1">📊 STOCK TEÓRICO</p>
+                        <p className="text-3xl font-bold text-blue-900">{ingrediente.stockTeorico.toFixed(2)}</p>
+                        <p className="text-sm text-blue-700 mt-1">{ingrediente.unidade}</p>
+                      </div>
+                      
+                      <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-5 text-center border border-green-200">
+                        <p className="text-xs font-semibold text-green-600 mb-1">📅 ÚLTIMA COMPRA</p>
+                        {ingrediente.ultimaCompra ? (
+                          <>
+                            <p className="text-lg font-bold text-green-900">
+                              {new Date(ingrediente.ultimaCompra.data).toLocaleDateString('pt-PT')}
+                            </p>
+                            <p className="text-sm text-green-700">
+                              {ingrediente.ultimaCompra.quantidade.toFixed(2)} {ingrediente.unidade}
+                            </p>
+                          </>
+                        ) : (
+                          <p className="text-sm text-gray-500 py-2">Sem dados</p>
+                        )}
+                      </div>
+                      
+                      <div className="bg-gradient-to-br from-amber-50 to-yellow-50 rounded-xl p-5 text-center border border-amber-200">
+                        <p className="text-xs font-semibold text-amber-600 mb-1">💶 VALOR UNITÁRIO</p>
+                        <p className="text-2xl font-bold text-amber-900">€{ingrediente.custoUnitario.toFixed(2)}</p>
+                        <p className="text-sm text-amber-700">por {ingrediente.unidade}</p>
+                      </div>
+                    </div>
+                    
+                    <div className="mb-8">
+                      <label className="block text-center text-lg font-bold text-gray-900 mb-3">
+                        📦 Quanto stock físico contou?
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={inputStockReal}
+                          onChange={(e) => setInputStockReal(e.target.value)}
+                          className="w-full text-5xl font-bold text-center border-4 border-purple-400 rounded-2xl py-6 px-8 focus:border-purple-600 focus:ring-8 focus:ring-purple-200 transition shadow-xl"
+                          placeholder="0.00"
+                          autoFocus
+                          onKeyPress={(e) => {
+                            if (e.key === 'Enter' && inputStockReal !== '') {
+                              registarStockReal(inputStockReal);
+                              proximoIngredienteInventario();
+                            }
+                          }}
+                        />
+                        <span className="absolute right-8 top-1/2 -translate-y-1/2 text-4xl font-bold text-gray-400 pointer-events-none">
+                          {ingrediente.unidade}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-center gap-4 mt-3">
+                        <p className="text-sm text-gray-500 text-center">
+                          💡 Pressione <kbd className="px-2 py-1 bg-gray-200 rounded border">Enter</kbd> para confirmar
+                        </p>
+                        {ingrediente.stockReal !== null && (
+                          <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-semibold">
+                            ✓ Já contado
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    
+                    {variacaoPreview && (
+                      <div className={`rounded-2xl p-6 text-center shadow-lg border-2 ${
+                        Math.abs(variacaoPreview.quantidade) < 0.01 ? 'bg-green-50 border-green-300' :
+                        variacaoPreview.quantidade > 0 ? 'bg-blue-50 border-blue-300' : 'bg-red-50 border-red-300'
+                      }`}>
+                        <p className={`text-sm font-bold mb-2 ${
+                          Math.abs(variacaoPreview.quantidade) < 0.01 ? 'text-green-700' :
+                          variacaoPreview.quantidade > 0 ? 'text-blue-700' : 'text-red-700'
+                        }`}>
+                          {Math.abs(variacaoPreview.quantidade) < 0.01 ? '✅ STOCK CORRETO' :
+                           variacaoPreview.quantidade > 0 ? '📈 EXCEDENTE' : '📉 FALTA'}
+                        </p>
+                        <div className="grid grid-cols-3 gap-4">
+                          <div>
+                            <p className="text-xs text-gray-600 mb-1">Quantidade</p>
+                            <p className={`text-2xl font-bold ${
+                              Math.abs(variacaoPreview.quantidade) < 0.01 ? 'text-green-700' :
+                              variacaoPreview.quantidade > 0 ? 'text-blue-700' : 'text-red-700'
+                            }`}>
+                              {variacaoPreview.quantidade > 0 ? '+' : ''}{variacaoPreview.quantidade.toFixed(2)}
+                            </p>
+                            <p className="text-xs text-gray-600">{ingrediente.unidade}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-600 mb-1">Percentagem</p>
+                            <p className={`text-2xl font-bold ${
+                              Math.abs(variacaoPreview.quantidade) < 0.01 ? 'text-green-700' :
+                              variacaoPreview.quantidade > 0 ? 'text-blue-700' : 'text-red-700'
+                            }`}>
+                              {variacaoPreview.percentagem > 0 ? '+' : ''}{variacaoPreview.percentagem.toFixed(1)}%
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-600 mb-1">Valor</p>
+                            <p className={`text-2xl font-bold ${
+                              Math.abs(variacaoPreview.quantidade) < 0.01 ? 'text-green-700' :
+                              variacaoPreview.quantidade > 0 ? 'text-blue-700' : 'text-red-700'
+                            }`}>
+                              {variacaoPreview.euros > 0 ? '+' : ''}€{Math.abs(variacaoPreview.euros).toFixed(2)}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="p-6 border-t bg-gray-50 flex items-center justify-between gap-3">
+                    <button
+                      onClick={ingredienteAnteriorInventario}
+                      disabled={indiceAtualInventario === 0}
+                      className="px-6 py-3 bg-gray-200 text-gray-700 rounded-xl font-semibold hover:bg-gray-300 disabled:opacity-40 disabled:cursor-not-allowed transition-all hover:scale-105 active:scale-95"
+                    >
+                      ← Anterior
+                    </button>
+                    
+                    <button
+                      onClick={pularIngredienteInventario}
+                      className="px-6 py-3 bg-yellow-100 text-yellow-700 rounded-xl font-semibold hover:bg-yellow-200 transition-all hover:scale-105 active:scale-95"
+                    >
+                      ⏭ Pular
+                    </button>
+                    
+                    <button
+                      onClick={proximoIngredienteInventario}
+                      className="px-8 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-bold hover:shadow-xl transition-all hover:scale-105 active:scale-95"
+                    >
+                      {indiceAtualInventario === inventarioAtivo.ingredientes.length - 1 ? '✓ Concluir Inventário' : 'Próximo →'}
+                    </button>
+                  </div>
+                  
+                  <div className="p-4 border-t text-center bg-gray-100">
+                    <button
+                      onClick={cancelarInventario}
+                      className="text-sm text-gray-600 hover:text-red-600 font-medium transition-colors"
+                    >
+                      ✖️ Cancelar Inventário
+                    </button>
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+        </div>
+      )}
+
+      {/* 📊 MODAL DE HISTÓRICO DE INVENTÁRIOS */}
+      {mostrarHistoricoInventarios && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="p-6 border-b bg-gradient-to-r from-purple-50 to-pink-50">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900">📊 Histórico de Inventários</h2>
+                  <p className="text-sm text-gray-600 mt-1">
+                    {contagensHistorico.length} {contagensHistorico.length === 1 ? 'inventário realizado' : 'inventários realizados'}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setMostrarHistoricoInventarios(false)}
+                  className="p-2 hover:bg-gray-200 rounded-lg transition"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-6">
+              {contagensHistorico.length === 0 ? (
+                <div className="text-center py-12">
+                  <p className="text-gray-500 text-lg">Nenhum inventário realizado ainda</p>
+                  <p className="text-gray-400 text-sm mt-2">Clique em "Fazer Inventário" para começar</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {[...contagensHistorico].reverse().map((contagem, index) => {
+                    const ingredientesContados = contagem.ingredientes.filter(i => i.stockReal !== null).length;
+                    const variacaoPositiva = contagem.resumo.variacaoTotalEuros >= 0;
+                    
+                    return (
+                      <div key={contagem.id} className="border-2 border-gray-200 rounded-xl p-5 hover:shadow-lg transition">
+                        <div className="flex items-start justify-between mb-4">
+                          <div>
+                            <h3 className="text-lg font-bold text-gray-900">
+                              Inventário #{contagensHistorico.length - index}
+                            </h3>
+                            <p className="text-sm text-gray-600">
+                              📅 {new Date(contagem.dataInicio).toLocaleString('pt-PT')}
+                            </p>
+                            <p className="text-xs text-gray-500">👤 {contagem.utilizador}</p>
+                          </div>
+                          <div className={`text-right px-4 py-2 rounded-lg ${
+                            variacaoPositiva ? 'bg-blue-100' : 'bg-red-100'
+                          }`}>
+                            <p className={`text-2xl font-bold ${
+                              variacaoPositiva ? 'text-blue-700' : 'text-red-700'
+                            }`}>
+                              {variacaoPositiva ? '+' : ''}€{contagem.resumo.variacaoTotalEuros.toFixed(2)}
+                            </p>
+                            <p className="text-xs text-gray-600">Variação Total</p>
+                          </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                          <div className="bg-gray-50 rounded-lg p-3 text-center">
+                            <p className="text-xs text-gray-600 mb-1">Contados</p>
+                            <p className="text-xl font-bold text-gray-900">
+                              {ingredientesContados}/{contagem.resumo.totalIngredientes}
+                            </p>
+                          </div>
+                          <div className="bg-green-50 rounded-lg p-3 text-center">
+                            <p className="text-xs text-green-600 mb-1">Excesso</p>
+                            <p className="text-xl font-bold text-green-700">
+                              €{contagem.resumo.excessoEuros.toFixed(2)}
+                            </p>
+                          </div>
+                          <div className="bg-red-50 rounded-lg p-3 text-center">
+                            <p className="text-xs text-red-600 mb-1">Falta</p>
+                            <p className="text-xl font-bold text-red-700">
+                              €{contagem.resumo.faltaEuros.toFixed(2)}
+                            </p>
+                          </div>
+                          <div className="bg-purple-50 rounded-lg p-3 text-center">
+                            <p className="text-xs text-purple-600 mb-1">Categorias</p>
+                            <p className="text-xl font-bold text-purple-700">
+                              {Object.keys(contagem.resumo.categorias).length}
+                            </p>
+                          </div>
+                        </div>
+                        
+                        <div className="mb-4">
+                          <p className="text-xs font-semibold text-gray-600 mb-2">Top 3 Categorias (variação):</p>
+                          <div className="flex flex-wrap gap-2">
+                            {Object.entries(contagem.resumo.categorias)
+                              .sort((a, b) => Math.abs(b[1].variacaoEuros) - Math.abs(a[1].variacaoEuros))
+                              .slice(0, 3)
+                              .map(([cat, dados]) => (
+                                <span 
+                                  key={cat}
+                                  className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                                    dados.variacaoEuros >= 0 
+                                      ? 'bg-blue-100 text-blue-700' 
+                                      : 'bg-red-100 text-red-700'
+                                  }`}
+                                >
+                                  {cat}: {dados.variacaoEuros >= 0 ? '+' : ''}€{dados.variacaoEuros.toFixed(2)}
+                                </span>
+                              ))}
+                          </div>
+                        </div>
+                        
+                        <button
+                          onClick={() => exportarRelatorioInventario(contagem)}
+                          className="w-full py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg font-semibold hover:shadow-lg transition"
+                        >
+                          📄 Exportar Relatório Completo
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
