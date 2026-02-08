@@ -18396,7 +18396,7 @@ void 0;
                                                           height="140" 
                                                           viewBox="0 0 100 100" 
                                                           preserveAspectRatio="none"
-                                                          style={{display: 'block', position: 'absolute', top: 0, left: 0}}
+                                                          style={{display: 'block', position: 'absolute', top: 0, left: 0, paddingLeft: '5px', paddingRight: '5px', boxSizing: 'border-box'}}
                                                         >
                                                           <defs>
                                                             {/* Gradient FORTE para a linha (azul brilhante → rosa/roxo) */}
@@ -18415,13 +18415,13 @@ void 0;
                                                           </defs>
                                                           
                                                           {/* Grid horizontal */}
-                                                          <line x1="0" y1="85" x2="100" y2="85" stroke="rgba(139, 92, 246, 0.1)" strokeWidth="0.3" vectorEffect="non-scaling-stroke" />
-                                                          <line x1="0" y1="42.5" x2="100" y2="42.5" stroke="rgba(139, 92, 246, 0.05)" strokeWidth="0.3" strokeDasharray="1,1" vectorEffect="non-scaling-stroke" />
+                                                          <line x1="2.5" y1="85" x2="97.5" y2="85" stroke="rgba(139, 92, 246, 0.1)" strokeWidth="0.3" vectorEffect="non-scaling-stroke" />
+                                                          <line x1="2.5" y1="42.5" x2="97.5" y2="42.5" stroke="rgba(139, 92, 246, 0.05)" strokeWidth="0.3" strokeDasharray="1,1" vectorEffect="non-scaling-stroke" />
                                                           
                                                           {(() => {
-                                                            // Criar pontos normalizados (0-100 em X, 5-85 em Y)
+                                                            // Criar pontos normalizados com margem (2.5-97.5 em X, 5-85 em Y)
                                                             const pontos = quantidades.map((qtd, i) => ({
-                                                              x: (i / Math.max(quantidades.length - 1, 1)) * 100,
+                                                              x: 2.5 + (i / Math.max(quantidades.length - 1, 1)) * 95,
                                                               y: 85 - ((qtd / maxQtd) * 80),
                                                               qtd,
                                                               data: datasOrdenadas[i]
@@ -18432,8 +18432,8 @@ void 0;
                                                               `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`
                                                             ).join(' ');
                                                             
-                                                            // Path da área preenchida
-                                                            const areaPath = `${linePath} L 100 90 L 0 90 Z`;
+                                                            // Path da área preenchida (fecha nas extremidades corretas)
+                                                            const areaPath = `${linePath} L 97.5 90 L 2.5 90 Z`;
                                                             
                                                             return (
                                                               <>
@@ -18462,10 +18462,11 @@ void 0;
                                                         <svg 
                                                           width="100%" 
                                                           height="140"
-                                                          style={{display: 'block', position: 'absolute', top: 0, left: 0, pointerEvents: 'none'}}
+                                                          style={{display: 'block', position: 'absolute', top: 0, left: 0, pointerEvents: 'none', paddingLeft: '5px', paddingRight: '5px', boxSizing: 'border-box'}}
                                                         >
                                                           {quantidades.map((qtd, i) => {
-                                                            const xPercent = (i / Math.max(quantidades.length - 1, 1)) * 100;
+                                                            // Adicionar margem de 2.5% em cada lado (total 95% de espaço útil)
+                                                            const xPercent = 2.5 + (i / Math.max(quantidades.length - 1, 1)) * 95;
                                                             const yPercent = 85 - ((qtd / maxQtd) * 80);
                                                             
                                                             return (
@@ -18498,7 +18499,8 @@ void 0;
                                                           fontWeight: '400'
                                                         }}>
                                                           {quantidades.map((qtd, i) => {
-                                                            const xPercent = (i / Math.max(quantidades.length - 1, 1)) * 100;
+                                                            // Usar a mesma escala dos pontos (2.5% a 97.5%)
+                                                            const xPercent = 2.5 + (i / Math.max(quantidades.length - 1, 1)) * 95;
                                                             // Mostrar apenas algumas datas para não sobrepor
                                                             const mostrar = datasOrdenadas.length <= 15 || i % Math.ceil(datasOrdenadas.length / 10) === 0;
                                                             
@@ -18658,60 +18660,61 @@ void 0;
                                                           </div>
                                                         </div>
                                                         
-                                                        {/* Métricas Extras - Grid 2x3 compacto */}
-                                                        <div className="bg-white rounded p-1 border border-gray-200">
-                                                          <div className="grid grid-cols-2 gap-x-1.5 gap-y-0.5 text-[8px]">
+                                                        {/* Métricas Extras - Grid 2x3 mais descritivo */}
+                                                        <div className="bg-white rounded p-1.5 border border-gray-200">
+                                                          <div className="grid grid-cols-2 gap-1 text-[9px]">
                                                             {/* Melhor dia */}
                                                             <div 
-                                                              className="flex items-center gap-0.5 cursor-help" 
+                                                              className="flex flex-col items-start cursor-help" 
                                                               title={`Melhor dia da semana: ${melhorDiaSemana?.dia || '-'} com média de ${melhorDiaSemana?.media.toFixed(1) || 0} vendas/dia`}
                                                             >
-                                                              <span>📅</span>
-                                                              <span className="font-bold text-green-700">{melhorDiaSemana?.dia || '-'}</span>
+                                                              <span className="text-[8px] text-gray-500">Melhor</span>
+                                                              <span className="font-bold text-green-700 text-xs">📅 {melhorDiaSemana?.dia || '-'}</span>
                                                             </div>
                                                             
                                                             {/* Pior dia (excluindo quartas) */}
                                                             <div 
-                                                              className="flex items-center gap-0.5 cursor-help" 
+                                                              className="flex flex-col items-start cursor-help" 
                                                               title={`Pior dia da semana: ${piorDiaSemana?.dia || '-'} com média de ${piorDiaSemana?.media.toFixed(1) || 0} vendas/dia (quartas excluídas - folga)`}
                                                             >
-                                                              <span>📆</span>
-                                                              <span className="font-bold text-red-600">{piorDiaSemana?.dia || '-'}</span>
+                                                              <span className="text-[8px] text-gray-500">Pior</span>
+                                                              <span className="font-bold text-red-600 text-xs">📆 {piorDiaSemana?.dia || '-'}</span>
                                                             </div>
                                                             
                                                             {/* Tendência */}
                                                             <div 
-                                                              className="flex items-center gap-0.5 cursor-help" 
+                                                              className="flex flex-col items-start cursor-help" 
                                                               title={`Tendência de vendas: ${tendencia} (comparando últimos 7 dias com 7 dias anteriores)`}
                                                             >
-                                                              <span className={`font-bold ${tendenciaColor}`}>{tendenciaIcon}</span>
+                                                              <span className="text-[8px] text-gray-500">Tendência</span>
+                                                              <span className={`font-bold ${tendenciaColor} text-xs`}>{tendenciaIcon} {tendencia}</span>
                                                             </div>
                                                             
                                                             {/* Média diária */}
                                                             <div 
-                                                              className="flex items-center gap-0.5 cursor-help" 
+                                                              className="flex flex-col items-start cursor-help" 
                                                               title={`Média diária: ${mediaDiaria.toFixed(1)} vendas/dia útil (6 dias/semana, excluindo quartas)`}
                                                             >
-                                                              <span>🎯</span>
-                                                              <span className="font-bold text-blue-700">{mediaDiaria.toFixed(1)}</span>
+                                                              <span className="text-[8px] text-gray-500">Média/dia</span>
+                                                              <span className="font-bold text-blue-700 text-xs">🎯 {mediaDiaria.toFixed(1)}</span>
                                                             </div>
                                                             
                                                             {/* Consistência */}
                                                             <div 
-                                                              className="flex items-center gap-0.5 cursor-help" 
+                                                              className="flex flex-col items-start cursor-help" 
                                                               title={`Consistência das vendas: ${consistencia} (variação ${coeficienteVariacao.toFixed(0)}% - quanto menor, mais consistente)`}
                                                             >
-                                                              <span>📊</span>
-                                                              <span className={`font-bold ${consistenciaColor}`}>{consistencia[0]}</span>
+                                                              <span className="text-[8px] text-gray-500">Consist.</span>
+                                                              <span className={`font-bold ${consistenciaColor} text-xs`}>📊 {consistencia}</span>
                                                             </div>
                                                             
                                                             {/* Taxa dias */}
                                                             <div 
-                                                              className="flex items-center gap-0.5 cursor-help" 
+                                                              className="flex flex-col items-start cursor-help" 
                                                               title={`Frequência de vendas: ${taxaDias}% dos dias úteis tiveram vendas (${diasComVendas} de ${totalDiasPeriodo} dias úteis)`}
                                                             >
-                                                              <span>🌟</span>
-                                                              <span className="font-bold text-purple-700">{taxaDias}%</span>
+                                                              <span className="text-[8px] text-gray-500">Freq.</span>
+                                                              <span className="font-bold text-purple-700 text-xs">🌟 {taxaDias}%</span>
                                                             </div>
                                                           </div>
                                                         </div>
