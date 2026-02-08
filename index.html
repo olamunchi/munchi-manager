@@ -1162,6 +1162,9 @@ const ComprasAnalysis = ({ despesas, faturas = [], ingredientes, fornecedores, s
                               <div className="bg-orange-50 px-1.5 py-0.5 rounded">
                                 💰 €{gastoPorMes.toFixed(2)}/mês
                               </div>
+                              <div className="bg-blue-50 px-1.5 py-0.5 rounded border-t border-blue-200 mt-1 pt-1 font-semibold">
+                                📊 Total: {qtdTotal.toFixed(1)}{ing.unidade} • €{gastoTotal.toFixed(2)}
+                              </div>
                             </div>
                           );
                         })()}
