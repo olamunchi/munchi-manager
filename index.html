@@ -22532,33 +22532,25 @@ void 0;
                                         fatura.tipo === 'FR' ? 'bg-blue-100 text-blue-700 border border-blue-300' :
                                         'bg-gray-100 text-gray-700 border border-gray-300'
                                       }`}>
-                                        {fatura.tipo === 'FT' ? '🧾 FT - Fatura' :
-                                         fatura.tipo === 'FS' ? '🧾 FS - Fatura Simplificada' :
-                                         fatura.tipo === 'FR' ? '📄 FR - Fatura Recibo' :
-                                         fatura.tipo}
+                                        {fatura.tipo || 'FT'}
                                       </span>
                                       
                                       {fatura.documentoPDF ? (
-                                        <span className="flex items-center gap-1 text-xs bg-green-100 text-green-700 px-2 py-1 rounded font-semibold" title="PDF anexado">
-                                          <FilePdf size={14} />
-                                          <Check size={12} />
-                                          PDF
+                                        <span className="text-green-600 cursor-pointer" title={fatura.nomeDocumento || "PDF anexado"}>
+                                          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                            <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
+                                          </svg>
                                         </span>
                                       ) : (
-                                        <span className="flex items-center gap-1 text-xs bg-red-100 text-red-700 px-2 py-1 rounded font-semibold" title="SEM PDF">
-                                          <AlertCircle size={14} />
-                                          SEM PDF
+                                        <span className="text-red-600" title="SEM PDF">
+                                          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                            <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
+                                          </svg>
                                         </span>
                                       )}
                                       
                                       <span className="text-sm text-gray-600">{fatura.fornecedorNome}</span>
                                       <span className="text-xs text-gray-500">{new Date(fatura.data).toLocaleDateString('pt-PT')}</span>
-                                      
-                                      {fatura.nomeDocumento && (
-                                        <span className="text-xs bg-yellow-50 border border-yellow-300 px-2 py-1 rounded font-mono text-gray-800 font-semibold" title={fatura.nomeDocumento}>
-                                          📎 {fatura.nomeDocumento.length > 30 ? fatura.nomeDocumento.substring(0, 27) + '...' : fatura.nomeDocumento}
-                                        </span>
-                                      )}
                                     </div>
                                     
                                     <div className="flex items-center gap-4 text-sm">
