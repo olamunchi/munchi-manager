@@ -14901,6 +14901,12 @@ const calcularIndiceDesperdicio = (comprasPeriodo, vendasPeriodo, produtos) => {
       setLinhasOCR(linhasComMatch);
       setMetadataOCR(metadata);
 
+      // 🆕 GARANTIR que o PDF e nome são sempre guardados no estado
+      setNovaFatura({
+        ...novaFatura,
+        documentoPDF: base64,
+        nomeDocumento: file.name
+      });
       
       if (linhas.length === 0) {
          
@@ -21153,7 +21159,7 @@ const calcularIndiceDesperdicio = (comprasPeriodo, vendasPeriodo, produtos) => {
                                         </span>
                                       )}
                                       
-                                      <span className="font-bold text-blue-700">
+                                      <span className="font-bold text-blue-700 cursor-help" title={fatura.documentoPDF ? (fatura.nomeDocumento || "PDF anexado") : "Sem PDF anexado"}>
                                         📄 {fatura.numero || 'Recibo'}
                                       </span>
                                       
