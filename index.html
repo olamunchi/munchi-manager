@@ -58,7 +58,7 @@
 <body style="background: linear-gradient(to bottom right, #eff6ff, #f3e8ff, #fce7f3); min-height: 100vh;">
     <div id="root"></div>
     <script type="text/babel">
-const { useState, useEffect } = React;
+const { useState, useEffect, useMemo } = React;
 
 // ==================== FUNÇÃO DE NORMALIZAÇÃO DE TEXTO ====================
 // Remove acentos, cedilhas e outros diacríticos para facilitar busca
@@ -3969,7 +3969,7 @@ const ModalConfirmacaoFatura = ({ dadosFatura, onConfirmar, onCancelar, forneced
 /**
  * Painel de Configurações
  */
-const PainelConfiguracoes = ({ configuracoes, onSalvar, vendas, setVendas, showNotification }) => {
+const PainelConfiguracoes = ({ configuracoes, onSalvar, vendas, setVendas, showNotification, ordenadoObjetivo, setOrdenadoObjetivo }) => {
   const [config, setConfig] = React.useState(configuracoes);
   const [mostrarSucesso, setMostrarSucesso] = React.useState(false);
   const [alertasExpanded, setAlertasExpanded] = React.useState(false);
@@ -4141,6 +4141,43 @@ const PainelConfiguracoes = ({ configuracoes, onSalvar, vendas, setVendas, showN
               📈 Tudo
             </button>
           </div>
+        </div>
+      </div>
+      
+      {/* Objetivo de Ordenados */}
+      <div className="border border-gray-300 rounded-lg overflow-hidden">
+        <div className="p-4 bg-gray-50">
+          <div className="text-left">
+            <h4 className="font-semibold text-gray-700">🎯 Objetivo de Ordenados</h4>
+            <p className="text-sm text-gray-600">
+              Ordenado mensal total desejado (incluindo cônjuge)
+            </p>
+          </div>
+        </div>
+        
+        <div className="p-4 bg-white border-t">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            💰 Ordenado Mensal Total (€):
+          </label>
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              step="100"
+              min="0"
+              value={ordenadoObjetivo}
+              onChange={(e) => {
+                const valor = parseFloat(e.target.value) || 0;
+                setOrdenadoObjetivo(valor);
+                localStorage.setItem('munchi_ordenado_objetivo', valor.toString());
+              }}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              placeholder="Ex: 2000"
+            />
+            <span className="text-sm text-gray-600">€</span>
+          </div>
+          <p className="text-xs text-gray-500 mt-2">
+            A barra no cabeçalho mostra se está a atingir o objetivo para cobrir: despesas fixas + food cost + IVA + este ordenado.
+          </p>
         </div>
       </div>
       
@@ -4690,6 +4727,10 @@ const RestauranteGestor = () => {
   const [showPriceAlert, setShowPriceAlert] = useState(false);
   const [priceAlertData, setPriceAlertData] = useState(null);
   const [ordenadoDesejado, setOrdenadoDesejado] = useState(920);
+  const [ordenadoObjetivo, setOrdenadoObjetivo] = useState(() => {
+    const saved = localStorage.getItem('munchi_ordenado_objetivo');
+    return saved ? parseFloat(saved) : 2000;
+  });
   const [incluirSubsidioAlimentacao, setIncluirSubsidioAlimentacao] = useState(false);
   const [valorSubsidioAlimentacao, setValorSubsidioAlimentacao] = useState(6.00);
   const [incluirMedicinaTrabalho, setIncluirMedicinaTrabalho] = useState(false);
@@ -17173,6 +17214,286 @@ void 0;
               </div>
             </div>
             
+            {/* Barra de Objetivo */}
+            <div className="flex-1 mx-6 max-w-md group relative">
+              <div className="flex justify-between items-center mb-1.5">
+                <span className="text-sm font-bold text-white">
+                  €{(() => {
+                    const hoje = new Date();
+                    const mesAtual = hoje.getMonth();
+                    const anoAtual = hoje.getFullYear();
+                    return vendas
+                      .filter(v => {
+                        const dataVenda = new Date(v.data);
+                        return dataVenda.getMonth() === mesAtual && dataVenda.getFullYear() === anoAtual;
+                      })
+                      .reduce((total, v) => total + (v.total || v.valor || 0), 0)
+                      .toFixed(0);
+                  })()}
+                </span>
+                <span className="text-xs text-white">
+                  / €{(() => {
+                    const hoje = new Date();
+                    const mesAtual = hoje.getMonth();
+                    const anoAtual = hoje.getFullYear();
+                    
+                    const calcDespFixas = () => [...despesas, ...faturas]
+                      .filter(item => {
+                        const data = new Date(item.data);
+                        return data.getMonth() === mesAtual && 
+                               data.getFullYear() === anoAtual && 
+                               ['renda', 'eletricidade', 'agua', 'gas', 'internet', 'salarios'].includes(item.categoria);
+                      })
+                      .reduce((t, i) => t + (i.valor || i.total || 0), 0);
+                    
+                    const vendasMes = vendas.filter(v => {
+                      const dataVenda = new Date(v.data);
+                      return dataVenda.getMonth() === mesAtual && dataVenda.getFullYear() === anoAtual;
+                    });
+                    
+                    let foodCostMes = 0;
+                    vendasMes.forEach(venda => {
+                      const produto = produtos.find(p => p.id === venda.produtoId);
+                      if (produto && produto.custoReceita) {
+                        foodCostMes += produto.custoReceita * venda.quantidade;
+                      }
+                    });
+                    
+                    return (calcDespFixas() + foodCostMes + Math.abs(ivaP) + ordenadoObjetivo).toFixed(0);
+                  })()}
+                </span>
+              </div>
+              
+              <div className="w-full rounded-full h-2.5">
+                <div
+                  className={`h-full transition-all duration-500 rounded-full border-2 border-white/70 animate-pulse ${(() => {
+                    const hoje = new Date();
+                    const mesAtual = hoje.getMonth();
+                    const anoAtual = hoje.getFullYear();
+                    
+                    const faturacaoMes = vendas
+                      .filter(v => {
+                        const dataVenda = new Date(v.data);
+                        return dataVenda.getMonth() === mesAtual && dataVenda.getFullYear() === anoAtual;
+                      })
+                      .reduce((total, v) => total + (v.total || v.valor || 0), 0);
+                    
+                    const calcDespFixas = () => [...despesas, ...faturas]
+                      .filter(item => {
+                        const data = new Date(item.data);
+                        return data.getMonth() === mesAtual && 
+                               data.getFullYear() === anoAtual && 
+                               ['renda', 'eletricidade', 'agua', 'gas', 'internet', 'salarios'].includes(item.categoria);
+                      })
+                      .reduce((t, i) => t + (i.valor || i.total || 0), 0);
+                    
+                    const vendasMes = vendas.filter(v => {
+                      const dataVenda = new Date(v.data);
+                      return dataVenda.getMonth() === mesAtual && dataVenda.getFullYear() === anoAtual;
+                    });
+                    
+                    let foodCostMes = 0;
+                    vendasMes.forEach(venda => {
+                      const produto = produtos.find(p => p.id === venda.produtoId);
+                      if (produto && produto.custoReceita) {
+                        foodCostMes += produto.custoReceita * venda.quantidade;
+                      }
+                    });
+                    
+                    const objetivo = calcDespFixas() + foodCostMes + Math.abs(ivaP) + ordenadoObjetivo;
+                    const percentagem = objetivo > 0 ? (faturacaoMes / objetivo) * 100 : 0;
+                    
+                    if (percentagem >= 100) return 'bg-green-500';
+                    if (percentagem >= 75) return 'bg-yellow-400';
+                    return 'bg-red-500';
+                  })()}`}
+                  style={{ width: `${(() => {
+                    const hoje = new Date();
+                    const mesAtual = hoje.getMonth();
+                    const anoAtual = hoje.getFullYear();
+                    
+                    const faturacaoMes = vendas
+                      .filter(v => {
+                        const dataVenda = new Date(v.data);
+                        return dataVenda.getMonth() === mesAtual && dataVenda.getFullYear() === anoAtual;
+                      })
+                      .reduce((total, v) => total + (v.total || v.valor || 0), 0);
+                    
+                    const calcDespFixas = () => [...despesas, ...faturas]
+                      .filter(item => {
+                        const data = new Date(item.data);
+                        return data.getMonth() === mesAtual && 
+                               data.getFullYear() === anoAtual && 
+                               ['renda', 'eletricidade', 'agua', 'gas', 'internet', 'salarios'].includes(item.categoria);
+                      })
+                      .reduce((t, i) => t + (i.valor || i.total || 0), 0);
+                    
+                    const vendasMes = vendas.filter(v => {
+                      const dataVenda = new Date(v.data);
+                      return dataVenda.getMonth() === mesAtual && dataVenda.getFullYear() === anoAtual;
+                    });
+                    
+                    let foodCostMes = 0;
+                    vendasMes.forEach(venda => {
+                      const produto = produtos.find(p => p.id === venda.produtoId);
+                      if (produto && produto.custoReceita) {
+                        foodCostMes += produto.custoReceita * venda.quantidade;
+                      }
+                    });
+                    
+                    const objetivo = calcDespFixas() + foodCostMes + Math.abs(ivaP) + ordenadoObjetivo;
+                    const percentagem = objetivo > 0 ? Math.min((faturacaoMes / objetivo) * 100, 100) : 0;
+                    return percentagem;
+                  })()}%` }}>
+                </div>
+              </div>
+              
+              <div className="flex justify-between items-center mt-1.5">
+                <span className="text-xs text-white">
+                  {(() => {
+                    const hoje = new Date();
+                    const ultimoDia = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0);
+                    const diasRestantes = ultimoDia.getDate() - hoje.getDate();
+                    return `${diasRestantes} ${diasRestantes === 1 ? 'dia' : 'dias'}`;
+                  })()}
+                </span>
+                <span className="text-xs font-semibold text-white">
+                  {(() => {
+                    const hoje = new Date();
+                    const mesAtual = hoje.getMonth();
+                    const anoAtual = hoje.getFullYear();
+                    
+                    const faturacaoMes = vendas
+                      .filter(v => {
+                        const dataVenda = new Date(v.data);
+                        return dataVenda.getMonth() === mesAtual && dataVenda.getFullYear() === anoAtual;
+                      })
+                      .reduce((total, v) => total + (v.total || v.valor || 0), 0);
+                    
+                    const calcDespFixas = () => [...despesas, ...faturas]
+                      .filter(item => {
+                        const data = new Date(item.data);
+                        return data.getMonth() === mesAtual && 
+                               data.getFullYear() === anoAtual && 
+                               ['renda', 'eletricidade', 'agua', 'gas', 'internet', 'salarios'].includes(item.categoria);
+                      })
+                      .reduce((t, i) => t + (i.valor || i.total || 0), 0);
+                    
+                    const vendasMes = vendas.filter(v => {
+                      const dataVenda = new Date(v.data);
+                      return dataVenda.getMonth() === mesAtual && dataVenda.getFullYear() === anoAtual;
+                    });
+                    
+                    let foodCostMes = 0;
+                    vendasMes.forEach(venda => {
+                      const produto = produtos.find(p => p.id === venda.produtoId);
+                      if (produto && produto.custoReceita) {
+                        foodCostMes += produto.custoReceita * venda.quantidade;
+                      }
+                    });
+                    
+                    const objetivo = calcDespFixas() + foodCostMes + Math.abs(ivaP) + ordenadoObjetivo;
+                    const percentagem = objetivo > 0 ? (faturacaoMes / objetivo) * 100 : 0;
+                    
+                    if (percentagem >= 100) return '✅ Atingido';
+                    if (percentagem >= 75) return '⚠️ Quase';
+                    return '🎯 ' + percentagem.toFixed(0) + '%';
+                  })()}
+                </span>
+              </div>
+              
+              <div className="absolute top-full left-0 right-0 mt-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                <div className="bg-white rounded-lg shadow-xl p-4 border border-gray-200">
+                  <h4 className="text-xs font-bold text-gray-800 mb-2">📊 Composição do Objetivo Mensal</h4>
+                  <div className="space-y-1.5 text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">💰 Ordenados:</span>
+                      <span className="font-semibold text-gray-900">€{ordenadoObjetivo.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">🏠 Despesas Fixas:</span>
+                      <span className="font-semibold text-gray-900">
+                        €{(() => {
+                          const hoje = new Date();
+                          const mesAtual = hoje.getMonth();
+                          const anoAtual = hoje.getFullYear();
+                          return [...despesas, ...faturas]
+                            .filter(item => {
+                              const data = new Date(item.data);
+                              return data.getMonth() === mesAtual && 
+                                     data.getFullYear() === anoAtual && 
+                                     ['renda', 'eletricidade', 'agua', 'gas', 'internet', 'salarios'].includes(item.categoria);
+                            })
+                            .reduce((t, i) => t + (i.valor || i.total || 0), 0)
+                            .toFixed(2);
+                        })()}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">🍽️ Food Cost:</span>
+                      <span className="font-semibold text-gray-900">
+                        €{(() => {
+                          const hoje = new Date();
+                          const mesAtual = hoje.getMonth();
+                          const anoAtual = hoje.getFullYear();
+                          const vendasMes = vendas.filter(v => {
+                            const dataVenda = new Date(v.data);
+                            return dataVenda.getMonth() === mesAtual && dataVenda.getFullYear() === anoAtual;
+                          });
+                          let foodCostMes = 0;
+                          vendasMes.forEach(venda => {
+                            const produto = produtos.find(p => p.id === venda.produtoId);
+                            if (produto && produto.custoReceita) {
+                              foodCostMes += produto.custoReceita * venda.quantidade;
+                            }
+                          });
+                          return foodCostMes.toFixed(2);
+                        })()}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">🧾 IVA Trimestre:</span>
+                      <span className="font-semibold text-gray-900">€{Math.abs(ivaP).toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between pt-2 mt-2 border-t border-gray-200">
+                      <span className="font-bold text-gray-800">Total Objetivo:</span>
+                      <span className="font-bold text-purple-600">
+                        €{(() => {
+                          const hoje = new Date();
+                          const mesAtual = hoje.getMonth();
+                          const anoAtual = hoje.getFullYear();
+                          
+                          const despFixas = [...despesas, ...faturas]
+                            .filter(item => {
+                              const data = new Date(item.data);
+                              return data.getMonth() === mesAtual && 
+                                     data.getFullYear() === anoAtual && 
+                                     ['renda', 'eletricidade', 'agua', 'gas', 'internet', 'salarios'].includes(item.categoria);
+                            })
+                            .reduce((t, i) => t + (i.valor || i.total || 0), 0);
+                          
+                          const vendasMes = vendas.filter(v => {
+                            const dataVenda = new Date(v.data);
+                            return dataVenda.getMonth() === mesAtual && dataVenda.getFullYear() === anoAtual;
+                          });
+                          
+                          let foodCostMes = 0;
+                          vendasMes.forEach(venda => {
+                            const produto = produtos.find(p => p.id === venda.produtoId);
+                            if (produto && produto.custoReceita) {
+                              foodCostMes += produto.custoReceita * venda.quantidade;
+                            }
+                          });
+                          
+                          return (despFixas + foodCostMes + Math.abs(ivaP) + ordenadoObjetivo).toFixed(2);
+                        })()}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
             {/* Google Drive Sync - Header */}
             <div className="flex items-center gap-3">
               {driveAccessToken ? (
@@ -23365,7 +23686,7 @@ void 0;
                         ⚙️ Configurações do Sistema
                       </h3>
                       <p className="text-sm text-gray-600 text-left mt-1">
-                        Filtros de métricas e alertas de margem
+                        Filtros de métricas, alertas de margem e objetivo de ordenados
                       </p>
                     </div>
                     {configuracoesExpanded ? <ChevronUp size={24} /> : <ChevronDown size={24} />}
@@ -23379,6 +23700,8 @@ void 0;
                         vendas={vendas}
                         setVendas={setVendas}
                         showNotification={showNotification}
+                        ordenadoObjetivo={ordenadoObjetivo}
+                        setOrdenadoObjetivo={setOrdenadoObjetivo}
                       />
                     </div>
                   )}
