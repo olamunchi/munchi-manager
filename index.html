@@ -19,6 +19,9 @@
   <script defer src="https://apis.google.com/js/api.js"></script>
 
   <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  
+  <!-- jsPDF para exportação de fichas técnicas -->
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
   <script defer src="config.js"></script>
   
@@ -3319,6 +3322,355 @@ const ModalDespesaSimples = ({ dadosDespesa, onConfirmar, onCancelar }) => {
 };
 
 /**
+ * Modal para inserção manual de fatura
+ */
+const ModalFaturaManual = ({ onConfirmar, onCancelar, fornecedores = [], ingredientes = [] }) => {
+  const [categoria, setCategoria] = React.useState('compras');
+  const [fornecedorId, setFornecedorId] = React.useState('');
+  const [numeroFatura, setNumeroFatura] = React.useState('');
+  const [dataFatura, setDataFatura] = React.useState(new Date().toISOString().split('T')[0]);
+  const [tipoDocumento, setTipoDocumento] = React.useState('FT');
+  const [observacoes, setObservacoes] = React.useState('');
+  const [itens, setItens] = React.useState([]);
+  
+  const [searchIngrediente, setSearchIngrediente] = React.useState('');
+  const [showDropdown, setShowDropdown] = React.useState(false);
+  const [itemTemp, setItemTemp] = React.useState({
+    descricao: '',
+    ingredienteId: '',
+    quantidade: '',
+    unidade: 'kg',
+    precoTotal: '',
+    iva: '13'
+  });
+  
+  const labelsCategorias = {
+    'compras': '🛒 Compras',
+    'renda': '🏠 Renda',
+    'eletricidade': '⚡ Eletricidade',
+    'agua': '💧 Água',
+    'gas': '🔥 Gás',
+    'internet': '🌐 Internet',
+    'salarios': '👥 Salários',
+    'marketing': '📢 Marketing',
+    'consumiveis': '📦 Consumíveis',
+    'manutencao': '🔧 Manutenção',
+    'outros': '📋 Outros'
+  };
+  
+  const categoriaTemIngredientes = categoria === 'compras' || categoria === 'consumiveis';
+  
+  const adicionarItem = () => {
+    if (categoriaTemIngredientes) {
+      if (!itemTemp.descricao || !itemTemp.quantidade || !itemTemp.precoTotal) {
+        alert('⚠️ Preencha todos os campos!');
+        return;
+      }
+    } else {
+      if (!itemTemp.precoTotal || parseFloat(itemTemp.precoTotal) <= 0) {
+        alert('⚠️ Insira um valor válido!');
+        return;
+      }
+    }
+    
+    const precoTotal = parseFloat(itemTemp.precoTotal);
+    const iva = parseFloat(itemTemp.iva || 13);
+    const quantidade = categoriaTemIngredientes ? parseFloat(itemTemp.quantidade) : 1;
+    const precoUnitario = quantidade > 0 ? precoTotal / quantidade : 0;
+    const subtotal = precoTotal / (1 + iva / 100);
+    
+    const novoItem = {
+      id: Date.now(),
+      descricao: itemTemp.descricao || 'Despesa ' + categoria,
+      ingredienteNome: itemTemp.descricao || 'Despesa ' + categoria,
+      ingredienteId: itemTemp.ingredienteId || '',
+      quantidade: quantidade,
+      unidade: itemTemp.unidade || '',
+      precoUnitario: precoUnitario,
+      precoTotal: precoTotal,
+      subtotal: subtotal,
+      iva: iva
+    };
+    
+    setItens([...itens, novoItem]);
+    setItemTemp({
+      descricao: '',
+      ingredienteId: '',
+      quantidade: '',
+      unidade: 'kg',
+      precoTotal: '',
+      iva: '13'
+    });
+    setSearchIngrediente('');
+  };
+  
+  const removerItem = (id) => {
+    setItens(itens.filter(i => i.id !== id));
+  };
+  
+  const handleConfirmar = () => {
+    if (!fornecedorId || !numeroFatura || itens.length === 0) {
+      alert('⚠️ Preencha fornecedor, número da fatura e adicione pelo menos um item!');
+      return;
+    }
+    
+    const fornecedor = fornecedores.find(f => String(f.id || f) === String(fornecedorId));
+    const totalComIva = itens.reduce((sum, item) => sum + parseFloat(item.precoTotal || 0), 0);
+    const subtotalSemIva = itens.reduce((sum, item) => sum + parseFloat(item.subtotal || 0), 0);
+    const totalIva = totalComIva - subtotalSemIva;
+    
+    const faturaCompleta = {
+      id: Date.now(),
+      numero: numeroFatura,
+      data: dataFatura,
+      fornecedorId: fornecedorId,
+      fornecedorNome: fornecedor?.nome || '',
+      fornecedorNif: fornecedor?.nif || '',
+      tipo: tipoDocumento,
+      categoria: categoria,
+      itens: itens,
+      subtotal: subtotalSemIva,
+      totalIva: totalIva,
+      totais: { subtotal: subtotalSemIva, totalIva: totalIva, total: totalComIva },
+      total: totalComIva,
+      notas: observacoes,
+      documentoPDF: null,
+      nomeDocumento: '',
+      timestamp: new Date().toISOString()
+    };
+    
+    onConfirmar(faturaCompleta);
+  };
+  
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center z-50 overflow-y-auto p-4 pt-8">
+      <div className="bg-white rounded-lg shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="bg-gradient-to-r from-purple-600 to-blue-600 text-white p-5 rounded-t-lg sticky top-0 z-10">
+          <h2 className="text-2xl font-bold">✏️ Inserir Fatura Manual</h2>
+          <p className="text-purple-100 text-sm mt-1">Preencha os dados da fatura</p>
+        </div>
+        
+        <div className="p-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            
+            <div className="space-y-4">
+              <h3 className="font-bold text-gray-800 text-lg">📋 Dados da Fatura</h3>
+              
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  Fornecedor <span className="text-red-500">*</span>
+                </label>
+                <select value={fornecedorId} onChange={(e) => setFornecedorId(e.target.value)}
+                  className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none">
+                  <option value="">Selecionar fornecedor...</option>
+                  {fornecedores.map(f => (
+                    <option key={f.id || f} value={f.id || f}>
+                      {f.nome || f} {f.nif ? '(' + f.nif + ')' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                    Nº Fatura <span className="text-red-500">*</span>
+                  </label>
+                  <input type="text" placeholder="FT 2025/001" value={numeroFatura}
+                    onChange={(e) => setNumeroFatura(e.target.value)}
+                    className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none" />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                    Data <span className="text-red-500">*</span>
+                  </label>
+                  <input type="date" value={dataFatura} onChange={(e) => setDataFatura(e.target.value)}
+                    className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none" />
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Tipo Documento</label>
+                <select value={tipoDocumento} onChange={(e) => setTipoDocumento(e.target.value)}
+                  className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none">
+                  <option value="FT">FT - Fatura</option>
+                  <option value="FS">FS - Fatura Simplificada</option>
+                  <option value="FR">FR - Fatura-Recibo</option>
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  Categoria <span className="text-red-500">*</span>
+                </label>
+                <select value={categoria} onChange={(e) => { setCategoria(e.target.value); setItens([]); }}
+                  className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none">
+                  {Object.entries(labelsCategorias).map(([key, label]) => (
+                    <option key={key} value={key}>{label}</option>
+                  ))}
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Observações</label>
+                <textarea placeholder="Notas adicionais..." value={observacoes}
+                  onChange={(e) => setObservacoes(e.target.value)} rows="3"
+                  className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none resize-none" />
+              </div>
+            </div>
+            
+            <div className="space-y-4">
+              <h3 className="font-bold text-gray-800 text-lg">
+                {categoriaTemIngredientes ? '📦 Items' : '💰 Valor da Despesa'}
+              </h3>
+              
+              <div className="bg-gray-50 rounded-lg p-4 border-2 border-gray-200 space-y-3">
+                {categoriaTemIngredientes ? (
+                  <>
+                    <div className="relative">
+                      <input type="text" placeholder="Procurar ingrediente..."
+                        value={searchIngrediente}
+                        onChange={(e) => {
+                          setSearchIngrediente(e.target.value);
+                          setItemTemp({...itemTemp, descricao: e.target.value});
+                          setShowDropdown(true);
+                        }}
+                        onFocus={() => setShowDropdown(true)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500" />
+                      
+                      {showDropdown && searchIngrediente && (
+                        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                          {ingredientes
+                            .filter(ing => ing.nome.toLowerCase().includes(searchIngrediente.toLowerCase()))
+                            .map(ing => (
+                              <div key={ing.id}
+                                onClick={() => {
+                                  setItemTemp({...itemTemp, descricao: ing.nome, ingredienteId: ing.id});
+                                  setSearchIngrediente(ing.nome);
+                                  setShowDropdown(false);
+                                }}
+                                className="px-3 py-2 hover:bg-purple-50 cursor-pointer border-b last:border-b-0">
+                                <div className="font-medium text-sm">{ing.nome}</div>
+                                <div className="text-xs text-gray-600">€{(ing.custoUnitario || 0).toFixed(2)}/{ing.unidade}</div>
+                              </div>
+                            ))}
+                          {ingredientes.filter(ing => ing.nome.toLowerCase().includes(searchIngrediente.toLowerCase())).length === 0 && (
+                            <div className="px-3 py-4 text-center text-gray-500 text-sm">Nenhum ingrediente encontrado</div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-2">
+                      <input type="number" step="0.01" placeholder="Quantidade" value={itemTemp.quantidade}
+                        onChange={(e) => setItemTemp({...itemTemp, quantidade: e.target.value})}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500" />
+                      <select value={itemTemp.unidade} onChange={(e) => setItemTemp({...itemTemp, unidade: e.target.value})}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500">
+                        <option value="kg">kg</option>
+                        <option value="g">g</option>
+                        <option value="L">L</option>
+                        <option value="ml">ml</option>
+                        <option value="un">un</option>
+                        <option value="cx">cx</option>
+                        <option value="pc">pc</option>
+                      </select>
+                    </div>
+                  </>
+                ) : (
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">Descrição</label>
+                    <input type="text" placeholder={'Ex: ' + labelsCategorias[categoria] + ' Janeiro 2025'}
+                      value={itemTemp.descricao} onChange={(e) => setItemTemp({...itemTemp, descricao: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500" />
+                  </div>
+                )}
+                
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">Preço Total (€)</label>
+                    <input type="number" step="0.01" placeholder="0.00" value={itemTemp.precoTotal}
+                      onChange={(e) => setItemTemp({...itemTemp, precoTotal: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">IVA (%)</label>
+                    <select value={itemTemp.iva} onChange={(e) => setItemTemp({...itemTemp, iva: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500">
+                      <option value="0">0%</option>
+                      <option value="6">6%</option>
+                      <option value="13">13%</option>
+                      <option value="23">23%</option>
+                    </select>
+                  </div>
+                </div>
+                
+                <button onClick={adicionarItem}
+                  className="w-full bg-purple-500 hover:bg-purple-600 text-white py-2 rounded-lg font-semibold transition">
+                  + Adicionar
+                </button>
+              </div>
+              
+              <div className="border-t pt-3">
+                {itens.length === 0 ? (
+                  <p className="text-center text-gray-400 text-sm py-6">Nenhum item adicionado</p>
+                ) : (
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {itens.map(item => (
+                      <div key={item.id} className="bg-gray-50 p-3 rounded border flex items-center justify-between">
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-gray-800">{item.descricao}</p>
+                          <p className="text-xs text-gray-500">
+                            {categoriaTemIngredientes && item.quantidade + ' ' + item.unidade + ' × €' + item.precoUnitario.toFixed(2) + ' = '}
+                            €{item.precoTotal.toFixed(2)} (IVA: {item.iva}%)
+                          </p>
+                        </div>
+                        <button onClick={() => removerItem(item.id)}
+                          className="text-red-600 hover:bg-red-50 p-2 rounded">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              
+              {itens.length > 0 && (
+                <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
+                  <div className="flex justify-between text-sm mb-1">
+                    <span>Subtotal:</span>
+                    <span className="font-semibold">€{itens.reduce((s, i) => s + parseFloat(i.subtotal || 0), 0).toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm mb-1">
+                    <span>IVA Total:</span>
+                    <span className="font-semibold">€{itens.reduce((s, i) => s + (parseFloat(i.precoTotal || 0) - parseFloat(i.subtotal || 0)), 0).toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-base font-bold border-t border-blue-300 pt-2 mt-1">
+                    <span>Total c/ IVA:</span>
+                    <span className="text-blue-700">€{itens.reduce((s, i) => s + parseFloat(i.precoTotal || 0), 0).toFixed(2)}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+        
+        <div className="bg-gray-50 px-6 py-4 rounded-b-lg flex gap-3 sticky bottom-0">
+          <button onClick={onCancelar}
+            className="flex-1 px-6 py-3 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 font-semibold transition">
+            Cancelar
+          </button>
+          <button onClick={handleConfirmar}
+            className="flex-1 px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 font-semibold transition shadow-lg">
+            ✅ Confirmar e Guardar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/**
  * Modal para confirmar tipo de fatura detectado
  */
 const ModalConfirmacaoFatura = ({ dadosFatura, onConfirmar, onCancelar, fornecedores = [], showNotification, setFornecedores }) => {
@@ -4427,7 +4779,7 @@ const RestauranteGestor = () => {
     ultimaVerificacao: null
   });
   
-  const [novoProduto, setNovoProduto] = useState({ nome: '', precoVenda: '', iva: '6', categoria: 'cafes', receita: [], embalagens: [], porcoes: 1 });
+  const [novoProduto, setNovoProduto] = useState({ nome: '', precoVenda: '', iva: '6', categoria: 'cafes', receita: [], embalagens: [], porcoes: 1, modoConfeção: '' });
   const [editandoProduto, setEditandoProduto] = useState(false);
   const [produtoEditandoId, setProdutoEditandoId] = useState(null);
 
@@ -4447,6 +4799,8 @@ const RestauranteGestor = () => {
     formaPagamento: 'Dinheiro',
     observacoes: ''
   });
+
+  const [produtoFichaTecnica, setProdutoFichaTecnica] = useState('');
 
   const [deliveryApps, setDeliveryApps] = useState([
     { 
@@ -4475,6 +4829,7 @@ const RestauranteGestor = () => {
     }
   ]);
   const [editandoApp, setEditandoApp] = useState(null);
+  const [editandoModoConfeção, setEditandoModoConfeção] = useState({});
   const [novaApp, setNovaApp] = useState({ nome: '', comissao: '25' });
   const [embalagens, setEmbalagens] = useState([]);
   const [novaEmbalagem, setNovaEmbalagem] = useState({ nome: '', custoUnitario: '', categoria: 'copos' });
@@ -4502,6 +4857,7 @@ const RestauranteGestor = () => {
 
   const [modalConfirmacaoFatura, setModalConfirmacaoFatura] = useState({ mostrar: false, dados: null });
   const [modalDespesaSimples, setModalDespesaSimples] = useState({ mostrar: false, dados: null }); // 🆕 MODAL SIMPLES
+  const [modalFaturaManual, setModalFaturaManual] = useState(false);
   const [blacklist, setBlacklist] = useState([]);
   const [configuracoes, setConfiguracoes] = useState(carregarConfiguracoes());
   const [novoIngrediente, setNovoIngrediente] = useState({ nome: '', unidade: 'kg', custoUnitario: '', iva: '6', quantidade: '1', categoria: 'outros', precoTotal: '', quantidadeEmbalagem: '' });
@@ -8073,6 +8429,230 @@ const calcularIndiceDesperdicio = (comprasPeriodo, vendasPeriodo, produtos) => {
     return linhasProdutos;
   };
 
+  const exportarFichaTecnica = (produto) => {
+    console.log('=== EXPORTAR FICHA TÉCNICA ===');
+    console.log('Produto:', produto);
+    console.log('Receita do produto:', produto.receita);
+    console.log('Total de ingredientes disponíveis:', ingredientes.length);
+    
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 20;
+    let yPosition = margin;
+
+    // Cabeçalho
+    doc.setFillColor(139, 92, 246);
+    doc.rect(0, 0, pageWidth, 35, 'F');
+    
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(24);
+    doc.setFont(undefined, 'bold');
+    doc.text('FICHA TÉCNICA', pageWidth / 2, 20, { align: 'center' });
+    
+    yPosition = 45;
+
+    // Informações do Produto
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(18);
+    doc.setFont(undefined, 'bold');
+    doc.text(produto.nome, margin, yPosition);
+    
+    yPosition += 10;
+    doc.setFontSize(11);
+    doc.setFont(undefined, 'normal');
+    doc.setTextColor(100, 100, 100);
+    doc.text(`Categoria: ${produto.categoria}`, margin, yPosition);
+    
+    yPosition += 8;
+    doc.text(`Data: ${new Date().toLocaleDateString('pt-PT')}`, margin, yPosition);
+    
+    yPosition += 8;
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(0, 0, 0);
+    doc.text(`Preço de Venda: €${(produto.precoVenda || 0).toFixed(2)}`, margin, yPosition);
+    
+    yPosition += 15;
+
+    // Linha divisória
+    doc.setDrawColor(200, 200, 200);
+    doc.line(margin, yPosition, pageWidth - margin, yPosition);
+    yPosition += 10;
+
+    // Secção: Receita / Ingredientes
+    doc.setFontSize(14);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(139, 92, 246);
+    doc.text('RECEITA - INGREDIENTES', margin, yPosition);
+    yPosition += 8;
+
+    // Cabeçalho da tabela
+    doc.setFillColor(240, 240, 250);
+    doc.rect(margin, yPosition, pageWidth - 2 * margin, 8, 'F');
+    
+    doc.setFontSize(10);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(0, 0, 0);
+    doc.text('Ingrediente', margin + 2, yPosition + 6);
+    doc.text('Quantidade', margin + 80, yPosition + 6);
+    doc.text('Custo Unit.', margin + 120, yPosition + 6);
+    doc.text('Custo Total', margin + 155, yPosition + 6);
+    
+    yPosition += 10;
+
+    // Linhas da tabela
+    let custoTotalReceita = 0;
+    doc.setFont(undefined, 'normal');
+    doc.setFontSize(9);
+
+    if (produto.receita && produto.receita.length > 0) {
+      produto.receita.forEach((item, index) => {
+        const ingrediente = ingredientes.find(ing => ing.id == item.ingredienteId);
+        if (!ingrediente) {
+          console.log('❌ Ingrediente não encontrado:', item.ingredienteId);
+          return;
+        }
+
+        // Usar a mesma lógica do recalcularCustosProdutos
+        let quantidade = parseFloat(item.quantidade) || 0;
+        const custoUnitario = parseFloat(ingrediente.custoUnitario) || 0;
+        const unidadeReceita = item.unidade || ingrediente.unidade;
+        const unidadeBase = ingrediente.unidade;
+        
+        // Aplicar conversões de unidade
+        if (unidadeBase === 'kg' && unidadeReceita === 'g') quantidade = quantidade / 1000;
+        if (unidadeBase === 'L' && unidadeReceita === 'ml') quantidade = quantidade / 1000;
+        if (unidadeBase === 'g' && unidadeReceita === 'kg') quantidade = quantidade * 1000;
+        if (unidadeBase === 'ml' && unidadeReceita === 'L') quantidade = quantidade * 1000;
+        
+        const custoTotal = quantidade * custoUnitario;
+        
+        console.log(`📊 ${ingrediente.nome}:`, {
+          'Custo Unitário': `€${custoUnitario.toFixed(3)}/${unidadeBase}`,
+          'Quantidade Receita': `${parseFloat(item.quantidade)} ${unidadeReceita}`,
+          'Quantidade Convertida': `${quantidade.toFixed(3)} ${unidadeBase}`,
+          'Custo Total': `€${custoTotal.toFixed(2)}`
+        });
+        
+        custoTotalReceita += custoTotal;
+
+        if (index % 2 === 0) {
+          doc.setFillColor(250, 250, 250);
+          doc.rect(margin, yPosition - 4, pageWidth - 2 * margin, 7, 'F');
+        }
+
+        // Mostrar valores no PDF (quantidade original da receita)
+        doc.text(ingrediente.nome, margin + 2, yPosition);
+        doc.text(`${parseFloat(item.quantidade).toFixed(2)} ${unidadeReceita}`, margin + 80, yPosition);
+        doc.text(`€${custoUnitario.toFixed(3)}/${unidadeBase}`, margin + 120, yPosition);
+        doc.text(`€${custoTotal.toFixed(2)}`, margin + 155, yPosition);
+        
+        yPosition += 7;
+
+        if (yPosition > pageHeight - 40) {
+          doc.addPage();
+          yPosition = margin;
+        }
+      });
+    }
+
+    // Total da receita
+    yPosition += 3;
+    doc.setFont(undefined, 'bold');
+    doc.setFontSize(11);
+    doc.setFillColor(139, 92, 246);
+    doc.rect(margin, yPosition - 4, pageWidth - 2 * margin, 8, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.text('CUSTO TOTAL DA RECEITA:', margin + 2, yPosition);
+    doc.text(`€${custoTotalReceita.toFixed(2)}`, margin + 155, yPosition);
+    
+    yPosition += 15;
+
+    // Secção: Preços e Margem
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(14);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(139, 92, 246);
+    doc.text('ANÁLISE DE CUSTOS', margin, yPosition);
+    yPosition += 10;
+
+    doc.setFontSize(11);
+    doc.setFont(undefined, 'normal');
+    doc.setTextColor(0, 0, 0);
+    
+    const precoVenda = parseFloat(produto.precoVenda) || 0;
+    const custoProducao = isNaN(custoTotalReceita) ? 0 : custoTotalReceita;
+    const lucro = precoVenda - custoProducao;
+    const margem = (precoVenda > 0 && custoProducao > 0) ? ((lucro / precoVenda) * 100) : 0;
+
+    doc.text(`Custo de Produção: €${custoProducao.toFixed(2)}`, margin, yPosition);
+    yPosition += 7;
+    doc.text(`Preço de Venda: €${precoVenda.toFixed(2)}`, margin, yPosition);
+    yPosition += 7;
+    doc.text(`Lucro por Unidade: €${lucro.toFixed(2)}`, margin, yPosition);
+    yPosition += 7;
+    
+    doc.setFont(undefined, 'bold');
+    const corMargem = margem >= 50 ? [34, 197, 94] : margem >= 30 ? [250, 204, 21] : [239, 68, 68];
+    doc.setTextColor(...corMargem);
+    doc.text(`Margem de Lucro: ${margem.toFixed(1)}%`, margin, yPosition);
+    
+    yPosition += 15;
+
+    if (yPosition > pageHeight - 80) {
+      doc.addPage();
+      yPosition = margin;
+    }
+
+    // Secção: Processo de Preparação (Espaço para preencher manualmente)
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(14);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(139, 92, 246);
+    doc.text('PROCESSO DE PREPARAÇÃO', margin, yPosition);
+    yPosition += 8;
+
+    doc.setFontSize(9);
+    doc.setFont(undefined, 'italic');
+    doc.setTextColor(100, 100, 100);
+    doc.text('(Preencher manualmente)', margin, yPosition);
+    yPosition += 5;
+
+    // Criar linhas numeradas para escrever o processo manualmente
+    doc.setDrawColor(220, 220, 220);
+    const linhasProcesso = 15;
+    const espacoEntreLinhas = 8;
+
+    for (let i = 0; i < linhasProcesso; i++) {
+      if (yPosition > pageHeight - 30) {
+        doc.addPage();
+        yPosition = margin;
+      }
+      
+      // Desenhar número do passo
+      doc.setFontSize(9);
+      doc.setFont(undefined, 'bold');
+      doc.setTextColor(139, 92, 246);
+      doc.text(`${i + 1}.`, margin, yPosition - 1);
+      
+      // Desenhar linha para escrever
+      doc.setDrawColor(220, 220, 220);
+      doc.line(margin + 10, yPosition, pageWidth - margin, yPosition);
+      yPosition += espacoEntreLinhas;
+    }
+
+    // Rodapé
+    doc.setFontSize(8);
+    doc.setTextColor(150, 150, 150);
+    doc.setFont(undefined, 'italic');
+    doc.text('Gerado por Munchi Manager', pageWidth / 2, pageHeight - 10, { align: 'center' });
+
+    const nomeArquivo = `ficha_tecnica_${produto.nome.replace(/\s+/g, '_')}_${new Date().toLocaleDateString('pt-PT').replace(/\//g, '-')}.pdf`;
+    doc.save(nomeArquivo);
+  };
+
   const exportarDados = () => {
 
     
@@ -10825,7 +11405,7 @@ const calcularIndiceDesperdicio = (comprasPeriodo, vendasPeriodo, produtos) => {
       return;
     }
     setProdutos([...produtos, { id: Date.now(), ...novoProduto, precoVenda: parseFloat(novoProduto.precoVenda), iva: parseFloat(novoProduto.iva) }]);
-    setNovoProduto({ nome: '', precoVenda: '', iva: '6', categoria: 'cafes', receita: [], embalagens: [], porcoes: 1 });
+    setNovoProduto({ nome: '', precoVenda: '', iva: '6', categoria: 'cafes', receita: [], embalagens: [], porcoes: 1, modoConfeção: '' });
     setSearchIngrediente('');
     setShowIngredienteSuggestions(false);
     showNotification('Produto adicionado!', 'success');
@@ -10839,7 +11419,8 @@ const calcularIndiceDesperdicio = (comprasPeriodo, vendasPeriodo, produtos) => {
       categoria: produto.categoria || 'cafes',
       receita: produto.receita || [],
       embalagens: produto.embalagens || [],
-      porcoes: produto.porcoes || 1
+      porcoes: produto.porcoes || 1,
+      modoConfeção: produto.modoConfeção || ''
     });
     setEditandoProduto(true);
     setProdutoEditandoId(produto.id);
@@ -10872,11 +11453,12 @@ const calcularIndiceDesperdicio = (comprasPeriodo, vendasPeriodo, produtos) => {
         categoria: novoProduto.categoria || 'cafes',
         receita: novoProduto.receita,
         embalagens: novoProduto.embalagens || [],
-        porcoes: novoProduto.porcoes || 1
+        porcoes: novoProduto.porcoes || 1,
+        modoConfeção: novoProduto.modoConfeção || ''
       } : p
     ));
     
-    setNovoProduto({ nome: '', precoVenda: '', iva: '6', categoria: 'cafes', receita: [], embalagens: [], porcoes: 1 });
+    setNovoProduto({ nome: '', precoVenda: '', iva: '6', categoria: 'cafes', receita: [], embalagens: [], porcoes: 1, modoConfeção: '' });
     setSearchIngrediente('');
     setShowIngredienteSuggestions(false);
     setEditandoProduto(false);
@@ -12987,10 +13569,13 @@ const calcularIndiceDesperdicio = (comprasPeriodo, vendasPeriodo, produtos) => {
         `timeMin=${dataInicio.toISOString()}&` +
         `timeMax=${dataFim.toISOString()}&` +
         `singleEvents=true&` +
-        `orderBy=startTime`,
+        `orderBy=startTime&` +
+        `showDeleted=false&` +
+        `_cb=${Date.now()}`,
         {
           headers: {
-            'Authorization': `Bearer ${driveAccessToken}`
+            'Authorization': `Bearer ${driveAccessToken}`,
+            'Cache-Control': 'no-cache'
           }
         }
       );
@@ -13001,7 +13586,12 @@ const calcularIndiceDesperdicio = (comprasPeriodo, vendasPeriodo, produtos) => {
       
       const data = await response.json();
 
-      return data.items || [];
+      // Filtrar eventos cancelados/removidos
+      const eventosAtivos = (data.items || []).filter(ev => 
+        ev.status !== 'cancelled' && ev.summary
+      );
+      console.log(`📅 Calendar: ${data.items?.length || 0} eventos total, ${eventosAtivos.length} ativos`);
+      return eventosAtivos;
     } catch (error) {
       console.error('❌ ERRO ao ler calendar:', error);
       console.error('❌ Mensagem:', error.message);
@@ -13105,12 +13695,20 @@ const calcularIndiceDesperdicio = (comprasPeriodo, vendasPeriodo, produtos) => {
         }
       }
 
-      // Agora sim, criar o set apenas com eventos que ainda existem E já foram registados
+      // 🔧 CORREÇÃO: Re-ler da DB DEPOIS da limpeza para ter dados frescos
+      const bolosRegistadosAtualizados = await db.bolosExternos.toArray();
+      
+      // 🔧 Sincronizar estado React com a DB limpa
+      setBolosExternos(bolosRegistadosAtualizados);
+
+      // Criar set apenas com eventos que ainda existem E já foram registados
       const eventosJaRegistados = new Set(
-        bolosRegistados
-          .filter(b => b.eventoCalendarId && eventosAtuaisNoCalendar.has(b.eventoCalendarId))
+        bolosRegistadosAtualizados
+          .filter(b => b.eventoCalendarId)
           .map(b => b.eventoCalendarId)
       );
+
+      console.log(`📋 Eventos no calendar: ${eventos.length}, Já registados na DB: ${eventosJaRegistados.size}`);
 
       const bolosParsed = eventos
         .map(ev => {
@@ -13130,11 +13728,14 @@ const calcularIndiceDesperdicio = (comprasPeriodo, vendasPeriodo, produtos) => {
         })
         .map(b => ({
           ...b,
-          processado: eventosJaRegistados.has(b.eventoId)
+          processado: false
         }));
 
+      console.log(`🎂 Bolos pendentes encontrados: ${bolosParsed.length}`);
+
+      // 🔧 CORREÇÃO: Substituir COMPLETAMENTE a lista (não manter estado antigo)
       setBolosAgendados(bolosParsed);
-      setCalendarConfig({...calendarConfig, ultimaVerificacao: new Date()});
+      setCalendarConfig(prev => ({...prev, ultimaVerificacao: new Date()}));
 
       if (bolosParsed.length > 0 && !mostrarNotificacaoBolo) {
         const pendente = bolosParsed.find(b => !b.processado);
@@ -17145,14 +17746,14 @@ const calcularIndiceDesperdicio = (comprasPeriodo, vendasPeriodo, produtos) => {
                                                     </div>
                                                     
                                                     {datasOrdenadas.length > 0 ? (
-                                                      <div style={{position: 'relative', height: '140px', width: '100%', paddingBottom: '20px'}}>
+                                                      <div style={{position: 'relative', height: '140px', width: '100%', paddingBottom: '20px', paddingLeft: '40px'}}>
                                                         {/* SVG para a linha e área (com aspecto distorcido) */}
                                                         <svg 
                                                           width="100%" 
                                                           height="140" 
                                                           viewBox="0 0 100 100" 
                                                           preserveAspectRatio="none"
-                                                          style={{display: 'block', position: 'absolute', top: 0, left: 0, paddingLeft: '5px', paddingRight: '5px', boxSizing: 'border-box'}}
+                                                          style={{display: 'block', position: 'absolute', top: 0, left: '40px', paddingLeft: '5px', paddingRight: '5px', boxSizing: 'border-box', width: 'calc(100% - 40px)'}}
                                                         >
                                                           <defs>
                                                             {/* Gradient FORTE para a linha (azul brilhante → rosa/roxo) */}
@@ -17216,7 +17817,7 @@ const calcularIndiceDesperdicio = (comprasPeriodo, vendasPeriodo, produtos) => {
                                                         <svg 
                                                           width="100%" 
                                                           height="140"
-                                                          style={{display: 'block', position: 'absolute', top: 0, left: 0, pointerEvents: 'none', paddingLeft: '5px', paddingRight: '5px', boxSizing: 'border-box'}}
+                                                          style={{display: 'block', position: 'absolute', top: 0, left: '40px', pointerEvents: 'none', paddingLeft: '5px', paddingRight: '5px', boxSizing: 'border-box', width: 'calc(100% - 40px)'}}
                                                         >
                                                           {quantidades.map((qtd, i) => {
 
@@ -17244,7 +17845,7 @@ const calcularIndiceDesperdicio = (comprasPeriodo, vendasPeriodo, produtos) => {
                                                         <div style={{
                                                           position: 'absolute',
                                                           bottom: '0px',
-                                                          left: 0,
+                                                          left: '40px',
                                                           right: 0,
                                                           height: '20px',
                                                           display: 'flex',
@@ -17280,15 +17881,17 @@ const calcularIndiceDesperdicio = (comprasPeriodo, vendasPeriodo, produtos) => {
                                                         {/* Escala Y (quantidades) */}
                                                         <div style={{
                                                           position: 'absolute',
-                                                          left: '-35px',
+                                                          left: '0px',
                                                           top: 0,
                                                           bottom: '20px',
+                                                          width: '35px',
                                                           display: 'flex',
                                                           flexDirection: 'column',
                                                           justifyContent: 'space-between',
                                                           fontSize: '10px',
                                                           color: '#666',
-                                                          textAlign: 'right'
+                                                          textAlign: 'right',
+                                                          paddingRight: '5px'
                                                         }}>
                                                           <span>{Math.round(maxQtd)}</span>
                                                           <span>{Math.round(maxQtd / 2)}</span>
@@ -19974,6 +20577,22 @@ const calcularIndiceDesperdicio = (comprasPeriodo, vendasPeriodo, produtos) => {
                       </div>
                     )}
                     
+                    {/* Campo Modo de Confecção */}
+                    {(editandoProduto || novoProduto.nome) && (
+                      <div className="bg-white border rounded-lg p-3">
+                        <h4 className="font-semibold text-xs text-gray-700 mb-2 flex items-center gap-1">
+                          📝 Modo de Confecção (Passos da Receita):
+                        </h4>
+                        <textarea
+                          placeholder="Ex: 1. Pré-aquecer o forno a 180°C&#10;2. Misturar os ingredientes secos&#10;3. Adicionar os ingredientes líquidos..."
+                          value={novoProduto.modoConfeção || ''}
+                          onChange={(e) => setNovoProduto({ ...novoProduto, modoConfeção: e.target.value })}
+                          rows="4"
+                          className="w-full px-3 py-2 border rounded text-sm focus:border-green-500 focus:ring-1 focus:ring-green-200 resize-none"
+                        />
+                      </div>
+                    )}
+                    
                     {editandoProduto ? (
                       <div className="flex gap-2">
                         <button onClick={atualizarProduto}
@@ -20262,6 +20881,18 @@ const calcularIndiceDesperdicio = (comprasPeriodo, vendasPeriodo, produtos) => {
                               </div>
                             </div>
                           )}
+                          
+                          {/* Modo de Confecção */}
+                          {p.modoConfeção && p.modoConfeção.trim() && (
+                            <div className="mt-2 pt-2 border-t">
+                              <p className="text-xs font-bold text-gray-700 mb-1 flex items-center gap-1">
+                                📝 Modo de Confecção:
+                              </p>
+                              <div className="bg-gray-50 p-2 rounded text-[10px] text-gray-700 whitespace-pre-line">
+                                {p.modoConfeção}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
                     );
@@ -20269,7 +20900,7 @@ const calcularIndiceDesperdicio = (comprasPeriodo, vendasPeriodo, produtos) => {
                 </div>
 
               </div>
-            )}
+            )}}
 
             {gestaoSubTab === 'faturas' && (
               <div className="space-y-6">
@@ -20442,563 +21073,100 @@ const calcularIndiceDesperdicio = (comprasPeriodo, vendasPeriodo, produtos) => {
                   </div>
                 </div>
 
-                {/* Main Content: 3 Columns - HORIZONTAL para telemóvel */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Botões de Importação */}
+                <div className="bg-white rounded-xl shadow-lg p-5">
+                  <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
+                    <span className="text-xl">📸</span> Importação
+                  </h3>
                   
-                  {/* 1ª COLUNA (MOBILE): Importação OCR - 3ª no desktop */}
-                  <div className="col-span-1 lg:order-3">
-                    <div className="bg-white rounded-xl shadow-lg p-5">
-                      <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
-                        <span className="text-xl">📸</span> Importação
-                      </h3>
-                      
-                      <div className="space-y-3">
-                        {/* OCR Local */}
-                        <input
-                          type="file"
-                          accept=".pdf,image/*"
-                          onChange={handleLerPDFAutomatico}
-                          className="hidden"
-                          id="ocr-compras-local"
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    {/* OCR Local */}
+                    <div>
+                      <input
+                        type="file"
+                        accept=".pdf,image/*"
+                        onChange={handleLerPDFAutomatico}
+                        className="hidden"
+                        id="ocr-compras-local"
+                        disabled={processandoOCR}
+                      />
+                      <label
+                        htmlFor="ocr-compras-local"
+                        className={`block w-full ${
+                          processandoOCR 
+                            ? 'bg-gray-400 cursor-not-allowed' 
+                            : 'bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 cursor-pointer'
+                        } text-white font-semibold py-4 rounded-lg transition shadow-md text-center`}
+                      >
+                        <div className="flex flex-col items-center gap-1">
+                          <span className="text-xl">⚡</span>
+                          <span>OCR Local</span>
+                          <span className="text-xs opacity-80">Rápido</span>
+                        </div>
+                      </label>
+                    </div>
+                    
+                    {/* Google OCR */}
+                    <div>
+                      {driveAccessToken ? (
+                        <button 
+                          onClick={handleImportarDriveComOCR}
                           disabled={processandoOCR}
-                        />
-                        <label
-                          htmlFor="ocr-compras-local"
-                          className={`block w-full ${
+                          className={`w-full ${
                             processandoOCR 
                               ? 'bg-gray-400 cursor-not-allowed' 
-                              : 'bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 cursor-pointer'
-                          } text-white font-semibold py-4 rounded-lg transition shadow-md text-center`}
+                              : 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700'
+                          } text-white font-semibold py-4 rounded-lg transition shadow-md flex flex-col items-center gap-1`}
                         >
-                          <div className="flex flex-col items-center gap-1">
-                            <span className="text-xl">⚡</span>
-                            <span>OCR Local</span>
-                            <span className="text-xs opacity-80">Rápido</span>
-                          </div>
-                        </label>
-                        
-                        {/* Google OCR */}
-                        {driveAccessToken ? (
-                          <button 
-                            onClick={handleImportarDriveComOCR}
-                            disabled={processandoOCR}
-                            className={`w-full ${
-                              processandoOCR 
-                                ? 'bg-gray-400 cursor-not-allowed' 
-                                : 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700'
-                            } text-white font-semibold py-4 rounded-lg transition shadow-md flex flex-col items-center gap-1`}
-                          >
-                            <span className="text-xl">🌐</span>
-                            <span>Google OCR</span>
-                            <span className="text-xs opacity-80">Melhor qualidade</span>
-                          </button>
-                        ) : (
-                          <button 
-                            onClick={() => {
-                              setActiveTab('definicoes');
-                              setBackupExpanded(true);
-                              setTimeout(() => {
-                                const driveSection = document.getElementById('google-drive-section');
-                                if (driveSection) {
-                                  driveSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                                }
-                              }, 100);
-                            }}
-                            className="w-full bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700 text-white font-semibold py-4 rounded-lg transition shadow-md flex flex-col items-center gap-1"
-                          >
-                            <span className="text-xl">🔌</span>
-                            <span>Conectar Drive</span>
-                            <span className="text-xs opacity-80">Para Google OCR</span>
-                          </button>
-                        )}
-                      </div>
-                      
-                      {processandoOCR && (
-                        <div className="mt-4 pt-4 border-t">
-                          <div className="flex items-center justify-center gap-2 text-sm text-gray-600">
-                            <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
-                            </svg>
-                            <span>{progressoOCR || 'Processando...'}</span>
-                          </div>
-                        </div>
+                          <span className="text-xl">🌐</span>
+                          <span>Google OCR</span>
+                          <span className="text-xs opacity-80">Melhor qualidade</span>
+                        </button>
+                      ) : (
+                        <button 
+                          onClick={() => {
+                            setActiveTab('definicoes');
+                            setBackupExpanded(true);
+                            setTimeout(() => {
+                              const driveSection = document.getElementById('google-drive-section');
+                              if (driveSection) {
+                                driveSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                              }
+                            }, 100);
+                          }}
+                          className="w-full bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700 text-white font-semibold py-4 rounded-lg transition shadow-md flex flex-col items-center gap-1"
+                        >
+                          <span className="text-xl">🔌</span>
+                          <span>Conectar Drive</span>
+                          <span className="text-xs opacity-80">Para Google OCR</span>
+                        </button>
                       )}
-                      
-                      <div className="mt-4 pt-4 border-t">
-                        <p className="text-xs text-gray-500 text-center">ou preencha manualmente abaixo</p>
-                      </div>
                     </div>
-                  </div>
-
-                  {/* 2ª COLUNA (MOBILE): Dados da Fatura - 2ª no desktop */}
-                  <div className="col-span-1 lg:order-2">
-                    <div className="bg-white rounded-xl shadow-lg p-5">
-                      <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
-                        <span className="text-xl">📋</span> Dados da Fatura
-                      </h3>
-                      
-                      <div className="space-y-3">
-                        <div>
-                          <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">
-                            Fornecedor <span className="text-red-500">*</span>
-                          </label>
-                          <select 
-                            value={novaFatura.fornecedorId}
-                            onChange={(e) => {
-                              setNovaFatura({...novaFatura, fornecedorId: e.target.value});
-                            }}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 text-sm"
-                          >
-                            <option value="">Selecionar fornecedor...</option>
-                            {fornecedores.map(f => (
-                              <option key={f.id || f} value={f.id || f}>
-                                {f.nome || f} {f.nif ? `(${f.nif})` : ''}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">
-                              Nº Fatura <span className="text-red-500">*</span>
-                            </label>
-                            <input 
-                              type="text" 
-                              placeholder="FT 2025/001"
-                              value={novaFatura.numero}
-                              onChange={(e) => setNovaFatura({...novaFatura, numero: e.target.value})}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 text-sm"
-                            />
-                          </div>
-                          
-                          <div>
-                            <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">
-                              Data <span className="text-red-500">*</span>
-                            </label>
-                            <input 
-                              type="date" 
-                              value={novaFatura.data}
-                              onChange={(e) => setNovaFatura({...novaFatura, data: e.target.value})}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 text-sm"
-                            />
-                          </div>
-                        </div>
-
-                        <div>
-                          <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">
-                            Tipo Documento
-                          </label>
-                          <select 
-                            value={novaFatura.tipoDocumento}
-                            onChange={(e) => setNovaFatura({...novaFatura, tipoDocumento: e.target.value})}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 text-sm"
-                          >
-                            <option value="FT">FT - Fatura</option>
-                            <option value="FS">FS - Fatura Simplificada</option>
-                            <option value="FR">FR - Fatura-Recibo</option>
-                            <option value="NC">NC - Nota de Crédito</option>
-                            <option value="ND">ND - Nota de Débito</option>
-                            <option value="GR">GR - Guia de Remessa</option>
-                          </select>
-                        </div>
-
-                        <div>
-                          <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">
-                            Observações
-                          </label>
-                          <textarea 
-                            placeholder="Notas adicionais..."
-                            value={novaFatura.observacoes}
-                            onChange={(e) => setNovaFatura({...novaFatura, observacoes: e.target.value})}
-                            rows="3"
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 text-sm resize-none"
-                          />
-                        </div>
-                      </div>
+                    
+                    {/* Inserir Manual */}
+                    <div>
+                      <button 
+                        onClick={() => setModalFaturaManual(true)}
+                        className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-semibold py-4 rounded-lg transition shadow-md flex flex-col items-center gap-1"
+                      >
+                        <span className="text-xl">✏️</span>
+                        <span>Inserir Manual</span>
+                        <span className="text-xs opacity-80">Preencher dados</span>
+                      </button>
                     </div>
                   </div>
                   
-                  {/* 3ª COLUNA (MOBILE): Items + Resumo - 1ª no desktop */}
-                  <div className="col-span-1 lg:order-1 space-y-4">
-                    {/* Items */}
-                    <div className="bg-white rounded-xl shadow-lg p-5">
-                      <div className="flex items-center justify-between mb-4">
-                        <h3 className="font-bold text-gray-800 flex items-center gap-2">
-                          <span className="text-xl">📦</span> Items
-                        </h3>
-                      </div>
-                      
-                      {/* Add Item Form */}
-                      <div className="space-y-2 mb-3 bg-gray-50 rounded-lg p-3 border border-gray-200">
-                        <div className="relative">
-                          <input 
-                            type="text" 
-                            placeholder="Ingrediente..."
-                            value={searchIngredienteCompra}
-                            onChange={(e) => {
-                              setSearchIngredienteCompra(e.target.value);
-                              setShowDropdownIngredienteCompra(true);
-                            }}
-                            onFocus={() => setShowDropdownIngredienteCompra(true)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-sm"
-                          />
-                          
-                          {/* Dropdown Ingredientes */}
-                          {showDropdownIngredienteCompra && (
-                            <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                              {ingredientes
-                                .filter(ing => !searchIngredienteCompra || normalizeText(ing.nome).includes(normalizeText(searchIngredienteCompra)))
-                                .map(ing => (
-                                  <div
-                                    key={ing.id}
-                                    onClick={() => {
-                                      setItemFatura({
-                                        ...itemFatura,
-                                        ingrediente: ing.nome,
-                                        ingredienteId: ing.id,
-                                        preco: ing.custoUnitario.toString()
-                                      });
-                                      setSearchIngredienteCompra(ing.nome);
-                                      setShowDropdownIngredienteCompra(false);
-                                    }}
-                                    className="px-3 py-2 hover:bg-green-50 cursor-pointer border-b border-gray-100 last:border-b-0"
-                                  >
-                                    <div className="font-medium text-sm">{ing.nome}</div>
-                                    <div className="text-xs text-gray-600">
-                                      €{(ing.custoUnitario || 0).toFixed(2)}/{ing.unidade}
-                                    </div>
-                                  </div>
-                                ))}
-                              
-                              {ingredientes.filter(ing => !searchIngredienteCompra || normalizeText(ing.nome).includes(normalizeText(searchIngredienteCompra))).length === 0 && (
-                                <div className="px-3 py-4 text-center text-gray-500 text-sm">
-                                  Nenhum ingrediente encontrado
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                        
-                        <div className="grid grid-cols-2 gap-2">
-                          <input 
-                            type="number" 
-                            placeholder="Qtd."
-                            value={itemFatura.quantidade}
-                            onChange={(e) => setItemFatura({...itemFatura, quantidade: e.target.value})}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-sm"
-                          />
-                          <input 
-                            type="number" 
-                            placeholder="Preço €"
-                            value={itemFatura.preco}
-                            onChange={(e) => setItemFatura({...itemFatura, preco: e.target.value})}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-sm"
-                          />
-                        </div>
-                        
-                        <button 
-                          onClick={() => {
-                            if (!itemFatura.ingrediente || !itemFatura.quantidade || !itemFatura.preco) {
-                              alert('⚠️ Preencha todos os campos!');
-                              return;
-                            }
-                            
-                            const novoItem = {
-                              id: Date.now(),
-                              ...itemFatura
-                            };
-                            
-                            setNovaFatura({
-                              ...novaFatura,
-                              items: [...novaFatura.itens, novoItem]
-                            });
-                            
-                            setItemFatura({
-                              ingrediente: '',
-                              quantidade: '',
-                              preco: '',
-                              ingredienteId: ''
-                            });
-                            setSearchIngredienteCompra('');
-                          }}
-                          className="w-full bg-green-500 hover:bg-green-600 text-white py-2 rounded-lg font-semibold text-sm transition"
-                        >
-                          + Adicionar
-                        </button>
-                      </div>
-
-                      {/* Items List */}
-                      <div className="border-t pt-3">
-                        {novaFatura.itens.length === 0 ? (
-                          <p className="text-center text-gray-400 text-xs py-6">
-                            Nenhum item adicionado
-                          </p>
-                        ) : (
-                          <div className="space-y-2">
-                            {novaFatura.itens.map(item => (
-                              <div key={item.id} className={`bg-gray-50 p-2 rounded border ${editandoItemId === item.id ? 'border-blue-400 bg-blue-50' : ''}`}>
-                                {editandoItemId === item.id ? (
-
-                                  <div className="space-y-2">
-                                    {/* Searchbox para ingrediente com dropdown - APENAS PARA COMPRAS */}
-                                    <div className="relative">
-                                      <input 
-                                        type="text"
-                                        value={itemEditTemp.descricao || ''}
-                                        onChange={(e) => {
-                                          setItemEditTemp({...itemEditTemp, descricao: e.target.value});
-                                          if (novaFatura.categoria === 'compras') {
-                                            setShowDropdownEditItem(true);
-                                          }
-                                        }}
-                                        onFocus={() => {
-                                          if (novaFatura.categoria === 'compras') {
-                                            setShowDropdownEditItem(true);
-                                          }
-                                        }}
-                                        onBlur={() => {
-
-                                          setTimeout(() => setShowDropdownEditItem(false), 200);
-                                        }}
-                                        className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
-                                        placeholder={novaFatura.categoria === 'compras' ? '🔍 Procurar ingrediente...' : 'Descrição'}
-                                      />
-                                      
-                                      {/* Dropdown Ingredientes para edição - SÓ APARECE PARA COMPRAS */}
-                                      {novaFatura.categoria === 'compras' && showDropdownEditItem && itemEditTemp.descricao && (
-                                        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                                          {ingredientes
-                                            .filter(ing => normalizeText(ing.nome).includes(normalizeText(itemEditTemp.descricao)))
-                                            .map(ing => (
-                                              <div
-                                                key={ing.id}
-                                                onClick={() => {
-                                                  setItemEditTemp({
-                                                    ...itemEditTemp, 
-                                                    descricao: ing.nome,
-                                                    ingredienteId: ing.id
-                                                  });
-                                                  setShowDropdownEditItem(false);
-                                                }}
-                                                className="px-3 py-2 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0"
-                                              >
-                                                <div className="font-medium text-sm">{ing.nome}</div>
-                                                <div className="text-xs text-gray-600">
-                                                  €{(ing.custoUnitario || 0).toFixed(2)}/{ing.unidade}
-                                                </div>
-                                              </div>
-                                            ))}
-                                          
-                                          {ingredientes.filter(ing => normalizeText(ing.nome).includes(normalizeText(itemEditTemp.descricao))).length === 0 && (
-                                            <div className="px-3 py-4 text-center text-gray-500 text-sm">
-                                              Nenhum ingrediente encontrado
-                                            </div>
-                                          )}
-                                        </div>
-                                      )}
-                                    </div>
-                                    
-                                    {/* Mostrar quantidade e unidade APENAS para compras */}
-                                    {novaFatura.categoria === 'compras' && (
-                                      <div className="grid grid-cols-2 gap-2">
-                                        <input 
-                                          type="number"
-                                          step="0.01"
-                                          value={itemEditTemp.quantidade || ''}
-                                          onChange={(e) => {
-                                            const qtd = parseFloat(e.target.value) || 0;
-                                            const precoTotal = parseFloat(itemEditTemp.precoTotal) || 0;
-                                            setItemEditTemp({
-                                              ...itemEditTemp, 
-                                              quantidade: e.target.value,
-                                              precoUnitario: qtd > 0 ? (precoTotal / qtd).toFixed(4) : '0' // Recalcular preço unitário
-                                            });
-                                          }}
-                                          className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
-                                          placeholder="Quantidade"
-                                        />
-                                        <select
-                                          value={itemEditTemp.unidade || 'kg'}
-                                          onChange={(e) => setItemEditTemp({...itemEditTemp, unidade: e.target.value})}
-                                          className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
-                                        >
-                                          <option value="kg">kg</option>
-                                          <option value="g">g</option>
-                                          <option value="L">L</option>
-                                          <option value="ml">ml</option>
-                                          <option value="un">un</option>
-                                          <option value="cx">cx</option>
-                                          <option value="pc">pc</option>
-                                        </select>
-                                      </div>
-                                    )}
-                                    
-                                    {/* Mostrar apenas preço total para compras (preço unitário calculado automaticamente em background) */}
-                                    {novaFatura.categoria === 'compras' ? (
-                                      <input 
-                                        type="number"
-                                        step="0.01"
-                                        value={itemEditTemp.precoTotal || ''}
-                                        onChange={(e) => {
-                                          const precoTotal = parseFloat(e.target.value) || 0;
-                                          const qtd = parseFloat(itemEditTemp.quantidade) || 1;
-                                          setItemEditTemp({
-                                            ...itemEditTemp, 
-                                            precoTotal: e.target.value,
-                                            precoUnitario: qtd > 0 ? (precoTotal / qtd).toFixed(4) : '0' // Calculado em background
-                                          });
-                                        }}
-                                        className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
-                                        placeholder="Preço Total (com IVA) €"
-                                      />
-                                    ) : (
-                                      <input 
-                                        type="number"
-                                        step="0.01"
-                                        value={itemEditTemp.precoTotal || ''}
-                                        onChange={(e) => setItemEditTemp({...itemEditTemp, precoTotal: e.target.value})}
-                                        className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
-                                        placeholder="Valor Total (com IVA) €"
-                                      />
-                                    )}
-                                    
-                                    <select
-                                      value={itemEditTemp.iva || '13'}
-                                      onChange={(e) => setItemEditTemp({...itemEditTemp, iva: e.target.value})}
-                                      className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
-                                    >
-                                      <option value="6">IVA 6%</option>
-                                      <option value="13">IVA 13%</option>
-                                      <option value="23">IVA 23%</option>
-                                    </select>
-                                    
-                                    <div className="flex gap-2">
-                                      <button
-                                        onClick={() => {
-
-                                          const quantidade = novaFatura.categoria === 'compras' ? (parseFloat(itemEditTemp.quantidade) || 0) : 1;
-                                          const precoUnitario = novaFatura.categoria === 'compras' ? (parseFloat(itemEditTemp.precoUnitario) || 0) : 0;
-                                          const precoTotal = parseFloat(itemEditTemp.precoTotal) || 0;
-                                          const iva = parseFloat(itemEditTemp.iva) || 13;
-
-                                          const subtotal = precoTotal / (1 + iva / 100);
-                                          
-                                          setNovaFatura({
-                                            ...novaFatura,
-                                            itens: novaFatura.itens.map(i => 
-                                              i.id === item.id ? {
-                                                ...i,
-                                                descricao: itemEditTemp.descricao,
-                                                ingredienteNome: itemEditTemp.descricao,
-                                                quantidade: quantidade,
-                                                unidade: novaFatura.categoria === 'compras' ? itemEditTemp.unidade : '',
-                                                precoUnitario: precoUnitario,
-                                                precoTotal: precoTotal,
-                                                subtotal: subtotal, // ✅ Calculado automaticamente
-                                                iva: iva
-                                              } : i
-                                            )
-                                          });
-                                          setEditandoItemId(null);
-                                          setItemEditTemp(null);
-                                          setShowDropdownEditItem(false); // Fechar dropdown
-                                        }}
-                                        className="flex-1 bg-green-500 hover:bg-green-600 text-white py-1 rounded text-xs font-semibold"
-                                      >
-                                        ✓ Guardar
-                                      </button>
-                                      <button
-                                        onClick={() => {
-                                          setEditandoItemId(null);
-                                          setItemEditTemp(null);
-                                          setShowDropdownEditItem(false); // Fechar dropdown
-                                        }}
-                                        className="flex-1 bg-gray-500 hover:bg-gray-600 text-white py-1 rounded text-xs font-semibold"
-                                      >
-                                        ✕ Cancelar
-                                      </button>
-                                    </div>
-                                  </div>
-                                ) : (
-
-                                  <div className="flex items-center justify-between">
-                                    <div className="flex-1">
-                                      <p className="text-sm font-medium text-gray-800">{item.descricao || item.ingredienteNome || 'Item'}</p>
-                                      <p className="text-xs text-gray-500">
-                                        {item.quantidade} {item.unidade || ''} x €{parseFloat(item.precoUnitario || 0).toFixed(2)} = €{parseFloat(item.precoTotal || 0).toFixed(2)}
-                                      </p>
-                                      {item.iva && <p className="text-xs text-gray-400">IVA: {item.iva}%</p>}
-                                    </div>
-                                    <div className="flex gap-1">
-                                      <button
-                                        onClick={() => {
-                                          setEditandoItemId(item.id);
-                                          setItemEditTemp({
-                                            descricao: item.descricao || item.ingredienteNome || '',
-                                            quantidade: item.quantidade || '',
-                                            unidade: item.unidade || '',
-                                            precoUnitario: item.precoUnitario || '',
-                                            precoTotal: item.precoTotal || '',
-                                            subtotal: item.subtotal || item.precoTotal || '',
-                                            iva: item.iva || 13
-                                          });
-                                        }}
-                                        className="text-blue-600 hover:bg-blue-50 p-1 rounded"
-                                        title="Editar item"
-                                      >
-                                        <Edit2 className="w-4 h-4" />
-                                      </button>
-                                      <button
-                                        onClick={() => {
-                                          if (confirm('Eliminar este item?')) {
-                                            setNovaFatura({
-                                              ...novaFatura,
-                                              itens: novaFatura.itens.filter(i => i.id !== item.id)
-                                            });
-                                          }
-                                        }}
-                                        className="text-red-600 hover:bg-red-50 p-1 rounded"
-                                        title="Eliminar item"
-                                      >
-                                        <Trash2 className="w-4 h-4" />
-                                      </button>
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        )}
+                  {processandoOCR && (
+                    <div className="mt-4 pt-4 border-t">
+                      <div className="flex items-center justify-center gap-2 text-sm text-gray-600">
+                        <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                        </svg>
+                        <span>{progressoOCR || 'Processando...'}</span>
                       </div>
                     </div>
-
-                    {/* Resumo */}
-                    <div className="bg-white rounded-xl shadow-lg p-5">
-                      <h4 className="font-semibold text-gray-700 mb-3 text-sm">📊 Resumo</h4>
-                      {novaFatura.itens.length > 0 ? (
-                        <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
-                          <div className="flex justify-between text-sm mb-1">
-                            <span>Subtotal:</span>
-                            <span className="font-semibold">€{novaFatura.itens.reduce((s, i) => s + (parseFloat(i.subtotal || 0)), 0).toFixed(2)}</span>
-                          </div>
-                          <div className="flex justify-between text-sm mb-1">
-                            <span>IVA Total:</span>
-                            <span className="font-semibold">€{novaFatura.itens.reduce((s, i) => s + ((parseFloat(i.subtotal || 0)) * (parseFloat(i.iva || 0)) / 100), 0).toFixed(2)}</span>
-                          </div>
-                          <div className="flex justify-between text-base font-bold border-t border-blue-300 pt-2 mt-1">
-                            <span>Total c/ IVA:</span>
-                            <span className="text-blue-700">€{novaFatura.itens.reduce((s, i) => s + ((parseFloat(i.subtotal || 0)) * (1 + (parseFloat(i.iva || 0)) / 100)), 0).toFixed(2)}</span>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="text-center text-gray-500 text-sm py-4 bg-gray-50 rounded-lg border border-dashed border-gray-300">
-                          Nenhum item adicionado
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                  )}
                 </div>
 
                 {/* Compras Registadas */}
@@ -22097,6 +22265,104 @@ const calcularIndiceDesperdicio = (comprasPeriodo, vendasPeriodo, produtos) => {
                         ordenadoObjetivo={ordenadoObjetivo}
                         setOrdenadoObjetivo={setOrdenadoObjetivo}
                       />
+                      
+                      {/* Ficha Técnica */}
+                      <div className="mt-6 pt-6 border-t-2 border-gray-200">
+                        <h4 className="font-bold text-lg mb-3 flex items-center gap-2">
+                          📄 Exportar Ficha Técnica
+                        </h4>
+                        <p className="text-sm text-gray-600 mb-4">
+                          Gere uma ficha técnica em PDF com ingredientes, quantidades, preços e espaço para processo de preparação
+                        </p>
+                        
+                        <div className="flex gap-3 items-end">
+                          <div className="flex-1">
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Selecionar Produto
+                            </label>
+                            <select
+                              value={produtoFichaTecnica}
+                              onChange={(e) => setProdutoFichaTecnica(e.target.value)}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                            >
+                              <option value="">-- Escolher produto --</option>
+                              {produtos
+                                .filter(p => p.receita && p.receita.length > 0)
+                                .sort((a, b) => a.nome.localeCompare(b.nome))
+                                .map(produto => (
+                                  <option key={produto.id} value={produto.id}>
+                                    {produto.nome} (€{(produto.precoVenda || 0).toFixed(2)})
+                                  </option>
+                                ))
+                              }
+                            </select>
+                          </div>
+                          
+                          <button
+                            onClick={() => {
+                              if (!produtoFichaTecnica) {
+                                showNotification('Selecione um produto primeiro', 'error');
+                                return;
+                              }
+                              const produto = produtos.find(p => p.id === parseInt(produtoFichaTecnica));
+                              if (produto) {
+                                exportarFichaTecnica(produto);
+                                showNotification(`Ficha técnica de "${produto.nome}" exportada!`, 'success');
+                              }
+                            }}
+                            disabled={!produtoFichaTecnica}
+                            className={`px-4 py-2 rounded-lg font-semibold text-white flex items-center gap-2 transition ${
+                              produtoFichaTecnica
+                                ? 'bg-green-600 hover:bg-green-700 cursor-pointer'
+                                : 'bg-gray-400 cursor-not-allowed'
+                            }`}
+                          >
+                            <Download size={18} />
+                            Exportar PDF
+                          </button>
+                        </div>
+                        
+                        {produtoFichaTecnica && (() => {
+                          const produto = produtos.find(p => p.id === parseInt(produtoFichaTecnica));
+                          if (!produto) return null;
+                          
+                          // Usar a mesma lógica de cálculo do sistema
+                          const custoReceita = produto.receita.reduce((total, item) => {
+                            const ing = ingredientes.find(i => i.id == item.ingredienteId);
+                            if (!ing) return total;
+                            
+                            let quantidade = parseFloat(item.quantidade) || 0;
+                            const custoUnit = parseFloat(ing.custoUnitario) || 0;
+                            const unidadeReceita = item.unidade || ing.unidade;
+                            
+                            // Aplicar conversões
+                            if (ing.unidade === 'kg' && unidadeReceita === 'g') quantidade = quantidade / 1000;
+                            if (ing.unidade === 'L' && unidadeReceita === 'ml') quantidade = quantidade / 1000;
+                            if (ing.unidade === 'g' && unidadeReceita === 'kg') quantidade = quantidade * 1000;
+                            if (ing.unidade === 'ml' && unidadeReceita === 'L') quantidade = quantidade * 1000;
+                            
+                            return total + (quantidade * custoUnit);
+                          }, 0);
+                          
+                          const margem = produto.precoVenda > 0 
+                            ? ((produto.precoVenda - custoReceita) / produto.precoVenda * 100) 
+                            : 0;
+                          
+                          return (
+                            <div className="mt-3 bg-blue-50 border border-blue-200 rounded-lg p-3">
+                              <p className="text-xs text-blue-800 mb-1">
+                                <strong>Preview:</strong> {produto.nome}
+                              </p>
+                              <p className="text-xs text-blue-700">
+                                Custo: €{custoReceita.toFixed(2)} | 
+                                Preço: €{produto.precoVenda.toFixed(2)} | 
+                                Margem: {margem.toFixed(1)}% | 
+                                {produto.receita.length} ingrediente{produto.receita.length !== 1 ? 's' : ''}
+                              </p>
+                            </div>
+                          );
+                        })()}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -23242,6 +23508,19 @@ const calcularIndiceDesperdicio = (comprasPeriodo, vendasPeriodo, produtos) => {
         />
       )}
       {/* ==================== FIM MODAL DESPESA SIMPLES ==================== */}
+      
+      {modalFaturaManual && (
+        <ModalFaturaManual
+          fornecedores={fornecedores}
+          ingredientes={ingredientes}
+          onConfirmar={(faturaCompleta) => {
+            setFaturas([...faturas, faturaCompleta]);
+            setModalFaturaManual(false);
+            showNotification('✅ Fatura manual guardada com sucesso!', 'success');
+          }}
+          onCancelar={() => setModalFaturaManual(false)}
+        />
+      )}
       
       {/* Modal de Importação com Mapeamento Automático */}
       {mostrarImportacao && (
