@@ -286,11 +286,10 @@ const StockStorage = {
   async add(movimentacao) {
     try {
       if (!movimentacao) return null;
-      const id = await db.movimentacoesStock.put({
-        ...movimentacao,
-        id: movimentacao.id || (Date.now() + Math.random())
-      });
-      return id;
+      // Remover id para usar auto-increment do Dexie
+      const { id, ...rest } = movimentacao;
+      const newId = await db.movimentacoesStock.add(rest);
+      return newId;
     } catch (error) {
       console.error('❌ StockStorage.add erro:', error);
       return null;
@@ -305,13 +304,13 @@ const StockStorage = {
   async addBulk(movimentacoes) {
     try {
       if (!movimentacoes || !Array.isArray(movimentacoes) || movimentacoes.length === 0) return 0;
-      // Garantir que todas têm id
-      const comIds = movimentacoes.map(m => ({
-        ...m,
-        id: m.id || (Date.now() + Math.random())
-      }));
-      await db.movimentacoesStock.bulkPut(comIds);
-      return comIds.length;
+      // Remover IDs para usar auto-increment do Dexie (evita colisões de float IDs)
+      const semIds = movimentacoes.map(m => {
+        const { id, ...rest } = m;
+        return rest;
+      });
+      await db.movimentacoesStock.bulkAdd(semIds);
+      return semIds.length;
     } catch (error) {
       console.error('❌ StockStorage.addBulk erro:', error);
       return 0;
@@ -327,11 +326,13 @@ const StockStorage = {
     try {
       await db.movimentacoesStock.clear();
       if (movimentacoes && movimentacoes.length > 0) {
-        const comIds = movimentacoes.map(m => ({
-          ...m,
-          id: m.id || (Date.now() + Math.random())
-        }));
-        await db.movimentacoesStock.bulkPut(comIds);
+        // Remover IDs antigos para deixar o auto-increment (++id) do Dexie gerar novos
+        // Isto evita colisões de IDs float (Date.now() + Math.random()) que causavam perda de registos
+        const semIds = movimentacoes.map(m => {
+          const { id, ...rest } = m;
+          return rest;
+        });
+        await db.movimentacoesStock.bulkAdd(semIds);
       }
       console.log(`📦 StockStorage: ${movimentacoes?.length || 0} movimentações guardadas`);
       return true;
@@ -503,14 +504,15 @@ const StockStorage = {
 
       // Se IndexedDB tem menos, fazer replace completo
       await db.movimentacoesStock.clear();
-      const comIds = movimentacoes.map(m => ({
-        ...m,
-        id: m.id || (Date.now() + Math.random())
-      }));
-      await db.movimentacoesStock.bulkPut(comIds);
+      // Remover IDs para usar auto-increment (evita colisões de float IDs)
+      const semIds = movimentacoes.map(m => {
+        const { id, ...rest } = m;
+        return rest;
+      });
+      await db.movimentacoesStock.bulkAdd(semIds);
       
-      console.log(`📦 StockStorage: ${comIds.length} movimentações migradas do state para IndexedDB`);
-      return { migrated: comIds.length };
+      console.log(`📦 StockStorage: ${semIds.length} movimentações migradas do state para IndexedDB`);
+      return { migrated: semIds.length };
     } catch (error) {
       console.error('❌ StockStorage.migrateFromState erro:', error);
       return { migrated: 0 };
