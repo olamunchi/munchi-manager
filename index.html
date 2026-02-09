@@ -9246,8 +9246,7 @@ const calcularIndiceDesperdicio = (comprasPeriodo, vendasPeriodo, produtos) => {
           if (dados.contagens) setContagens(dados.contagens); // 🆕 Contagens de inventário
           if (dados.movimentacoesStock) {
             setMovimentacoesStock(dados.movimentacoesStock);
-            // 📦 Guardar no IndexedDB
-            StockStorage.replaceAll(dados.movimentacoesStock).then(() => refreshStockStats());
+            // 📦 O IndexedDB será actualizado no setTimeout abaixo (linha ~9481)
           }
 
           setTimeout(() => {
