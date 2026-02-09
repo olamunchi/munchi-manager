@@ -13090,9 +13090,25 @@ const calcularIndiceDesperdicio = (comprasPeriodo, vendasPeriodo, produtos) => {
 
       const bolosRegistados = await db.bolosExternos.toArray();
 
+      // 🔧 CORREÇÃO: Criar set com IDs dos eventos que AINDA EXISTEM no calendário
+      const eventosAtuaisNoCalendar = new Set(eventos.map(ev => ev.id));
+
+      // 🧹 LIMPEZA: Remover da DB bolos externos cujos eventos já não existem no calendário
+      const bolosParaRemover = bolosRegistados.filter(
+        b => b.eventoCalendarId && !eventosAtuaisNoCalendar.has(b.eventoCalendarId)
+      );
+      
+      if (bolosParaRemover.length > 0) {
+        console.log(`🧹 Limpando ${bolosParaRemover.length} bolo(s) de eventos removidos do calendário`);
+        for (const bolo of bolosParaRemover) {
+          await db.bolosExternos.delete(bolo.id);
+        }
+      }
+
+      // Agora sim, criar o set apenas com eventos que ainda existem E já foram registados
       const eventosJaRegistados = new Set(
         bolosRegistados
-          .filter(b => b.eventoCalendarId)
+          .filter(b => b.eventoCalendarId && eventosAtuaisNoCalendar.has(b.eventoCalendarId))
           .map(b => b.eventoCalendarId)
       );
 
