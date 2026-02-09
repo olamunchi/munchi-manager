@@ -8021,9 +8021,15 @@ const calcularIndiceDesperdicio = (comprasPeriodo, vendasPeriodo, produtos) => {
       const palavrasBloqueadoras = blacklist.filter(palavra => linhaLower.includes(palavra.toLowerCase()));
       
       if (palavrasBloqueadoras.length > 0) {
-
         const mensagemBlacklist = `Bloqueada por: ${palavrasBloqueadoras.map(p => `"${p}"`).join(', ')}`;
-
+        
+        // 🐛 DEBUG: Log da blacklist
+        OCR_DEBUG.log('BLACKLIST', `Linha bloqueada: "${linha.substring(0, 60)}"`, { 
+          palavrasBloqueadoras, 
+          linhaCompleta: linha 
+        });
+        console.log(`🚫 [BLACKLIST] ${mensagemBlacklist}`, { linha });
+        
         linhasIgnoradasBlacklist++;
         continue;
       }
@@ -8035,9 +8041,34 @@ const calcularIndiceDesperdicio = (comprasPeriodo, vendasPeriodo, produtos) => {
 
       const parsed = parseLinha(linha, palavrasLimpar);
       if (parsed && parsed.nomeProduto) {
+        // 🐛 DEBUG: Log de produto reconhecido
+        OCR_DEBUG.log('PRODUTO', `Reconhecido: "${parsed.nomeProduto}"`, { 
+          quantidade: parsed.quantidade,
+          unidade: parsed.unidade,
+          preco: parsed.preco,
+          linhaOriginal: linha 
+        });
+        console.log(`✅ [PRODUTO] ${parsed.nomeProduto}`, parsed);
+        
         linhasProdutos.push(parsed);
       }
     }
+
+    // 🐛 DEBUG: Resumo do processamento
+    OCR_DEBUG.log('RESUMO', 'Processamento concluído', {
+      totalLinhas: linhas.length,
+      linhasIgnoradasBlacklist,
+      linhasIgnoradasFiltro,
+      produtosReconhecidos: linhasProdutos.length,
+      blacklistAtual: blacklist
+    });
+    console.log('📊 [RESUMO OCR]', {
+      'Total de linhas': linhas.length,
+      '🚫 Bloqueadas (blacklist)': linhasIgnoradasBlacklist,
+      '⚠️ Ignoradas (filtro)': linhasIgnoradasFiltro,
+      '✅ Produtos reconhecidos': linhasProdutos.length,
+      'Blacklist ativa': blacklist
+    });
 
     return linhasProdutos;
   };
@@ -13757,7 +13788,7 @@ const calcularIndiceDesperdicio = (comprasPeriodo, vendasPeriodo, produtos) => {
   const fuzz = window.fuzzball || window.fuzz;
 
   const OCR_DEBUG = {
-    enabled: false,
+    enabled: true, // ✅ DEBUG ATIVADO
     logs: [],
     
     log(etapa, mensagem, dados = null) {
@@ -13771,7 +13802,9 @@ const calcularIndiceDesperdicio = (comprasPeriodo, vendasPeriodo, produtos) => {
       };
       
       this.logs.push(logEntry);
-
+      
+      // 🐛 DEBUG: Imprimir no console do browser
+      console.log(`[OCR-${etapa}] ${mensagem}`, dados || '');
     },
     
     clear() {
@@ -15715,6 +15748,7 @@ const calcularIndiceDesperdicio = (comprasPeriodo, vendasPeriodo, produtos) => {
                     const hoje = new Date();
                     const mesAtual = hoje.getMonth();
                     const anoAtual = hoje.getFullYear();
+                    const ultimoDia = new Date(anoAtual, mesAtual + 1, 0);
                     
                     const faturacaoMes = vendas
                       .filter(v => {
@@ -15746,11 +15780,16 @@ const calcularIndiceDesperdicio = (comprasPeriodo, vendasPeriodo, produtos) => {
                     });
                     
                     const objetivo = calcDespFixas() + foodCostMes + Math.abs(ivaP) + ordenadoObjetivo;
-                    const percentagem = objetivo > 0 ? (faturacaoMes / objetivo) * 100 : 0;
+                    const falta = objetivo - faturacaoMes;
                     
-                    if (percentagem >= 100) return '✅ Atingido';
-                    if (percentagem >= 75) return '⚠️ Quase';
-                    return '🎯 ' + percentagem.toFixed(0) + '%';
+                    if (falta <= 0) return '✅ Atingido';
+                    
+                    const diasUteisMes = 26;
+                    const diasPassados = Math.round((hoje.getDate() / ultimoDia.getDate()) * diasUteisMes);
+                    const diasRestantesUteis = Math.max(1, diasUteisMes - diasPassados);
+                    const objetivoDiario = falta / diasRestantesUteis;
+                    
+                    return '🎯 €' + objetivoDiario.toFixed(0) + '/dia';
                   })()}
                 </span>
               </div>
@@ -15839,6 +15878,53 @@ const calcularIndiceDesperdicio = (comprasPeriodo, vendasPeriodo, produtos) => {
                           });
                           
                           return (despFixas + foodCostMes + Math.abs(ivaP) + ordenadoObjetivo).toFixed(2);
+                        })()}
+                      </span>
+                    </div>
+                    <div className="flex justify-between pt-1.5 mt-1.5 border-t border-dashed border-gray-200">
+                      <span className="font-bold text-gray-800">📅 Objetivo Diário (26 dias úteis):</span>
+                      <span className="font-bold text-orange-600">
+                        €{(() => {
+                          const hoje = new Date();
+                          const mesAtual = hoje.getMonth();
+                          const anoAtual = hoje.getFullYear();
+                          const ultimoDia = new Date(anoAtual, mesAtual + 1, 0);
+                          
+                          const faturacaoMes = vendas
+                            .filter(v => {
+                              const dataVenda = new Date(v.data);
+                              return dataVenda.getMonth() === mesAtual && dataVenda.getFullYear() === anoAtual;
+                            })
+                            .reduce((total, v) => total + (v.total || v.valor || 0), 0);
+                          
+                          const despFixas = [...despesas, ...faturas]
+                            .filter(item => {
+                              const data = new Date(item.data);
+                              return data.getMonth() === mesAtual && 
+                                     data.getFullYear() === anoAtual && 
+                                     ['renda', 'eletricidade', 'agua', 'gas', 'internet', 'salarios'].includes(item.categoria);
+                            })
+                            .reduce((t, i) => t + (i.valor || i.total || 0), 0);
+                          
+                          const vendasMes = vendas.filter(v => {
+                            const dataVenda = new Date(v.data);
+                            return dataVenda.getMonth() === mesAtual && dataVenda.getFullYear() === anoAtual;
+                          });
+                          
+                          let foodCostMes = 0;
+                          vendasMes.forEach(venda => {
+                            const produto = produtos.find(p => p.id === venda.produtoId);
+                            if (produto && produto.custoReceita) {
+                              foodCostMes += produto.custoReceita * venda.quantidade;
+                            }
+                          });
+                          
+                          const objetivo = despFixas + foodCostMes + Math.abs(ivaP) + ordenadoObjetivo;
+                          const falta = Math.max(0, objetivo - faturacaoMes);
+                          const diasUteisMes = 26;
+                          const diasPassados = Math.round((hoje.getDate() / ultimoDia.getDate()) * diasUteisMes);
+                          const diasRestantesUteis = Math.max(1, diasUteisMes - diasPassados);
+                          return (falta / diasRestantesUteis).toFixed(0) + '/dia (' + diasRestantesUteis + ' dias restantes)';
                         })()}
                       </span>
                     </div>
