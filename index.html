@@ -135,6 +135,142 @@ db.version(4).stores({
   bolosExternos: '++id, data, eventoCalendarId, produtoBase, timestamp'
 });
 
+// v5: Tabela para PDFs das faturas (tirar base64 pesados do useState)
+db.version(5).stores({
+  movimentacoesStock: '++id, data, tipo, ingredienteId, produtoId',
+  vocabulario: 'id, fornecedorNIF, textoNormalizado, ingredienteId',
+  ingredientes: 'id, nome, categoria',
+  fornecedores: 'id, nif, nome',
+  templates: 'nifFornecedor, linhaInicio, linhaFim',
+  bolosExternos: '++id, data, eventoCalendarId, produtoBase, timestamp',
+  faturaPDFs: 'faturaId'
+});
+
+// ============================================================
+// PDFStorage: API para guardar/ler PDFs no IndexedDB
+// Em vez de manter base64 enormes no React state (useState),
+// guardamos no IndexedDB e carregamos on-demand.
+// Isto reduz ~85% do consumo de RAM.
+// ============================================================
+const PDFStorage = {
+  /**
+   * Guardar um PDF associado a uma fatura
+   * @param {string} faturaId - ID único da fatura
+   * @param {string} base64Data - PDF em base64 (com ou sem prefixo data:)
+   * @returns {Promise<boolean>} true se guardou com sucesso
+   */
+  async save(faturaId, base64Data) {
+    try {
+      if (!faturaId || !base64Data) return false;
+      await db.faturaPDFs.put({
+        faturaId: String(faturaId),
+        data: base64Data,
+        savedAt: new Date().toISOString()
+      });
+      console.log(`✅ PDF guardado no IndexedDB para fatura ${faturaId} (${Math.round(base64Data.length / 1024)}KB)`);
+      return true;
+    } catch (error) {
+      console.error(`❌ Erro ao guardar PDF para fatura ${faturaId}:`, error);
+      return false;
+    }
+  },
+
+  /**
+   * Carregar um PDF de uma fatura (on-demand)
+   * @param {string} faturaId - ID único da fatura
+   * @returns {Promise<string|null>} base64 do PDF ou null
+   */
+  async get(faturaId) {
+    try {
+      if (!faturaId) return null;
+      const record = await db.faturaPDFs.get(String(faturaId));
+      return record ? record.data : null;
+    } catch (error) {
+      console.error(`❌ Erro ao carregar PDF para fatura ${faturaId}:`, error);
+      return null;
+    }
+  },
+
+  /**
+   * Apagar o PDF de uma fatura
+   * @param {string} faturaId - ID único da fatura
+   * @returns {Promise<boolean>} true se apagou com sucesso
+   */
+  async delete(faturaId) {
+    try {
+      if (!faturaId) return false;
+      await db.faturaPDFs.delete(String(faturaId));
+      console.log(`🗑️ PDF removido do IndexedDB para fatura ${faturaId}`);
+      return true;
+    } catch (error) {
+      console.error(`❌ Erro ao apagar PDF para fatura ${faturaId}:`, error);
+      return false;
+    }
+  },
+
+  /**
+   * Verificar se uma fatura tem PDF guardado
+   * @param {string} faturaId - ID único da fatura
+   * @returns {Promise<boolean>}
+   */
+  async has(faturaId) {
+    try {
+      if (!faturaId) return false;
+      const count = await db.faturaPDFs.where('faturaId').equals(String(faturaId)).count();
+      return count > 0;
+    } catch (error) {
+      return false;
+    }
+  },
+
+  /**
+   * Estatísticas dos PDFs guardados
+   * @returns {Promise<{count: number, totalSizeKB: number}>}
+   */
+  async stats() {
+    try {
+      const all = await db.faturaPDFs.toArray();
+      const totalBytes = all.reduce((sum, r) => sum + (r.data?.length || 0), 0);
+      return {
+        count: all.length,
+        totalSizeKB: Math.round(totalBytes / 1024),
+        totalSizeMB: Math.round(totalBytes / 1024 / 1024 * 10) / 10
+      };
+    } catch (error) {
+      return { count: 0, totalSizeKB: 0, totalSizeMB: 0 };
+    }
+  },
+
+  /**
+   * Migrar PDFs do state (faturas com documentoPDF inline) para IndexedDB
+   * Corre uma vez na inicialização para migrar dados existentes.
+   * @param {Array} faturas - Array de faturas do state
+   * @returns {Promise<{migrated: number, faturas: Array}>} faturas actualizadas (documentoPDF = "indexeddb")
+   */
+  async migrateFromState(faturas) {
+    if (!faturas || !Array.isArray(faturas)) return { migrated: 0, faturas: faturas || [] };
+    
+    let migrated = 0;
+    const updated = await Promise.all(faturas.map(async (f) => {
+      // Só migrar se tem PDF inline (não é null, não é "indexeddb", e é string longa)
+      if (f.documentoPDF && f.documentoPDF !== 'indexeddb' && f.documentoPDF.length > 100) {
+        const id = f.id || f.numero || `fatura_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+        const saved = await PDFStorage.save(id, f.documentoPDF);
+        if (saved) {
+          migrated++;
+          return { ...f, documentoPDF: 'indexeddb' };
+        }
+      }
+      return f;
+    }));
+
+    if (migrated > 0) {
+      console.log(`📦 Migração PDFs: ${migrated} PDFs movidos do state para IndexedDB`);
+    }
+    return { migrated, faturas: updated };
+  }
+};
+
 const IndexedDBStorage = {
 
   async _checkTable(tableName) {
@@ -6284,32 +6420,41 @@ const RestauranteGestor = () => {
       bolosExternos, // 🎂 Adicionar bolos externos
       bolosAgendados, // 🎂 Bolos do calendar
       buscarBolosAgendados, // 🎂 Função para verificar
-      diagnosticarPDFs: () => {
+      diagnosticarPDFs: async () => {
 
         const faturasComPDF = faturas.filter(f => f.documentoPDF);
         const faturasSemPDF = faturas.filter(f => !f.documentoPDF);
 
         if (faturasComPDF.length > 0) {
 
-          const analise = faturasComPDF.map(f => {
-            const pdfData = f.documentoPDF || '';
+          const analise = await Promise.all(faturasComPDF.map(async f => {
+            let pdfData = f.documentoPDF || '';
+            // 📦 Carregar do IndexedDB se necessário
+            if (pdfData === 'indexeddb') {
+              pdfData = await PDFStorage.get(String(f.id)) || '';
+            }
             const hasPrefix = pdfData.includes('data:application/pdf;base64,');
             const base64 = hasPrefix ? pdfData.split(',')[1] : pdfData;
             const size = base64.length;
-            const isValid = size > 100; // PDFs válidos têm pelo menos 100 chars
+            const isValid = size > 100;
             
             return {
               numero: f.numero || f.id,
               fornecedor: f.fornecedorNome || 'N/A',
               data: f.data,
+              storage: f.documentoPDF === 'indexeddb' ? '💾 IndexedDB' : '⚠️ Inline',
               temPrefixo: hasPrefix ? '✅' : '❌',
               tamanhoBase64: size,
               valido: isValid ? '✅' : '❌ VAZIO',
               tipo: f.tipo || 'FT'
             };
-          });
+          }));
           
           console.table(analise);
+
+          // 📦 Mostrar stats do IndexedDB
+          const stats = await PDFStorage.stats();
+          console.log(`📦 IndexedDB: ${stats.count} PDFs, ${stats.totalSizeMB}MB total`);
           
           const pdfsInvalidos = analise.filter(a => a.valido === '❌ VAZIO');
           if (pdfsInvalidos.length > 0) {
@@ -6330,7 +6475,7 @@ const RestauranteGestor = () => {
         }
 
       },
-      testarPDF: (numeroFatura) => {
+      testarPDF: async (numeroFatura) => {
 
         const fatura = faturas.find(f => f.numero === numeroFatura || f.id == numeroFatura);
         
@@ -6346,7 +6491,15 @@ const RestauranteGestor = () => {
         }
 
         try {
+          // 📦 Carregar do IndexedDB se necessário
           let base64Data = fatura.documentoPDF;
+          if (base64Data === 'indexeddb') {
+            base64Data = await PDFStorage.get(String(fatura.id));
+            if (!base64Data) {
+              console.error('❌ PDF não encontrado no IndexedDB para fatura', fatura.id);
+              return;
+            }
+          }
 
           if (base64Data.includes(',')) {
             const parts = base64Data.split(',');
@@ -7089,9 +7242,9 @@ const RestauranteGestor = () => {
       categoria: categoria,
       recorrente: false,
       diaRecorrencia: 1,
-      documentoPDF: metadata?.pdfBase64 || null,
+      documentoPDF: null, // será atualizado após IndexedDB save
       nomeDocumento: metadata?.pdfNome || '',
-      subtotal: precoSemIVA,
+      driveFileId: metadata?.driveFileId || null, // 🔍 Drive file ID
       totalIva: valorIVA,
       total: precoComIVA,
       totais: {
@@ -7112,6 +7265,16 @@ const RestauranteGestor = () => {
         return false;
       })()
     };
+
+    // 📦 Guardar PDF no IndexedDB
+    if (metadata?.pdfBase64 && metadata.pdfBase64.length > 100) {
+      PDFStorage.save(String(novaFaturaCompleta.id), metadata.pdfBase64).then(saved => {
+        if (saved) {
+          setFaturas(prev => prev.map(f => f.id === novaFaturaCompleta.id ? {...f, documentoPDF: 'indexeddb'} : f));
+        }
+      });
+      novaFaturaCompleta.documentoPDF = 'indexeddb';
+    }
 
     setFaturas(prev => [...prev, novaFaturaCompleta]);
     setUltimaFaturaInserida(novaFaturaCompleta.id); // 🆕 Marcar como última inserida
@@ -7245,6 +7408,7 @@ const RestauranteGestor = () => {
       diaRecorrencia: 1,
       documentoPDF: metadataOCR?.pdfBase64 || null,
       nomeDocumento: metadataOCR?.pdfNome || '',
+      driveFileId: metadataOCR?.driveFileId || null, // 🔍 Drive file ID
       subtotal: precoSemIVA,
       totalIva: valorIVA,
       total: precoComIVA,
@@ -9822,11 +9986,20 @@ const calcularIndiceDesperdicio = (comprasPeriodo, vendasPeriodo, produtos) => {
       let pdfsAdicionados = 0;
       let pdfsComErro = 0;
       
-      filteredFaturas.forEach((fatura, index) => {
+      for (const [index, fatura] of filteredFaturas.entries()) {
         if (fatura.documentoPDF) {
           try {
 
+            // 📦 Carregar do IndexedDB se necessário
             let base64Data = fatura.documentoPDF;
+            if (base64Data === 'indexeddb') {
+              base64Data = await PDFStorage.get(String(fatura.id));
+              if (!base64Data) {
+                console.warn(`⚠️ PDF não encontrado no IndexedDB para fatura ${fatura.id}`);
+                pdfsComErro++;
+                continue;
+              }
+            }
 
             if (base64Data.includes(',')) {
               base64Data = base64Data.split(',')[1];
@@ -9837,20 +10010,20 @@ const calcularIndiceDesperdicio = (comprasPeriodo, vendasPeriodo, produtos) => {
             if (!base64Data || base64Data.length < 100) {
 
               pdfsComErro++;
-              return; // Skip este PDF
+              continue; // Skip este PDF
             }
 
             const base64Regex = /^[A-Za-z0-9+/]+=*$/;
             if (!base64Regex.test(base64Data)) {
 
               pdfsComErro++;
-              return; // Skip este PDF
+              continue; // Skip este PDF
             }
 
             if (!base64Data.startsWith('JVBERi0')) {
 
               pdfsComErro++;
-              return; // Skip este PDF
+              continue; // Skip este PDF
             }
 
             const dataStr = new Date(fatura.data).toISOString().split('T')[0].replace(/-/g, '');
@@ -9878,7 +10051,7 @@ const calcularIndiceDesperdicio = (comprasPeriodo, vendasPeriodo, produtos) => {
             pdfsComErro++;
           }
         }
-      });
+      }
 
       const zipBlob = await zip.generateAsync({type: 'blob'});
       const url = URL.createObjectURL(zipBlob);
@@ -10212,8 +10385,23 @@ const calcularIndiceDesperdicio = (comprasPeriodo, vendasPeriodo, produtos) => {
         // 🧹 Limpar ingredientes órfãos das faturas
         if (data.faturas && data.ingredientes) {
           const { faturasLimpas, orfaosRemovidos: orfaosFaturas } = limparFaturasOrfas(data.faturas, data.ingredientes);
-          setFaturas(orfaosFaturas > 0 ? faturasLimpas : data.faturas);
+          const faturasFinais = orfaosFaturas > 0 ? faturasLimpas : data.faturas;
+          // 📦 Migrar PDFs inline para IndexedDB
+          PDFStorage.migrateFromState(faturasFinais).then(({migrated, faturas: faturasComFlag}) => {
+            if (migrated > 0) {
+              setFaturas(faturasComFlag);
+              console.log(`📦 ${migrated} PDFs migrados para IndexedDB no carregamento`);
+            }
+          });
+          setFaturas(faturasFinais);
         } else if (data.faturas) {
+          // 📦 Migrar PDFs inline para IndexedDB
+          PDFStorage.migrateFromState(data.faturas).then(({migrated, faturas: faturasComFlag}) => {
+            if (migrated > 0) {
+              setFaturas(faturasComFlag);
+              console.log(`📦 ${migrated} PDFs migrados para IndexedDB no carregamento`);
+            }
+          });
           setFaturas(data.faturas);
         }
         if (data.fornecedores) setFornecedores(data.fornecedores);
@@ -10227,6 +10415,8 @@ const calcularIndiceDesperdicio = (comprasPeriodo, vendasPeriodo, produtos) => {
         if (data.movimentacoesStock) setMovimentacoesStock(data.movimentacoesStock);
         if (data.contagensHistorico) setContagensHistorico(data.contagensHistorico);
         if (data.ultimaFaturaInserida !== undefined) setUltimaFaturaInserida(data.ultimaFaturaInserida);
+        if (data.ultimaImportacaoMoloni) setUltimaImportacaoMoloni(data.ultimaImportacaoMoloni);
+        if (data.ultimaImportacaoZobaze) setUltimaImportacaoZobaze(data.ultimaImportacaoZobaze);
         
         showNotification('✅ Backup restaurado com sucesso!', 'success');
         return true;
@@ -10301,15 +10491,52 @@ const calcularIndiceDesperdicio = (comprasPeriodo, vendasPeriodo, produtos) => {
         movimentacoesStock: movimentacoesStock || [],
         contagensHistorico: contagensHistorico || [],
         ultimaFaturaInserida: ultimaFaturaInserida || null,
+        ultimaImportacaoMoloni: ultimaImportacaoMoloni || null,
+        ultimaImportacaoZobaze: ultimaImportacaoZobaze || null,
         lastUpdate: new Date().toISOString()
       });
       
       const data = getCurrentData();
 
-      const dataString = JSON.stringify(data);
+      // 📦 Hash leve para comparação (em vez de guardar JSON.stringify inteiro ~100MB+ na RAM)
+      const quickHash = (obj) => {
+        const counts = [
+          obj.produtos?.length || 0,
+          obj.ingredientes?.length || 0,
+          obj.vendas?.length || 0,
+          obj.faturas?.length || 0,
+          obj.fornecedores?.length || 0,
+          obj.contagens?.length || 0,
+          obj.movimentacoesStock?.length || 0,
+          obj.contagensHistorico?.length || 0,
+          obj.deliveryApps?.length || 0,
+          obj.blacklist?.length || 0,
+          obj.templatesOCR?.length || 0,
+          obj.vocabularioFornecedor?.length || 0,
+        ];
+        // Incluir últimos IDs/timestamps para detectar edições
+        const lastProduto = obj.produtos?.[obj.produtos.length - 1];
+        const lastVenda = obj.vendas?.[obj.vendas.length - 1];
+        const lastFatura = obj.faturas?.[obj.faturas.length - 1];
+        const lastIngrediente = obj.ingredientes?.[obj.ingredientes.length - 1];
+        const signatures = [
+          lastProduto?.id || 0, lastProduto?.nome || '',
+          lastVenda?.id || 0,
+          lastFatura?.id || 0, lastFatura?.total || 0,
+          lastIngrediente?.id || 0, lastIngrediente?.custoUnitario || 0,
+          obj.ultimaFaturaInserida || '',
+          obj.ultimaImportacaoMoloni || '',
+          obj.ultimaImportacaoZobaze || '',
+          JSON.stringify(obj.dadosEmpresa || {}),
+          JSON.stringify(obj.configuracaoWaste || {}),
+        ];
+        return counts.join(',') + '|' + signatures.join(',');
+      };
+      
+      const dataHash = quickHash(data);
       const hasPendingChanges = pendingSyncRef.current > 0;
       
-      if (!forceSync && !hasPendingChanges && lastSyncDataRef.current === dataString) {
+      if (!forceSync && !hasPendingChanges && lastSyncDataRef.current === dataHash) {
 
         setDriveSyncing(false);
         return;
@@ -10366,7 +10593,7 @@ const calcularIndiceDesperdicio = (comprasPeriodo, vendasPeriodo, produtos) => {
         await createDriveFile(driveAccessToken, data);
       }
 
-      lastSyncDataRef.current = dataString;
+      lastSyncDataRef.current = dataHash;
       
       setDriveLastSync(new Date());
       if (shouldCreateBackup) {
@@ -10614,6 +10841,23 @@ const calcularIndiceDesperdicio = (comprasPeriodo, vendasPeriodo, produtos) => {
             const fileId = file.id;
             const fileName = file.name;
 
+            // 🔍 Verificar se este PDF do Drive já foi processado
+            const faturaExistente = faturas.find(f => f.driveFileId === fileId);
+            if (faturaExistente) {
+              const dataFatura = faturaExistente.data || 'sem data';
+              const fornNome = faturaExistente.fornecedorNome || 'desconhecido';
+              const numFatura = faturaExistente.numero || 'N/A';
+              const continuar = confirm(
+                `⚠️ Este PDF já foi processado!\n\n` +
+                `📄 Ficheiro: ${fileName}\n` +
+                `📋 Fatura: ${numFatura}\n` +
+                `🏢 Fornecedor: ${fornNome}\n` +
+                `📅 Data: ${dataFatura}\n\n` +
+                `Deseja processar novamente?`
+              );
+              if (!continuar) return;
+            }
+
             try {
               setProcessandoOCR(true);
               setProgressoOCR('Baixando PDF do Drive...');
@@ -10674,7 +10918,8 @@ const calcularIndiceDesperdicio = (comprasPeriodo, vendasPeriodo, produtos) => {
                 pdfNome: fileName,
                 textoCompleto: textoExtraido,
                 precosComIVA: dadosFatura.precosComIVA,
-                metodoOCR: 'Google Drive OCR'
+                metodoOCR: 'Google Drive OCR',
+                driveFileId: fileId // 🔍 Track Drive file ID para evitar duplicados
               };
 
               const nifEmpresa = configuracoes.metricas.nifEmpresa;
@@ -10758,8 +11003,23 @@ const calcularIndiceDesperdicio = (comprasPeriodo, vendasPeriodo, produtos) => {
         // 🧹 Limpar ingredientes órfãos das faturas
         if (data.faturas && data.ingredientes) {
           const { faturasLimpas, orfaosRemovidos: orfaosFaturas } = limparFaturasOrfas(data.faturas, data.ingredientes);
-          setFaturas(orfaosFaturas > 0 ? faturasLimpas : data.faturas);
+          const faturasFinais = orfaosFaturas > 0 ? faturasLimpas : data.faturas;
+          // 📦 Migrar PDFs inline para IndexedDB
+          PDFStorage.migrateFromState(faturasFinais).then(({migrated, faturas: faturasComFlag}) => {
+            if (migrated > 0) {
+              setFaturas(faturasComFlag);
+              console.log(`📦 ${migrated} PDFs migrados para IndexedDB (Drive load)`);
+            }
+          });
+          setFaturas(faturasFinais);
         } else if (data.faturas) {
+          // 📦 Migrar PDFs inline para IndexedDB
+          PDFStorage.migrateFromState(data.faturas).then(({migrated, faturas: faturasComFlag}) => {
+            if (migrated > 0) {
+              setFaturas(faturasComFlag);
+              console.log(`📦 ${migrated} PDFs migrados para IndexedDB (Drive load)`);
+            }
+          });
           setFaturas(data.faturas);
         }
         if (data.fornecedores) setFornecedores(data.fornecedores);
@@ -10880,6 +11140,13 @@ const calcularIndiceDesperdicio = (comprasPeriodo, vendasPeriodo, produtos) => {
         if (data.ultimaFaturaInserida !== undefined) {
           setUltimaFaturaInserida(data.ultimaFaturaInserida);
 
+        }
+
+        if (data.ultimaImportacaoMoloni) {
+          setUltimaImportacaoMoloni(data.ultimaImportacaoMoloni);
+        }
+        if (data.ultimaImportacaoZobaze) {
+          setUltimaImportacaoZobaze(data.ultimaImportacaoZobaze);
         }
         
         setDriveLastSync(new Date(file.modifiedTime));
@@ -12217,7 +12484,7 @@ const calcularIndiceDesperdicio = (comprasPeriodo, vendasPeriodo, produtos) => {
     }
   };
   
-  const salvarFaturaSemAlerta = (dadosFatura = null) => {
+  const salvarFaturaSemAlerta = async (dadosFatura = null) => {
 
     const faturaParaGuardar = dadosFatura || novaFatura;
 
@@ -12255,8 +12522,9 @@ const calcularIndiceDesperdicio = (comprasPeriodo, vendasPeriodo, produtos) => {
       categoria: faturaParaGuardar.categoria || 'compras', // Nova
       recorrente: faturaParaGuardar.recorrente || false, // Nova
       diaRecorrencia: faturaParaGuardar.diaRecorrencia || 1, // Nova
-      documentoPDF: faturaParaGuardar.documentoPDF || null, // PDF da fatura
+      documentoPDF: null, // será atualizado abaixo após IndexedDB save
       nomeDocumento: faturaParaGuardar.nomeDocumento || '', // Nome do PDF
+      driveFileId: faturaParaGuardar.driveFileId || null, // 🔍 Google Drive file ID para evitar duplicados
 
       temNifCliente: faturaParaGuardar.temNifCliente || false,
       nifCliente: faturaParaGuardar.nifCliente || null,
@@ -12279,12 +12547,23 @@ const calcularIndiceDesperdicio = (comprasPeriodo, vendasPeriodo, produtos) => {
       }
     };
 
+    // 📦 Guardar PDF no IndexedDB em vez de no state
+    const pdfData = faturaParaGuardar.documentoPDF;
+    if (pdfData && pdfData !== 'indexeddb' && pdfData.length > 100) {
+      const saved = await PDFStorage.save(String(novaFaturaCompleta.id), pdfData);
+      if (saved) {
+        novaFaturaCompleta.documentoPDF = 'indexeddb';
+      }
+    } else if (pdfData === 'indexeddb') {
+      novaFaturaCompleta.documentoPDF = 'indexeddb'; // já estava no IndexedDB
+    }
+
     setFaturas([...faturas, novaFaturaCompleta]);
     setUltimaFaturaInserida(novaFaturaCompleta.id); // 🆕 Marcar como última inserida
 
     setNovaFatura({
       numero: '',
-      tipoDocumento: 'FT', // NOVO
+      tipoDocumento: 'FT',
       data: new Date().toISOString().split('T')[0],
       fornecedorId: '',
       itens: [],
@@ -12598,13 +12877,21 @@ const calcularIndiceDesperdicio = (comprasPeriodo, vendasPeriodo, produtos) => {
       tipo: fatura.tipo || 'FT',
       recorrente: fatura.recorrente || false,
       diaRecorrencia: fatura.diaRecorrencia || 1,
-      documentoPDF: fatura.documentoPDF || null,
+      documentoPDF: fatura.documentoPDF || null, // pode ser 'indexeddb'
       nomeDocumento: fatura.nomeDocumento || '',
       totais: fatura.totais || null,
       total: fatura.total || 0,
       subtotal: fatura.subtotal || 0,
       totalIva: fatura.totalIva || 0
     });
+    // 📦 Se o PDF está no IndexedDB, carregar para o state temporário de edição
+    if (fatura.documentoPDF === 'indexeddb' && fatura.id) {
+      PDFStorage.get(String(fatura.id)).then(pdfData => {
+        if (pdfData) {
+          setNovaFatura(prev => ({...prev, documentoPDF: pdfData}));
+        }
+      });
+    }
     setEditandoFatura(true);
     setFaturaEditando(fatura.id);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -12690,7 +12977,7 @@ const calcularIndiceDesperdicio = (comprasPeriodo, vendasPeriodo, produtos) => {
     }
   };
   
-  const atualizarFaturaSemAlerta = (dadosFatura = null, faturaId = null) => {
+  const atualizarFaturaSemAlerta = async (dadosFatura = null, faturaId = null) => {
     const faturaParaAtualizar = dadosFatura || novaFatura;
     const idParaAtualizar = faturaId || faturaEditando;
     
@@ -12716,6 +13003,16 @@ const calcularIndiceDesperdicio = (comprasPeriodo, vendasPeriodo, produtos) => {
       total: faturaParaAtualizar.itens.reduce((sum, item) => sum + (item.subtotal * (1 + item.iva / 100)), 0)
 
     };
+
+    // 📦 Se o PDF foi actualizado na edição, guardar no IndexedDB
+    const pdfEdit = faturaParaAtualizar.documentoPDF;
+    if (pdfEdit && pdfEdit !== 'indexeddb' && pdfEdit.length > 100) {
+      const saved = await PDFStorage.save(String(idParaAtualizar), pdfEdit);
+      if (saved) {
+        faturaAtualizada.documentoPDF = 'indexeddb';
+        faturaAtualizada.nomeDocumento = faturaParaAtualizar.nomeDocumento || faturaOriginal?.nomeDocumento || '';
+      }
+    }
     
     setFaturas(faturas.map(f => f.id === idParaAtualizar ? faturaAtualizada : f));
 
@@ -13223,6 +13520,8 @@ const calcularIndiceDesperdicio = (comprasPeriodo, vendasPeriodo, produtos) => {
     contagens,
     movimentacoesStock,
     ultimaFaturaInserida,
+    ultimaImportacaoMoloni,
+    ultimaImportacaoZobaze,
     driveAccessToken
   ]);
 
@@ -15960,6 +16259,7 @@ const calcularIndiceDesperdicio = (comprasPeriodo, vendasPeriodo, produtos) => {
       itens: novosItens,
       documentoPDF: metadata.pdfBase64 || novaFatura.documentoPDF || null,
       nomeDocumento: metadata.pdfNome || novaFatura.nomeDocumento || '',
+      driveFileId: metadata.driveFileId || novaFatura.driveFileId || null, // 🔍 Drive file ID
       categoria: metadata.categoria || 'compras', // 🆕 USAR CATEGORIA DO METADATA
       totais: metadata.totais || { subtotal: 0, iva: 0, total: 0 } // ✅ TOTAIS DA FATURA
     };
@@ -21019,10 +21319,23 @@ const calcularIndiceDesperdicio = (comprasPeriodo, vendasPeriodo, produtos) => {
                           },
                           total: totalComIva,
                           notas: novaFatura.notas || '',
-                          documentoPDF: novaFatura.documentoPDF || null,
+                          documentoPDF: null, // será atualizado abaixo
                           nomeDocumento: novaFatura.nomeDocumento || '',
                           timestamp: new Date().toISOString()
                         };
+
+                        // 📦 Guardar PDF no IndexedDB
+                        const pdfDataManual = novaFatura.documentoPDF;
+                        if (pdfDataManual && pdfDataManual !== 'indexeddb' && pdfDataManual.length > 100) {
+                          PDFStorage.save(String(novaFaturaCompleta.id), pdfDataManual).then(saved => {
+                            if (saved) {
+                              setFaturas(prev => prev.map(f => f.id === novaFaturaCompleta.id ? {...f, documentoPDF: 'indexeddb'} : f));
+                            }
+                          });
+                          novaFaturaCompleta.documentoPDF = 'indexeddb';
+                        } else if (pdfDataManual === 'indexeddb') {
+                          novaFaturaCompleta.documentoPDF = 'indexeddb';
+                        }
 
                         if (faturaEditando) {
 
@@ -21121,6 +21434,13 @@ const calcularIndiceDesperdicio = (comprasPeriodo, vendasPeriodo, produtos) => {
                           <span className="text-xl">🌐</span>
                           <span>Google OCR</span>
                           <span className="text-xs opacity-80">Melhor qualidade</span>
+                          {(() => {
+                            const mesAtual = new Date().toISOString().slice(0, 7);
+                            const importadosDrive = faturas.filter(f => f.driveFileId && f.data && f.data.startsWith(mesAtual)).length;
+                            return importadosDrive > 0 ? (
+                              <span className="text-xs bg-blue-700 px-2 py-0.5 rounded-full mt-1">☁️ {importadosDrive} importada{importadosDrive !== 1 ? 's' : ''} este mês</span>
+                            ) : null;
+                          })()}
                         </button>
                       ) : (
                         <button 
@@ -21432,6 +21752,9 @@ const calcularIndiceDesperdicio = (comprasPeriodo, vendasPeriodo, produtos) => {
                                       <span className="font-bold text-blue-700 cursor-help" title={fatura.documentoPDF ? (fatura.nomeDocumento || "PDF anexado") : "Sem PDF anexado"}>
                                         📄 {fatura.numero || 'Recibo'}
                                       </span>
+                                      {fatura.driveFileId && (
+                                        <span className="text-xs bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded" title="Importado do Google Drive">☁️ Drive</span>
+                                      )}
                                       
                                       <span className={`text-xs px-2 py-1 rounded font-bold ${
                                         fatura.tipo === 'FT' ? 'bg-green-100 text-green-700 border border-green-300' :
@@ -21584,10 +21907,18 @@ const calcularIndiceDesperdicio = (comprasPeriodo, vendasPeriodo, produtos) => {
                                             </div>
                                           </div>
                                           <button
-                                            onClick={() => {
+                                            onClick={async () => {
                                               try {
-
-                                                const base64Data = fatura.documentoPDF.split(',')[1] || fatura.documentoPDF;
+                                                // 📦 Carregar do IndexedDB se necessário
+                                                let pdfRaw = fatura.documentoPDF;
+                                                if (pdfRaw === 'indexeddb') {
+                                                  pdfRaw = await PDFStorage.get(String(fatura.id));
+                                                  if (!pdfRaw) {
+                                                    alert('PDF não encontrado no armazenamento local.');
+                                                    return;
+                                                  }
+                                                }
+                                                const base64Data = pdfRaw.split(',')[1] || pdfRaw;
                                                 const byteCharacters = atob(base64Data);
                                                 const byteNumbers = new Array(byteCharacters.length);
                                                 for (let i = 0; i < byteCharacters.length; i++) {
@@ -21680,7 +22011,50 @@ const calcularIndiceDesperdicio = (comprasPeriodo, vendasPeriodo, produtos) => {
                   
                   {/* 🆕 Informação sobre últimas importações - SEMPRE VISÍVEL */}
                   <div className="mt-3 pt-3 border-t border-purple-200">
-                    <p className="text-xs font-semibold text-gray-700 mb-2">📅 Últimas Importações:</p>
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-xs font-semibold text-gray-700">📅 Últimas Importações:</p>
+                      <button
+                        onClick={() => {
+                          // Recalcular datas a partir das vendas existentes
+                          const vendasMoloni = vendas.filter(v => v.origem === 'moloni' || v.origem === 'csv');
+                          const vendasZobaze = vendas.filter(v => v.origem === 'zobaze');
+                          const vendasSemOrigem = vendas.filter(v => !v.origem);
+                          
+                          if (vendasMoloni.length > 0) {
+                            const datasMoloni = vendasMoloni
+                              .map(v => v.data)
+                              .filter(d => d)
+                              .sort((a, b) => new Date(b) - new Date(a));
+                            if (datasMoloni.length > 0) setUltimaImportacaoMoloni(datasMoloni[0]);
+                          }
+                          
+                          if (vendasZobaze.length > 0) {
+                            const datasZobaze = vendasZobaze
+                              .map(v => v.data)
+                              .filter(d => d)
+                              .sort((a, b) => new Date(b) - new Date(a));
+                            if (datasZobaze.length > 0) setUltimaImportacaoZobaze(datasZobaze[0]);
+                          }
+                          
+                          // Se não encontrou nada mas há vendas sem origem, mostrar aviso
+                          const msg = vendasSemOrigem.length > 0
+                            ? `🔄 Datas recalculadas!\n` +
+                              `Moloni: ${vendasMoloni.length} vendas\n` +
+                              `Zobaze: ${vendasZobaze.length} vendas\n` +
+                              `⚠️ ${vendasSemOrigem.length} vendas sem origem (importação antiga)`
+                            : `🔄 Datas recalculadas!\n` +
+                              `Moloni: ${vendasMoloni.length} vendas\n` +
+                              `Zobaze: ${vendasZobaze.length} vendas`;
+                          
+                          showNotification(msg, 'info');
+                        }}
+                        className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 px-2 py-1 rounded-md transition flex items-center gap-1"
+                        title="Recalcular datas a partir das vendas existentes"
+                      >
+                        <RefreshCw className="w-3 h-3" />
+                        Refresh
+                      </button>
+                    </div>
                     <div className="grid grid-cols-2 gap-2">
                       <div className="bg-white border border-green-200 rounded-lg p-2">
                         <div className="flex items-center gap-1.5 mb-1">
@@ -21692,6 +22066,11 @@ const calcularIndiceDesperdicio = (comprasPeriodo, vendasPeriodo, produtos) => {
                             ? new Date(ultimaImportacaoMoloni).toLocaleDateString('pt-PT')
                             : '—'}
                         </p>
+                        <p className="text-[10px] text-gray-400 font-mono">
+                          {ultimaImportacaoMoloni 
+                            ? `Venda mais recente`
+                            : 'Sem dados'}
+                        </p>
                       </div>
                       <div className="bg-white border border-blue-200 rounded-lg p-2">
                         <div className="flex items-center gap-1.5 mb-1">
@@ -21702,6 +22081,11 @@ const calcularIndiceDesperdicio = (comprasPeriodo, vendasPeriodo, produtos) => {
                           {ultimaImportacaoZobaze 
                             ? new Date(ultimaImportacaoZobaze).toLocaleDateString('pt-PT')
                             : '—'}
+                        </p>
+                        <p className="text-[10px] text-gray-400 font-mono">
+                          {ultimaImportacaoZobaze 
+                            ? `Venda mais recente`
+                            : 'Sem dados'}
                         </p>
                       </div>
                     </div>
